@@ -74,6 +74,7 @@ web-build/
 # Environment variables
 .env
 .env.local
+frontend/.env
 .env.development.local
 .env.test.local
 .env.production.local
@@ -192,4 +193,5 @@ public
 *.bak
 *.swp
 *~
+
 
