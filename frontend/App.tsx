@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, Animated } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { AppNavigator } from './src/navigation/AppNavigator';
 import OnboardingScreen from './screens/OnboardingScreen';
 import { useTheme } from './hooks/useTheme';
 
@@ -39,10 +41,10 @@ export default function App() {
   }
 
   return (
-    <OnboardingScreen 
-      theme={theme} 
-      onGetStarted={handleGetStarted}
-    />
+    <SafeAreaProvider>
+      <StatusBar style="light" />
+      <AppNavigator />
+    </SafeAreaProvider>
   );
 }
 
