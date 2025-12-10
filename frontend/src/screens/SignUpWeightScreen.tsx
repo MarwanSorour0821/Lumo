@@ -163,13 +163,31 @@ export function SignUpWeightScreen({ navigation, route }: SignUpWeightScreenProp
       let profileError = null;
       let retries = 3;
       
+      // Extract user information from signUpData
+      let firstName: string | undefined;
+      let lastName: string | undefined;
+      let email: string | undefined;
+      
+      if (isAppleSignIn(signUpData)) {
+        firstName = signUpData.firstName;
+        lastName = signUpData.lastName;
+        email = signUpData.email;
+      } else {
+        firstName = signUpData.firstName;
+        lastName = signUpData.lastName;
+        email = signUpData.email;
+      }
+      
       while (retries > 0) {
         const result = await createUserProfile(
           userId,
           sex,
           dateOfBirth,
           heightInCm,
-          weightInKg
+          weightInKg,
+          firstName,
+          lastName,
+          email
         );
         
         profileError = result.error;

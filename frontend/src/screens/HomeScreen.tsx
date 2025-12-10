@@ -13,7 +13,8 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Svg, { Path, Circle, G } from 'react-native-svg';
 import { Colors, Spacing, FontSize, BorderRadius } from '../constants/theme';
 import { RootStackParamList } from '../types';
-import { getUserCreationDate } from '../lib/supabase';
+import { getCurrentSession, getUserCreationDate } from '../lib/supabase';
+import { BottomNavBar } from '../components/BottomNavBar';
 
 type HomeScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Home'>;
@@ -115,29 +116,51 @@ const ArrowRightIcon = ({ size = 24, color = '#FFFFFF' }: { size?: number; color
 export function HomeScreen({ navigation }: HomeScreenProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [myTestsExpanded, setMyTestsExpanded] = useState(true);
-  const [currentDate, setCurrentDate] = useState(new Date());
+  
+  // Initialize selectedDate to today (without time)
+  const getToday = () => {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    return date;
+  };
+  
+  const [selectedDate, setSelectedDate] = useState(getToday());
   const [accountCreationDate, setAccountCreationDate] = useState<Date | null>(null);
+  const [loading, setLoading] = useState(true);
 
+  // Get current date (today)
+  const today = getToday();
+
+  // Load account creation date on mount
   useEffect(() => {
-    // Fetch account creation date
-    const fetchCreationDate = async () => {
-      const { data, error } = await getUserCreationDate();
-      if (data && !error) {
-        setAccountCreationDate(data);
-        // Set current date to today, but ensure it's not before creation date
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const creationDate = new Date(data);
-        creationDate.setHours(0, 0, 0, 0);
-        
-        if (today >= creationDate) {
-          setCurrentDate(today);
-        } else {
-          setCurrentDate(creationDate);
+    const loadAccountCreationDate = async () => {
+      try {
+        const { data: sessionData } = await getCurrentSession();
+        if (sessionData.user?.id) {
+          const { data: creationDate } = await getUserCreationDate(sessionData.user.id);
+          if (creationDate) {
+            const date = new Date(creationDate);
+            date.setHours(0, 0, 0, 0);
+            setAccountCreationDate(date);
+            // Set initial selected date to today (without time)
+            const todayDate = new Date();
+            todayDate.setHours(0, 0, 0, 0);
+            setSelectedDate(todayDate);
+          }
         }
+      } catch (error) {
+        console.error('Error loading account creation date:', error);
+        // Default to today if error
+        const todayDate = new Date();
+        todayDate.setHours(0, 0, 0, 0);
+        setAccountCreationDate(todayDate);
+        setSelectedDate(todayDate);
+      } finally {
+        setLoading(false);
       }
     };
-    fetchCreationDate();
+
+    loadAccountCreationDate();
   }, []);
 
   // Format date for display
@@ -154,52 +177,48 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   // Check if we can go to previous day
   const canGoPrevious = () => {
     if (!accountCreationDate) return false;
-    const prevDate = new Date(currentDate);
+    const prevDate = new Date(selectedDate);
     prevDate.setDate(prevDate.getDate() - 1);
     prevDate.setHours(0, 0, 0, 0);
-    
-    const creationDate = new Date(accountCreationDate);
-    creationDate.setHours(0, 0, 0, 0);
-    
-    return prevDate >= creationDate;
+    return prevDate >= accountCreationDate;
   };
 
   // Check if we can go to next day
   const canGoNext = () => {
-    const nextDate = new Date(currentDate);
+    const nextDate = new Date(selectedDate);
     nextDate.setDate(nextDate.getDate() + 1);
     nextDate.setHours(0, 0, 0, 0);
-    
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
     return nextDate <= today;
   };
 
-  const handlePreviousDay = () => {
+  // Navigate to previous day
+  const goToPreviousDay = () => {
     if (canGoPrevious()) {
-      const newDate = new Date(currentDate);
-      newDate.setDate(newDate.getDate() - 1);
-      setCurrentDate(newDate);
+      const prevDate = new Date(selectedDate);
+      prevDate.setDate(prevDate.getDate() - 1);
+      prevDate.setHours(0, 0, 0, 0);
+      setSelectedDate(prevDate);
     }
   };
 
-  const handleNextDay = () => {
+  // Navigate to next day
+  const goToNextDay = () => {
     if (canGoNext()) {
-      const newDate = new Date(currentDate);
-      newDate.setDate(newDate.getDate() + 1);
-      setCurrentDate(newDate);
+      const nextDate = new Date(selectedDate);
+      nextDate.setDate(nextDate.getDate() + 1);
+      nextDate.setHours(0, 0, 0, 0);
+      setSelectedDate(nextDate);
     }
   };
 
-  const { dayName, dateString } = formatDate(currentDate);
-  const canPrevious = canGoPrevious();
-  const canNext = canGoNext();
+  const { dayName, dateString } = formatDate(selectedDate);
+  const canGoPrev = canGoPrevious();
+  const canGoNxt = canGoNext();
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
@@ -208,14 +227,14 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
           {/* Header with Date */}
           <View style={styles.header}>
             <TouchableOpacity 
-              style={styles.chevronButton}
-              onPress={handlePreviousDay}
-              disabled={!canPrevious}
-              activeOpacity={canPrevious ? 0.7 : 1}
+              style={[styles.chevronButton, !canGoPrev && styles.chevronButtonDisabled]}
+              onPress={goToPreviousDay}
+              disabled={!canGoPrev}
+              activeOpacity={0.6}
             >
               <ChevronLeftIcon 
                 size={24} 
-                color={canPrevious ? Colors.white : Colors.dark.textSecondary} 
+                color={Colors.white} 
               />
             </TouchableOpacity>
             <View style={styles.dateContainer}>
@@ -223,14 +242,14 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
               <Text style={styles.dateText}>{dateString}</Text>
             </View>
             <TouchableOpacity 
-              style={styles.chevronButton}
-              onPress={handleNextDay}
-              disabled={!canNext}
-              activeOpacity={canNext ? 0.7 : 1}
+              style={[styles.chevronButton, !canGoNxt && styles.chevronButtonDisabled]}
+              onPress={goToNextDay}
+              disabled={!canGoNxt}
+              activeOpacity={0.6}
             >
               <ChevronRightIcon 
                 size={24} 
-                color={canNext ? Colors.white : Colors.dark.textSecondary} 
+                color={Colors.white} 
               />
             </TouchableOpacity>
           </View>
@@ -241,18 +260,24 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
           </Text>
 
           {/* Search Bar */}
-          <View style={styles.searchContainer}>
+          <TouchableOpacity
+            style={styles.searchContainer}
+            onPress={() => navigation.navigate('Chat')}
+            activeOpacity={0.8}
+          >
             <TextInput
               style={styles.searchInput}
               placeholder="Ask your question"
               placeholderTextColor={Colors.dark.textSecondary}
               value={searchQuery}
               onChangeText={setSearchQuery}
+              editable={false}
+              pointerEvents="none"
             />
             <View style={styles.searchIconContainer}>
               <SearchIcon size={20} color={Colors.white} />
             </View>
-          </View>
+          </TouchableOpacity>
 
           {/* Promotional Card */}
           <View style={styles.promoCard}>
@@ -303,6 +328,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
             </View>
           )}
         </ScrollView>
+        <BottomNavBar currentRoute="Home" />
       </SafeAreaView>
     </View>
   );
@@ -332,6 +358,9 @@ const styles = StyleSheet.create({
   },
   chevronButton: {
     padding: Spacing.xs,
+  },
+  chevronButtonDisabled: {
+    opacity: 0.4,
   },
   dateContainer: {
     alignItems: 'center',
@@ -462,3 +491,4 @@ const styles = StyleSheet.create({
     color: Colors.dark.textSecondary,
   },
 });
+

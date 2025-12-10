@@ -51,5 +51,9 @@ export type RootStackParamList = {
     heightUnit: 'cm' | 'ft' 
   };
   Home: undefined;
+  MyLab: undefined;
+  Chat: undefined;
+  Settings: undefined;
+  NotificationSettings: undefined;
 };
 

@@ -11,6 +11,10 @@ import { SignUpHeightScreen } from '../screens/SignUpHeightScreen';
 import { SignUpWeightScreen } from '../screens/SignUpWeightScreen';
 import { LoginScreen } from '../screens/LoginScreen';
 import { HomeScreen } from '../screens/HomeScreen';
+import { MyLabScreen } from '../screens/MyLabScreen';
+import { ChatScreen } from '../screens/ChatScreen';
+import { SettingsScreen } from '../screens/SettingsScreen';
+import { NotificationSettingsScreen } from '../screens/NotificationSettingsScreen';
 import { RootStackParamList } from '../types';
 import { Colors } from '../constants/theme';
 import { getCurrentSession } from '../lib/supabase';
@@ -63,7 +67,42 @@ export function AppNavigator() {
       >
         <Stack.Screen name="Onboarding" component={OnboardingScreen} />
         <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen 
+          name="Home" 
+          component={HomeScreen}
+          options={{
+            animation: 'fade',
+            animationDuration: 150,
+          }}
+        />
+        <Stack.Screen 
+          name="MyLab" 
+          component={MyLabScreen}
+          options={{
+            animation: 'fade',
+            animationDuration: 150,
+          }}
+        />
+        <Stack.Screen 
+          name="Chat" 
+          component={ChatScreen}
+          options={{
+            animation: 'fade',
+            animationDuration: 150,
+          }}
+        />
+        <Stack.Screen 
+          name="Settings" 
+          component={SettingsScreen}
+          options={{
+            animation: 'fade',
+            animationDuration: 150,
+          }}
+        />
+        <Stack.Screen 
+          name="NotificationSettings" 
+          component={NotificationSettingsScreen}
+        />
         <Stack.Screen name="SignUpPersonal" component={SignUpPersonalScreen} />
         <Stack.Screen name="SignUpCredentials" component={SignUpCredentialsScreen} />
         <Stack.Screen name="SignUpSex" component={SignUpSexScreen} />
