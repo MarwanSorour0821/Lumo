@@ -1,14 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, Animated } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { useFonts } from 'expo-font';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppNavigator } from './src/navigation/AppNavigator';
-import OnboardingScreen from './screens/OnboardingScreen';
-import { useTheme } from './hooks/useTheme';
 
 export default function App() {
+  const [fontsLoaded] = useFonts({
+    'ProductSans-Regular': require('./assets/fonts/Product Sans Font/Product Sans Regular.ttf'),
+    'ProductSans-Bold': require('./assets/fonts/Product Sans Font/Product Sans Bold.ttf'),
+    'ProductSans-Italic': require('./assets/fonts/Product Sans Font/Product Sans Italic.ttf'),
+    'ProductSans-BoldItalic': require('./assets/fonts/Product Sans Font/Product Sans Bold Italic.ttf'),
+  });
   const [splashVisible, setSplashVisible] = useState(true);
-  const theme = useTheme();
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -26,10 +30,10 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [fadeAnim]);
 
-  const handleGetStarted = () => {
-    // Handle navigation to next screen
-    console.log('Get Started pressed');
-  };
+  // Wait for fonts before rendering anything
+  if (!fontsLoaded) {
+    return null;
+  }
 
   if (splashVisible) {
     return (
@@ -57,7 +61,7 @@ const styles = StyleSheet.create({
   },
   splashText: {
     fontSize: 64,
-    fontWeight: 'bold',
+    fontFamily: 'ProductSans-Bold',
     color: '#fff',
     letterSpacing: 4,
   },
