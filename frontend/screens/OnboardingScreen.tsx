@@ -1,5 +1,5 @@
-import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { StyleSheet, Text, View, Animated } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { PrimaryButton } from '../components';
 import { colors, Theme } from '../constants/theme';
@@ -14,7 +14,42 @@ export default function OnboardingScreen({
   onGetStarted 
 }: OnboardingScreenProps) {
   const themeColors = colors[theme];
+  const mainTextFade = useRef(new Animated.Value(0)).current;
+  const mainTextSlide = useRef(new Animated.Value(30)).current;
+  const subTextFade = useRef(new Animated.Value(0)).current;
+  const buttonFade = useRef(new Animated.Value(0)).current;
 
+  useEffect(() => {
+    // Animate main text: fade in + slide up
+    Animated.parallel([
+      Animated.timing(mainTextFade, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(mainTextSlide, {
+        toValue: 0,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Animate sub text: fade in only (with delay)
+    Animated.timing(subTextFade, {
+      toValue: 1,
+      duration: 600,
+      delay: 200,
+      useNativeDriver: true,
+    }).start();
+
+    // Animate button: fade in (with delay)
+    Animated.timing(buttonFade, {
+      toValue: 1,
+      duration: 600,
+      delay: 400,
+      useNativeDriver: true,
+    }).start();
+  }, []);
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.background }]}>
@@ -22,20 +57,43 @@ export default function OnboardingScreen({
       
       <View style={styles.bottomSection}>
         <View style={styles.content}>
-          <Text style={[styles.mainText, { color: themeColors.primaryText }]}>
+          <Animated.Text 
+            style={[
+              styles.mainText, 
+              { 
+                color: themeColors.primaryText,
+                opacity: mainTextFade,
+                transform: [{ translateY: mainTextSlide }],
+              }
+            ]}
+          >
             Top-class premium{'\n'}analysis on your{'\n'}blood tests at your{'\n'}finger tips.
-          </Text>
+          </Animated.Text>
           
-          <Text style={[styles.subText, { color: themeColors.secondaryText }]}>
+          <Animated.Text 
+            style={[
+              styles.subText, 
+              { 
+                color: themeColors.secondaryText,
+                opacity: subTextFade,
+              }
+            ]}
+          >
             Create an account and join over 100,000{'\n'}people who are already using our app.
-          </Text>
+          </Animated.Text>
         </View>
 
-        <PrimaryButton 
-          text="Get Started"
-          theme={theme}
-          onPress={onGetStarted}
-        />
+        <Animated.View
+          style={{
+            opacity: buttonFade,
+          }}
+        >
+          <PrimaryButton 
+            text="Get Started"
+            theme={theme}
+            onPress={onGetStarted}
+          />
+        </Animated.View>
       </View>
     </View>
   );
