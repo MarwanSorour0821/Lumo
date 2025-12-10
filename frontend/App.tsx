@@ -16,11 +16,6 @@ export default function App() {
   const theme = useTheme();
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
-  // Wait for fonts before rendering anything
-  if (!fontsLoaded) {
-    return null;
-  }
-
   useEffect(() => {
     // Hide splash screen after 2 seconds with fade animation
     const timer = setTimeout(() => {
@@ -35,6 +30,11 @@ export default function App() {
 
     return () => clearTimeout(timer);
   }, [fadeAnim]);
+
+  // Wait for fonts before rendering anything
+  if (!fontsLoaded) {
+    return null;
+  }
 
   const handleGetStarted = () => {
     // Handle navigation to next screen
