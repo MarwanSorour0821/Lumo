@@ -25,9 +25,21 @@ export interface UserProfile {
 }
 
 export type RootStackParamList = {
-  Welcome: undefined;
+  Onboarding: undefined;
   SignUpPersonal: undefined;
-  SignUpBiometrics: { signUpData: SignUpData };
+  SignUpCredentials: { firstName: string; lastName: string };
+  SignUpSex: { signUpData: SignUpData };
+  SignUpAge: { signUpData: SignUpData; sex: BiologicalSex };
+  SignUpHeight: { signUpData: SignUpData; sex: BiologicalSex; age: string };
+  SignUpWeight: { 
+    signUpData: SignUpData; 
+    sex: BiologicalSex; 
+    age: string; 
+    height: string; 
+    heightFeet: string; 
+    heightInches: string; 
+    heightUnit: 'cm' | 'ft' 
+  };
   Home: undefined;
 };
 

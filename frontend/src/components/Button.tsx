@@ -111,6 +111,7 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'left',
     marginLeft: Spacing.sm,
+    fontFamily: 'ProductSans-Bold',
   },
   primaryText: {
     color: Colors.white,
@@ -124,6 +125,7 @@ const styles = StyleSheet.create({
   arrow: {
     fontSize: FontSize.lg,
     marginLeft: Spacing.sm,
+    fontFamily: 'ProductSans-Bold',
   },
 });
 

@@ -1,15 +1,19 @@
 import React, { useEffect, useRef } from 'react';
-import { StyleSheet, Text, View, Animated } from 'react-native';
+import { StyleSheet, Text, View, Animated, ScrollView } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { PrimaryButton } from '../components';
 import { colors, Theme } from '../constants/theme';
+import { RootStackParamList } from '../src/types';
 
 interface OnboardingScreenProps {
+  navigation: NativeStackNavigationProp<RootStackParamList, 'Onboarding'>;
   theme?: Theme;
   onGetStarted?: () => void;
 }
 
 export default function OnboardingScreen({ 
+  navigation,
   theme = 'dark',
   onGetStarted 
 }: OnboardingScreenProps) {
@@ -54,47 +58,51 @@ export default function OnboardingScreen({
   return (
     <View style={[styles.container, { backgroundColor: themeColors.background }]}>
       <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
-      
-      <View style={styles.bottomSection}>
-        <View style={styles.content}>
-          <Animated.Text 
-            style={[
-              styles.mainText, 
-              { 
-                color: themeColors.primaryText,
-                opacity: mainTextFade,
-                transform: [{ translateY: mainTextSlide }],
-              }
-            ]}
-          >
-            Top-class premium{'\n'}analysis on your{'\n'}blood tests at your{'\n'}finger tips.
-          </Animated.Text>
-          
-          <Animated.Text 
-            style={[
-              styles.subText, 
-              { 
-                color: themeColors.secondaryText,
-                opacity: subTextFade,
-              }
-            ]}
-          >
-            Create an account and join over 100,000{'\n'}people who are already using our app.
-          </Animated.Text>
-        </View>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.bottomSection}>
+          <View style={styles.content}>
+            <Animated.Text 
+              style={[
+                styles.mainText, 
+                { 
+                  color: themeColors.primaryText,
+                  opacity: mainTextFade,
+                  transform: [{ translateY: mainTextSlide }],
+                }
+              ]}
+            >
+              Top-class premium{'\n'}analysis on your{'\n'}blood tests at your{'\n'}finger tips.
+            </Animated.Text>
+            
+            <Animated.Text 
+              style={[
+                styles.subText, 
+                { 
+                  color: themeColors.secondaryText,
+                  opacity: subTextFade,
+                }
+              ]}
+            >
+              Create an account and join over 100,000{'\n'}people who are already using our app.
+            </Animated.Text>
+          </View>
 
-        <Animated.View
-          style={{
-            opacity: buttonFade,
-          }}
-        >
-          <PrimaryButton 
-            text="Get Started"
-            theme={theme}
-            onPress={onGetStarted}
-          />
-        </Animated.View>
-      </View>
+          <Animated.View
+            style={{
+              opacity: buttonFade,
+            }}
+          >
+            <PrimaryButton 
+              text="Get Started"
+              theme={theme}
+              onPress={onGetStarted ?? (() => navigation.navigate('SignUpPersonal'))}
+            />
+          </Animated.View>
+        </View>
+      </ScrollView>
     </View>
   );
 }
@@ -104,10 +112,14 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 24,
   },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'flex-end',
+    paddingVertical: 40,
+  },
   bottomSection: {
     flex: 1,
     justifyContent: 'flex-end',
-    paddingBottom: 40,
   },
   content: {
     marginBottom: 32,
@@ -117,11 +129,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 40,
     marginBottom: 24,
+    fontFamily: 'ProductSans-Regular',
   },
   subText: {
     fontSize: 16,
     textAlign: 'center',
     lineHeight: 24,
+    fontFamily: 'ProductSans-Regular',
   },
 });
 

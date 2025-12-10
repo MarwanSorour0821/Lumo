@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RouteProp } from '@react-navigation/native';
 import { Input } from '../components/Input';
 import PrimaryButton from '../../components/PrimaryButton';
 import BackButton from '../../components/BackButton';
@@ -18,13 +19,16 @@ import { ProgressBar } from '../components/ProgressBar';
 import { Colors, FontSize, FontWeight, Spacing } from '../constants/theme';
 import { RootStackParamList } from '../types';
 
-type SignUpPersonalScreenProps = {
-  navigation: NativeStackNavigationProp<RootStackParamList, 'SignUpPersonal'>;
+type SignUpCredentialsScreenProps = {
+  navigation: NativeStackNavigationProp<RootStackParamList, 'SignUpCredentials'>;
+  route: RouteProp<RootStackParamList, 'SignUpCredentials'>;
 };
 
-export function SignUpPersonalScreen({ navigation }: SignUpPersonalScreenProps) {
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
+export function SignUpCredentialsScreen({ navigation, route }: SignUpCredentialsScreenProps) {
+  const { firstName, lastName } = route.params;
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const headingFade = useRef(new Animated.Value(0)).current;
   const inputsFade = useRef(new Animated.Value(0)).current;
@@ -58,11 +62,18 @@ export function SignUpPersonalScreen({ navigation }: SignUpPersonalScreenProps) 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
     
-    if (!firstName.trim()) {
-      newErrors.firstName = 'First name is required';
+    if (!email.trim()) {
+      newErrors.email = 'Email is required';
+    } else if (!/\S+@\S+\.\S+/.test(email)) {
+      newErrors.email = 'Please enter a valid email';
     }
-    if (!lastName.trim()) {
-      newErrors.lastName = 'Last name is required';
+    if (!password) {
+      newErrors.password = 'Password is required';
+    } else if (password.length < 8) {
+      newErrors.password = 'Password must be at least 8 characters';
+    }
+    if (password !== confirmPassword) {
+      newErrors.confirmPassword = 'Passwords do not match';
     }
     
     setErrors(newErrors);
@@ -71,9 +82,13 @@ export function SignUpPersonalScreen({ navigation }: SignUpPersonalScreenProps) 
 
   const handleContinue = () => {
     if (validateForm()) {
-      navigation.navigate('SignUpCredentials', {
-        firstName,
-        lastName,
+      navigation.navigate('SignUpSex', {
+        signUpData: {
+          firstName,
+          lastName,
+          email,
+          password,
+        },
       });
     }
   };
@@ -89,7 +104,7 @@ export function SignUpPersonalScreen({ navigation }: SignUpPersonalScreenProps) 
             theme="dark"
           />
         </View>
-        <ProgressBar currentStep={1} totalSteps={7} />
+        <ProgressBar currentStep={2} totalSteps={7} />
         
         <KeyboardAvoidingView
           style={styles.keyboardView}
@@ -110,7 +125,7 @@ export function SignUpPersonalScreen({ navigation }: SignUpPersonalScreenProps) 
                   }
                 ]}
               >
-                What should we call you?
+                Create your account
               </Animated.Text>
               
               <Animated.View 
@@ -121,30 +136,39 @@ export function SignUpPersonalScreen({ navigation }: SignUpPersonalScreenProps) 
                   }
                 ]}
               >
-                <View style={styles.halfInput}>
-                  <Input
-                    label="First Name"
-                    value={firstName}
-                    onChangeText={setFirstName}
-                    placeholder="John"
-                    autoCapitalize="words"
-                    error={errors.firstName}
-                    isDark={true}
-                    variant="underline"
-                  />
-                </View>
-                <View style={styles.halfInput}>
-                  <Input
-                    label="Last Name"
-                    value={lastName}
-                    onChangeText={setLastName}
-                    placeholder="Doe"
-                    autoCapitalize="words"
-                    error={errors.lastName}
-                    isDark={true}
-                    variant="underline"
-                  />
-                </View>
+                <Input
+                  label="Your email"
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="i.e. johndoe@gmail.com"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  error={errors.email}
+                  isDark={true}
+                  variant="underline"
+                />
+                
+                <Input
+                  label="Password"
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="Enter your password"
+                  secureTextEntry
+                  error={errors.password}
+                  isDark={true}
+                  variant="underline"
+                />
+                
+                <Input
+                  label="Confirm Password"
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  placeholder="Confirm your password"
+                  secureTextEntry
+                  error={errors.confirmPassword}
+                  isDark={true}
+                  variant="underline"
+                />
               </Animated.View>
             </View>
           </ScrollView>
@@ -182,16 +206,6 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.md,
     paddingBottom: Spacing.sm,
   },
-  keyboardView: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingVertical: Spacing.lg,
-  },
   headingContainer: {
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.lg,
@@ -205,15 +219,17 @@ const styles = StyleSheet.create({
     fontFamily: 'ProductSans-Regular',
   },
   inputsContainer: {
-    flexDirection: 'row',
-    gap: Spacing.md,
+    gap: 0,
   },
-  row: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-  },
-  halfInput: {
+  keyboardView: {
     flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingVertical: Spacing.lg,
   },
   socialButtons: {
     marginTop: Spacing.lg,
