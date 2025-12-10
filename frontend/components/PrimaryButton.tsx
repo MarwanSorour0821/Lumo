@@ -85,7 +85,6 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontSize: 18,
-    fontFamily: 'ProductSans-Bold',
   },
   arrowContainer: {
     justifyContent: 'center',

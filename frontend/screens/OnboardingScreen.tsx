@@ -114,14 +114,12 @@ const styles = StyleSheet.create({
   },
   mainText: {
     fontSize: 40,
-    fontFamily: 'ProductSans-Regular',
     textAlign: 'center',
     lineHeight: 40,
     marginBottom: 24,
   },
   subText: {
     fontSize: 16,
-    fontFamily: 'ProductSans-Regular',
     textAlign: 'center',
     lineHeight: 24,
   },

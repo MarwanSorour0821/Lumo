@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
 import { Input } from '../components/Input';
 import { Button } from '../components/Button';
 import { ProgressBar } from '../components/ProgressBar';
@@ -97,6 +98,15 @@ export function SignUpPersonalScreen({ navigation }: SignUpPersonalScreenProps) 
       </View>
       
       <SafeAreaView style={styles.safeArea}>
+        <View style={styles.headerContainer}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="arrow-back" size={24} color={Colors.white} />
+          </TouchableOpacity>
+        </View>
         <ProgressBar currentStep={1} totalSteps={3} />
         
         <KeyboardAvoidingView
@@ -230,6 +240,19 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
+  },
+  headerContainer: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.sm,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   keyboardView: {
     flex: 1,
