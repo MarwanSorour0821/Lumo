@@ -21,8 +21,13 @@ import PrimaryButton from '../../components/PrimaryButton';
 import BackButton from '../../components/BackButton';
 import { ProgressBar } from '../components/ProgressBar';
 import { Colors, FontSize, Spacing, BorderRadius } from '../constants/theme';
-import { RootStackParamList, BiologicalSex, SignUpData } from '../types';
+import { RootStackParamList, BiologicalSex, SignUpData, AppleSignUpData } from '../types';
 import { signUpWithEmail, createUserProfile } from '../lib/supabase';
+
+// Helper to check if signUpData is from Apple Sign In
+const isAppleSignIn = (data: SignUpData | AppleSignUpData): data is AppleSignUpData => {
+  return 'isAppleSignIn' in data && data.isAppleSignIn === true;
+};
 
 type SignUpWeightScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'SignUpWeight'>;
@@ -125,81 +130,84 @@ export function SignUpWeightScreen({ navigation, route }: SignUpWeightScreenProp
         weightInKg = lbsToKg(parseFloat(weight));
       }
 
-      // Sign up with Supabase Auth
-      const { data: authData, error: authError } = await signUpWithEmail(
-        signUpData.email,
-        signUpData.password
-      );
-      
-      if (authError) {
-        Alert.alert('Sign Up Error', authError.message);
-        setLoading(false);
-        return;
-      }
-      
-      if (authData.user) {
-        // Create user profile in public.users table
-        // Retry up to 3 times if there's a foreign key constraint error
-        let profileError = null;
-        let retries = 3;
+      let userId: string;
+
+      // Check if this is an Apple Sign In user (already authenticated)
+      if (isAppleSignIn(signUpData)) {
+        // User is already authenticated via Apple, use their ID directly
+        userId = signUpData.userId;
+      } else {
+        // Regular sign up with email/password
+        const { data: authData, error: authError } = await signUpWithEmail(
+          signUpData.email,
+          signUpData.password
+        );
         
-        while (retries > 0) {
-          const result = await createUserProfile(
-            authData.user.id,
-            sex,
-            dateOfBirth,
-            heightInCm,
-            weightInKg
-          );
-          
-          profileError = result.error;
-          
-          // If no error, break out of retry loop
-          if (!profileError) {
-            break;
-          }
-          
-          // If it's a foreign key error, wait and retry
-          if (profileError.message.includes('foreign key') || profileError.message.includes('users_id_fkey')) {
-            retries--;
-            if (retries > 0) {
-              // Wait longer before retrying
-              await new Promise(resolve => setTimeout(resolve, 1000));
-              continue;
-            }
-          }
-          
-          // For other errors, don't retry
-          break;
-        }
-        
-        if (profileError) {
-          Alert.alert(
-            'Profile Error', 
-            profileError.message + '\n\nIf this persists, please check your Supabase database configuration.'
-          );
+        if (authError) {
+          Alert.alert('Sign Up Error', authError.message);
           setLoading(false);
           return;
         }
-
-        // Success - hide loading and show success message
-        setLoading(false);
-        Alert.alert(
-          'Success!',
-          'Your account has been created successfully!',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: 'Onboarding' }],
-                });
-              },
-            },
-          ]
-        );
+        
+        if (!authData.user) {
+          Alert.alert('Sign Up Error', 'Failed to create account');
+          setLoading(false);
+          return;
+        }
+        
+        userId = authData.user.id;
       }
+
+      // Create user profile in public.users table
+      // Retry up to 3 times if there's a foreign key constraint error
+      let profileError = null;
+      let retries = 3;
+      
+      while (retries > 0) {
+        const result = await createUserProfile(
+          userId,
+          sex,
+          dateOfBirth,
+          heightInCm,
+          weightInKg
+        );
+        
+        profileError = result.error;
+        
+        // If no error, break out of retry loop
+        if (!profileError) {
+          break;
+        }
+        
+        // If it's a foreign key error, wait and retry
+        if (profileError.message.includes('foreign key') || profileError.message.includes('users_id_fkey')) {
+          retries--;
+          if (retries > 0) {
+            // Wait longer before retrying
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            continue;
+          }
+        }
+        
+        // For other errors, don't retry
+        break;
+      }
+      
+      if (profileError) {
+        Alert.alert(
+          'Profile Error', 
+          profileError.message + '\n\nIf this persists, please check your Supabase database configuration.'
+        );
+        setLoading(false);
+        return;
+      }
+
+      // Success - hide loading and navigate to Home
+      setLoading(false);
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Home' }],
+      });
     } catch (error: any) {
       Alert.alert('Error', error.message || 'An unexpected error occurred');
       setLoading(false);
@@ -481,3 +489,4 @@ const styles = StyleSheet.create({
     color: Colors.white,
   },
 });
+

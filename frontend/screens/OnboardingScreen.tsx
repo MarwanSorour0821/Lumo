@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { StyleSheet, Text, View, Animated, ScrollView } from 'react-native';
+import { StyleSheet, Text, View, Animated, ScrollView, TouchableOpacity } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { PrimaryButton } from '../components';
@@ -100,6 +100,16 @@ export default function OnboardingScreen({
               theme={theme}
               onPress={onGetStarted ?? (() => navigation.navigate('SignUpPersonal'))}
             />
+            <TouchableOpacity
+              style={styles.signInLink}
+              onPress={() => navigation.navigate('Login')}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.signInText, { color: themeColors.secondaryText }]}>
+                Already have an account?{' '}
+                <Text style={[styles.signInTextBold, { color: themeColors.primaryText }]}>Sign in</Text>
+              </Text>
+            </TouchableOpacity>
           </Animated.View>
         </View>
       </ScrollView>
@@ -136,6 +146,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 24,
     fontFamily: 'ProductSans-Regular',
+  },
+  signInLink: {
+    marginTop: 16,
+    alignItems: 'center',
+  },
+  signInText: {
+    fontSize: 14,
+    fontFamily: 'ProductSans-Regular',
+  },
+  signInTextBold: {
+    fontFamily: 'ProductSans-Bold',
   },
 });
 
