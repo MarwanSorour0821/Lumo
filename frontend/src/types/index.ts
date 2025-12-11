@@ -25,7 +25,30 @@ export interface UserProfile {
 }
 
 /** Added from analysisPage branch **/
-import { BloodTestAnalysisResponse } from '../lib/api';
+export interface PatientInfo {
+  name?: string | null;
+  age?: string | null;
+  test_date?: string | null;
+}
+
+export interface TestResult {
+  marker: string;
+  value: string;
+  unit: string;
+  reference_range: string;
+  status: 'normal' | 'high' | 'low' | null;
+}
+
+export interface ParsedBloodTestData {
+  patient_info: PatientInfo;
+  test_results: TestResult[];
+}
+
+export interface BloodTestAnalysisResponse {
+  parsed_data: ParsedBloodTestData;
+  analysis: string;
+  created_at: string;
+}
 
 /** From main branch - KEEP **/
 export interface AppleSignUpData {
