@@ -24,7 +24,10 @@ export interface UserProfile {
   updatedAt: Date;
 }
 
-// For Apple Sign In, we store the user info differently
+/** Added from analysisPage branch **/
+import { BloodTestAnalysisResponse } from '../lib/api';
+
+/** From main branch - KEEP **/
 export interface AppleSignUpData {
   userId: string;
   email?: string;
@@ -36,20 +39,33 @@ export interface AppleSignUpData {
 export type RootStackParamList = {
   Onboarding: undefined;
   Login: undefined;
+
+  /** MAIN branch signup flow (keep) **/
   SignUpPersonal: undefined;
   SignUpCredentials: { firstName: string; lastName: string };
   SignUpSex: { signUpData: SignUpData | AppleSignUpData };
   SignUpAge: { signUpData: SignUpData | AppleSignUpData; sex: BiologicalSex };
-  SignUpHeight: { signUpData: SignUpData | AppleSignUpData; sex: BiologicalSex; age: string };
-  SignUpWeight: { 
-    signUpData: SignUpData | AppleSignUpData; 
-    sex: BiologicalSex; 
-    age: string; 
-    height: string; 
-    heightFeet: string; 
-    heightInches: string; 
-    heightUnit: 'cm' | 'ft' 
+  SignUpHeight: {
+    signUpData: SignUpData | AppleSignUpData;
+    sex: BiologicalSex;
+    age: string;
   };
+  SignUpWeight: {
+    signUpData: SignUpData | AppleSignUpData;
+    sex: BiologicalSex;
+    age: string;
+    height: string;
+    heightFeet: string;
+    heightInches: string;
+    heightUnit: 'cm' | 'ft';
+  };
+
+  /** YOUR branch screens (analysis) **/
+  SignUpBiometrics: { signUpData: SignUpData };
+  MainApp: undefined;
+  AnalysisResults: { analysisData: BloodTestAnalysisResponse };
+
+  /** MAIN branch app pages **/
   Home: undefined;
   MyLab: undefined;
   Chat: undefined;
@@ -58,3 +74,9 @@ export type RootStackParamList = {
   EditInformation: undefined;
 };
 
+/** YOUR Tab navigator types (keep) **/
+export type TabParamList = {
+  Home: undefined;
+  Analyse: undefined;
+  History: undefined;
+};

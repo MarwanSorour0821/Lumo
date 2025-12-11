@@ -304,7 +304,7 @@ export function SignUpBiometricsScreen({ navigation, route }: SignUpBiometricsSc
             return;
           }
           
-          // Success - navigate to home or verification screen
+          // Success - navigate to main app
           Alert.alert(
             'Success!',
             'Your account has been created. Please check your email to verify your account.',

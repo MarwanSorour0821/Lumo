@@ -2,5 +2,8 @@ Django==4.2.27
 djangorestframework==3.16.1
 psycopg2-binary==2.9.9
 python-dotenv==1.0.1
+openai==2.9.0
+pillow==11.3.0
+django-cors-headers==4.9.0
 
 
