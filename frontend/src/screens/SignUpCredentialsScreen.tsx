@@ -82,13 +82,22 @@ export function SignUpCredentialsScreen({ navigation, route }: SignUpCredentials
 
   const handleContinue = () => {
     if (validateForm()) {
+      const signUpData = {
+        firstName,
+        lastName,
+        email,
+        password,
+      };
+      
+      console.log('SignUpCredentialsScreen - Navigating with signUpData:', {
+        firstName: firstName || '(empty)',
+        lastName: lastName || '(empty)',
+        email: email || '(empty)',
+        hasPassword: !!password
+      });
+      
       navigation.navigate('SignUpSex', {
-        signUpData: {
-          firstName,
-          lastName,
-          email,
-          password,
-        },
+        signUpData,
       });
     }
   };

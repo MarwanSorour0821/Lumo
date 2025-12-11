@@ -173,9 +173,35 @@ export function SignUpWeightScreen({ navigation, route }: SignUpWeightScreenProp
         lastName = signUpData.lastName;
         email = signUpData.email;
       } else {
+        // Regular signup - extract from SignUpData
         firstName = signUpData.firstName;
         lastName = signUpData.lastName;
         email = signUpData.email;
+      }
+
+      console.log('SignUpWeightScreen - Full signUpData:', signUpData);
+      console.log('SignUpWeightScreen - Extracted user info:', {
+        firstName,
+        lastName,
+        email,
+        isAppleSignIn: isAppleSignIn(signUpData),
+        signUpDataType: isAppleSignIn(signUpData) ? 'AppleSignUpData' : 'SignUpData'
+      });
+
+      // Validate that we have the required data
+      if (!firstName || !lastName || !email) {
+        console.error('SignUpWeightScreen - Missing user information:', {
+          firstName: firstName || 'MISSING',
+          lastName: lastName || 'MISSING',
+          email: email || 'MISSING',
+          signUpDataKeys: Object.keys(signUpData)
+        });
+        Alert.alert(
+          'Error',
+          'Missing user information. Please go back and ensure all fields are filled.'
+        );
+        setLoading(false);
+        return;
       }
       
       while (retries > 0) {

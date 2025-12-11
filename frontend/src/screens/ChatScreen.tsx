@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Platform,
   Modal,
   Pressable,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -121,39 +122,65 @@ type ChatScreenProps = {
 export function ChatScreen({ navigation }: ChatScreenProps) {
   const [message, setMessage] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
-  const [userName, setUserName] = useState('');
+  const [userName, setUserName] = useState<string | null>(null);
+  const [isNameLoaded, setIsNameLoaded] = useState(false);
+  const nameFade = useRef(new Animated.Value(0)).current;
 
   React.useEffect(() => {
     const fetchUserName = async () => {
       try {
         const { data: sessionData } = await getCurrentSession();
+        console.log('ChatScreen - Session data:', sessionData);
+        
         if (sessionData.user?.id) {
           // Get user profile from public.users table
           const { data: profileData, error } = await getUserProfile(sessionData.user.id);
+          
+          console.log('ChatScreen - Profile data:', profileData);
+          console.log('ChatScreen - Profile error:', error);
 
           if (!error && profileData && profileData.first_name) {
+            console.log('ChatScreen - Using first_name from profile:', profileData.first_name);
             setUserName(profileData.first_name);
           } else {
             // Try to get name from user metadata or email as last resort
             const emailName = sessionData.user.email?.split('@')[0];
             if (emailName) {
               // Capitalize first letter
-              setUserName(emailName.charAt(0).toUpperCase() + emailName.slice(1));
+              const capitalized = emailName.charAt(0).toUpperCase() + emailName.slice(1);
+              console.log('ChatScreen - Using email name:', capitalized);
+              setUserName(capitalized);
             } else {
-              setUserName('there');
+              console.log('ChatScreen - No name found, leaving empty');
+              setUserName(null);
             }
           }
         } else {
-          setUserName('there');
+          console.log('ChatScreen - No user session');
+          setUserName(null);
         }
       } catch (error) {
         console.error('Error fetching user name:', error);
-        setUserName('there');
+        setUserName(null);
       }
+
+      setIsNameLoaded(true);
     };
 
     fetchUserName();
   }, []);
+
+  // Fade in the greeting smoothly when the name is ready
+  React.useEffect(() => {
+    if (isNameLoaded) {
+      nameFade.setValue(0);
+      Animated.timing(nameFade, {
+        toValue: 1,
+        duration: 450,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [isNameLoaded, nameFade]);
 
   const handlePickImage = async () => {
     try {
@@ -220,12 +247,16 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
           >
             {/* Centered Greeting */}
             <View style={styles.greetingContainer}>
-              <Text style={styles.greetingText}>
-                Hello {userName || 'there'}
-              </Text>
-              <Text style={styles.greetingSubtext}>
-                How may I assist you?
-              </Text>
+              {isNameLoaded && (
+                <Animated.View style={{ opacity: nameFade }}>
+                  <Text style={styles.greetingText}>
+                    Hello {userName ?? ''}
+                  </Text>
+                  <Text style={styles.greetingSubtext}>
+                    How may I assist you?
+                  </Text>
+                </Animated.View>
+              )}
             </View>
           </ScrollView>
 

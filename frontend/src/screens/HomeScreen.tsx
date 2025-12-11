@@ -142,11 +142,14 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
             const date = new Date(creationDate);
             date.setHours(0, 0, 0, 0);
             setAccountCreationDate(date);
-            // Set initial selected date to today (without time)
-            const todayDate = new Date();
-            todayDate.setHours(0, 0, 0, 0);
-            setSelectedDate(todayDate);
+          } else {
+            // If we couldn't get creation date, allow navigation by leaving it null
+            setAccountCreationDate(null);
           }
+          // Set initial selected date to today (without time)
+          const todayDate = new Date();
+          todayDate.setHours(0, 0, 0, 0);
+          setSelectedDate(todayDate);
         }
       } catch (error) {
         console.error('Error loading account creation date:', error);
@@ -174,14 +177,8 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     return { dayName, dateString };
   };
 
-  // Check if we can go to previous day
-  const canGoPrevious = () => {
-    if (!accountCreationDate) return false;
-    const prevDate = new Date(selectedDate);
-    prevDate.setDate(prevDate.getDate() - 1);
-    prevDate.setHours(0, 0, 0, 0);
-    return prevDate >= accountCreationDate;
-  };
+  // Allow navigating to previous days without limit
+  const canGoPrevious = () => true;
 
   // Check if we can go to next day
   const canGoNext = () => {
@@ -297,9 +294,9 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
                 </TouchableOpacity>
               </View>
             </View>
-            <View style={styles.promoIconContainer}>
+            {/* <View style={styles.promoIconContainer}>
               <MedicalIcon size={100} color={Colors.white} />
-            </View>
+            </View> */}
           </View>
 
           {/* My Tests Section */}
@@ -416,7 +413,7 @@ const styles = StyleSheet.create({
   },
   promoText: {
     fontSize: 24,
-    fontFamily: 'ProductSans-Bold',
+    fontFamily: 'ProductSans-Regular',
     color: Colors.white,
     marginBottom: Spacing.md,
     lineHeight: 30,

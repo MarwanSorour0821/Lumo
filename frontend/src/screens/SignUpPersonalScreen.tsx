@@ -87,9 +87,14 @@ export function SignUpPersonalScreen({ navigation }: SignUpPersonalScreenProps) 
 
   const handleContinue = () => {
     if (validateForm()) {
+      console.log('SignUpPersonalScreen - Navigating with:', {
+        firstName: firstName || '(empty)',
+        lastName: lastName || '(empty)'
+      });
+      
       navigation.navigate('SignUpCredentials', {
-        firstName,
-        lastName,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
       });
     }
   };
