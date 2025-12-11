@@ -24,10 +24,19 @@ export interface UserProfile {
   updatedAt: Date;
 }
 
+import { BloodTestAnalysisResponse } from '../lib/api';
+
 export type RootStackParamList = {
   Welcome: undefined;
   SignUpPersonal: undefined;
   SignUpBiometrics: { signUpData: SignUpData };
+  MainApp: undefined;
+  AnalysisResults: { analysisData: BloodTestAnalysisResponse };
+};
+
+export type TabParamList = {
   Home: undefined;
+  Analyse: undefined;
+  History: undefined;
 };
 
