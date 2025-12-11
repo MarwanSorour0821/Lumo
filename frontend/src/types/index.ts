@@ -24,10 +24,37 @@ export interface UserProfile {
   updatedAt: Date;
 }
 
+// For Apple Sign In, we store the user info differently
+export interface AppleSignUpData {
+  userId: string;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  isAppleSignIn: true;
+}
+
 export type RootStackParamList = {
-  Welcome: undefined;
+  Onboarding: undefined;
+  Login: undefined;
   SignUpPersonal: undefined;
-  SignUpBiometrics: { signUpData: SignUpData };
+  SignUpCredentials: { firstName: string; lastName: string };
+  SignUpSex: { signUpData: SignUpData | AppleSignUpData };
+  SignUpAge: { signUpData: SignUpData | AppleSignUpData; sex: BiologicalSex };
+  SignUpHeight: { signUpData: SignUpData | AppleSignUpData; sex: BiologicalSex; age: string };
+  SignUpWeight: { 
+    signUpData: SignUpData | AppleSignUpData; 
+    sex: BiologicalSex; 
+    age: string; 
+    height: string; 
+    heightFeet: string; 
+    heightInches: string; 
+    heightUnit: 'cm' | 'ft' 
+  };
   Home: undefined;
+  MyLab: undefined;
+  Chat: undefined;
+  Settings: undefined;
+  NotificationSettings: undefined;
+  EditInformation: undefined;
 };
 
