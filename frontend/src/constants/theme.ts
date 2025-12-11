@@ -1,7 +1,7 @@
 import { useColorScheme } from 'react-native';
 
 export const Colors = {
-  primary: '#B01328',
+  primary: '#C7002B', // Vibrant red from image
   primaryDark: '#8E0F20',
   primaryLight: '#D4283D',
   
@@ -15,10 +15,10 @@ export const Colors = {
   },
   
   dark: {
-    background: '#040404',
-    surface: '#1A1A1A',
+    background: '#000000', // Pure black from image
+    surface: '#1A1A1A', // Dark grey for search bar and test items
     text: '#FFFFFF',
-    textSecondary: '#A0A0A0',
+    textSecondary: '#808080', // Medium grey for placeholder and sub-text
     border: '#333333',
     inputBackground: 'rgba(255, 255, 255, 0.08)',
   },

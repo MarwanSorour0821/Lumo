@@ -36,6 +36,10 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
+# Apple Auth Keys (keep secure!)
+AuthKey_*.p8
+*.p8
+
 # generated native folders
 /ios
 /android

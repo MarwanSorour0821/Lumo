@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,16 +7,31 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Animated,
   TouchableOpacity,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Ionicons } from '@expo/vector-icons';
+import Svg, { Path } from 'react-native-svg';
 import { Input } from '../components/Input';
-import { Button } from '../components/Button';
+import PrimaryButton from '../../components/PrimaryButton';
+import BackButton from '../../components/BackButton';
 import { ProgressBar } from '../components/ProgressBar';
-import { Colors, FontSize, FontWeight, Spacing } from '../constants/theme';
-import { RootStackParamList } from '../types';
+import { Colors, FontSize, FontWeight, Spacing, BorderRadius } from '../constants/theme';
+import { RootStackParamList, AppleSignUpData } from '../types';
+import { signInWithApple } from '../lib/supabase';
+
+// Apple Logo Icon Component
+const AppleIcon = ({ size = 24, color = '#000000' }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24">
+    <Path
+      fill={color}
+      d="M14.94 5.19A4.38 4.38 0 0 0 16 2a4.44 4.44 0 0 0-3 1.52a4.17 4.17 0 0 0-1 3.09a3.69 3.69 0 0 0 2.94-1.42Zm2.52 7.44a4.51 4.51 0 0 1 2.16-3.81a4.66 4.66 0 0 0-3.66-2c-1.56-.16-3 .91-3.83.91s-2-.89-3.3-.87a4.92 4.92 0 0 0-4.14 2.53C2.93 12.45 4.24 17 6 19.47c.8 1.21 1.8 2.58 3.12 2.53s1.75-.82 3.28-.82s2 .82 3.3.79s2.22-1.24 3.06-2.45a11 11 0 0 0 1.38-2.85a4.41 4.41 0 0 1-2.68-4.04Z"
+    />
+  </Svg>
+);
 
 type SignUpPersonalScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'SignUpPersonal'>;
@@ -25,10 +40,36 @@ type SignUpPersonalScreenProps = {
 export function SignUpPersonalScreen({ navigation }: SignUpPersonalScreenProps) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isAppleLoading, setIsAppleLoading] = useState(false);
+  const headingFade = useRef(new Animated.Value(0)).current;
+  const inputsFade = useRef(new Animated.Value(0)).current;
+  const buttonFade = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Animate heading
+    Animated.timing(headingFade, {
+      toValue: 1,
+      duration: 800,
+      useNativeDriver: true,
+    }).start();
+
+    // Animate inputs with delay
+    Animated.timing(inputsFade, {
+      toValue: 1,
+      duration: 600,
+      delay: 200,
+      useNativeDriver: true,
+    }).start();
+
+    // Animate button with delay
+    Animated.timing(buttonFade, {
+      toValue: 1,
+      duration: 600,
+      delay: 400,
+      useNativeDriver: true,
+    }).start();
+  }, []);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -39,19 +80,6 @@ export function SignUpPersonalScreen({ navigation }: SignUpPersonalScreenProps) 
     if (!lastName.trim()) {
       newErrors.lastName = 'Last name is required';
     }
-    if (!email.trim()) {
-      newErrors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(email)) {
-      newErrors.email = 'Please enter a valid email';
-    }
-    if (!password) {
-      newErrors.password = 'Password is required';
-    } else if (password.length < 8) {
-      newErrors.password = 'Password must be at least 8 characters';
-    }
-    if (password !== confirmPassword) {
-      newErrors.confirmPassword = 'Passwords do not match';
-    }
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -59,14 +87,51 @@ export function SignUpPersonalScreen({ navigation }: SignUpPersonalScreenProps) 
 
   const handleContinue = () => {
     if (validateForm()) {
-      navigation.navigate('SignUpBiometrics', {
-        signUpData: {
-          firstName,
-          lastName,
-          email,
-          password,
-        },
+      console.log('SignUpPersonalScreen - Navigating with:', {
+        firstName: firstName || '(empty)',
+        lastName: lastName || '(empty)'
       });
+      
+      navigation.navigate('SignUpCredentials', {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+      });
+    }
+  };
+
+  const handleAppleSignIn = async () => {
+    setIsAppleLoading(true);
+    try {
+      const { data, error } = await signInWithApple();
+      
+      if (error) {
+        if (error.message !== 'Sign in cancelled') {
+          Alert.alert('Sign In Error', error.message);
+        }
+        setIsAppleLoading(false);
+        return;
+      }
+
+      if (data.user) {
+        // Create Apple sign up data and continue to biometrics
+        const appleSignUpData: AppleSignUpData = {
+          userId: data.user.id,
+          email: data.user.email,
+          firstName: firstName || undefined,
+          lastName: lastName || undefined,
+          isAppleSignIn: true,
+        };
+
+        setIsAppleLoading(false);
+        // Skip credentials and go directly to sex selection
+        navigation.navigate('SignUpSex', { signUpData: appleSignUpData });
+      } else {
+        Alert.alert('Sign In Error', 'Failed to get user information');
+        setIsAppleLoading(false);
+      }
+    } catch (error: any) {
+      Alert.alert('Sign In Error', error.message || 'An unexpected error occurred');
+      setIsAppleLoading(false);
     }
   };
 
@@ -74,40 +139,14 @@ export function SignUpPersonalScreen({ navigation }: SignUpPersonalScreenProps) 
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
       
-      {/* Background with blood tubes aesthetic */}
-      <View style={styles.backgroundImage}>
-        <View style={styles.tubesPattern}>
-          {/* Decorative blood tube elements */}
-          {Array.from({ length: 12 }, (_, i) => (
-            <View
-              key={i}
-              style={[
-                styles.tube,
-                {
-                  transform: [{ rotate: '45deg' }],
-                  top: 50 + (i % 4) * 120,
-                  left: -20 + Math.floor(i / 4) * 140,
-                },
-              ]}
-            >
-              <View style={styles.tubeCap} />
-              <View style={styles.tubeBody} />
-            </View>
-          ))}
-        </View>
-      </View>
-      
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.headerContainer}>
-          <TouchableOpacity
-            style={styles.backButton}
+          <BackButton
             onPress={() => navigation.goBack()}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="arrow-back" size={24} color={Colors.white} />
-          </TouchableOpacity>
+            theme="dark"
+          />
         </View>
-        <ProgressBar currentStep={1} totalSteps={3} />
+        <ProgressBar currentStep={1} totalSteps={7} />
         
         <KeyboardAvoidingView
           style={styles.keyboardView}
@@ -119,8 +158,26 @@ export function SignUpPersonalScreen({ navigation }: SignUpPersonalScreenProps) 
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            <View style={styles.formContainer}>
-              <View style={styles.row}>
+            <View style={styles.headingContainer}>
+              <Animated.Text 
+                style={[
+                  styles.heading,
+                  {
+                    opacity: headingFade,
+                  }
+                ]}
+              >
+                What should we call you?
+              </Animated.Text>
+              
+              <Animated.View 
+                style={[
+                  styles.inputsContainer,
+                  {
+                    opacity: inputsFade,
+                  }
+                ]}
+              >
                 <View style={styles.halfInput}>
                   <Input
                     label="First Name"
@@ -130,6 +187,7 @@ export function SignUpPersonalScreen({ navigation }: SignUpPersonalScreenProps) 
                     autoCapitalize="words"
                     error={errors.firstName}
                     isDark={true}
+                    variant="underline"
                   />
                 </View>
                 <View style={styles.halfInput}>
@@ -141,66 +199,51 @@ export function SignUpPersonalScreen({ navigation }: SignUpPersonalScreenProps) 
                     autoCapitalize="words"
                     error={errors.lastName}
                     isDark={true}
+                    variant="underline"
                   />
                 </View>
-              </View>
-              
-              <Input
-                label="Your email"
-                value={email}
-                onChangeText={setEmail}
-                placeholder="i.e. johndoe@gmail.com"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                error={errors.email}
-                isDark={true}
-              />
-              
-              <Input
-                label="Password"
-                value={password}
-                onChangeText={setPassword}
-                placeholder="Enter your password"
-                secureTextEntry
-                error={errors.password}
-                isDark={true}
-              />
-              
-              <Input
-                label="Confirm Password"
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                placeholder="Confirm your password"
-                secureTextEntry
-                error={errors.confirmPassword}
-                isDark={true}
-              />
-              
-              <View style={styles.socialButtons}>
-                <Button
-                  title="Continue with iCloud"
-                  onPress={() => {}}
-                  variant="secondary"
-                  icon={<Text style={styles.appleIcon}></Text>}
-                />
-                <View style={styles.socialSpacer} />
-                <Button
-                  title="Continue with google"
-                  onPress={() => {}}
-                  variant="secondary"
-                  icon={<Text style={styles.googleIcon}>G</Text>}
-                />
-              </View>
+              </Animated.View>
             </View>
           </ScrollView>
           
-          <View style={styles.buttonContainer}>
-            <Button
-              title="Continue"
+          {/* Apple Sign In Button */}
+          <Animated.View 
+            style={[
+              styles.appleButtonContainer,
+              { opacity: buttonFade }
+            ]}
+          >
+            <TouchableOpacity
+              style={styles.appleButton}
+              onPress={handleAppleSignIn}
+              disabled={isAppleLoading}
+              activeOpacity={0.8}
+            >
+              {isAppleLoading ? (
+                <ActivityIndicator color="#000000" size="small" />
+              ) : (
+                <>
+                  <AppleIcon size={20} color="#000000" />
+                  <Text style={styles.appleButtonText}>Continue with Apple</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </Animated.View>
+          
+          <Animated.View 
+            style={[
+              styles.buttonContainer,
+              {
+                opacity: buttonFade,
+              }
+            ]}
+          >
+            <PrimaryButton
+              text="Continue"
               onPress={handleContinue}
-              variant="primary"
+              theme="dark"
             />
-          </View>
+          </Animated.View>
         </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
@@ -212,32 +255,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.dark.background,
   },
-  backgroundImage: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  tubesPattern: {
-    flex: 1,
-    opacity: 0.6,
-  },
-  tube: {
-    position: 'absolute',
-    width: 28,
-    height: 100,
-  },
-  tubeCap: {
-    width: 28,
-    height: 16,
-    backgroundColor: '#6B7FD7',
-    borderTopLeftRadius: 6,
-    borderTopRightRadius: 6,
-  },
-  tubeBody: {
-    width: 28,
-    height: 84,
-    backgroundColor: '#8B1E3F',
-    borderBottomLeftRadius: 14,
-    borderBottomRightRadius: 14,
-  },
   safeArea: {
     flex: 1,
   },
@@ -245,14 +262,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
     paddingBottom: Spacing.sm,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   keyboardView: {
     flex: 1,
@@ -262,12 +271,23 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'flex-end',
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.xxl,
+    paddingVertical: Spacing.lg,
   },
-  formContainer: {
+  headingContainer: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
     paddingBottom: Spacing.md,
+  },
+  heading: {
+    fontSize: 40,
+    lineHeight: 40,
+    marginBottom: 32,
+    color: Colors.white,
+    fontFamily: 'ProductSans-Regular',
+  },
+  inputsContainer: {
+    flexDirection: 'row',
+    gap: Spacing.md,
   },
   row: {
     flexDirection: 'row',
@@ -294,6 +314,25 @@ const styles = StyleSheet.create({
   buttonContainer: {
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.lg,
+  },
+  appleButtonContainer: {
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  appleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.full,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    gap: Spacing.sm,
+  },
+  appleButtonText: {
+    fontSize: FontSize.lg,
+    fontFamily: 'ProductSans-Bold',
+    color: '#000000',
   },
 });
 
