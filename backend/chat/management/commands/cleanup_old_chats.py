@@ -22,3 +22,4 @@ class Command(BaseCommand):
                 f'Successfully deleted {deleted_count} messages older than {minutes} minutes'
             )
         )
+

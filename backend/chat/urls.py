@@ -7,3 +7,4 @@ urlpatterns = [
     path('history/', ChatHistoryView.as_view(), name='chat-history'),
     path('clear/', ClearHistoryView.as_view(), name='chat-clear'),
 ]
+

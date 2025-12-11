@@ -17,6 +17,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
@@ -593,13 +594,20 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        {/* Header with Back Button */}
-        <View style={styles.header}>
-          <BackButton
-            onPress={() => navigation.goBack()}
-            theme="dark"
-          />
-        </View>
+        {/* Header with Gradient and Chat Title */}
+        <LinearGradient
+          colors={[Colors.black, Colors.transparent]}
+          style={styles.headerGradient}
+        >
+          <View style={styles.header}>
+            <BackButton
+              onPress={() => navigation.goBack()}
+              theme="dark"
+            />
+            <Text style={styles.headerTitle}>Chat</Text>
+            <View style={styles.headerSpacer} />
+          </View>
+        </LinearGradient>
 
         <KeyboardAvoidingView
           style={styles.keyboardView}
@@ -784,10 +792,25 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
-  header: {
-    paddingHorizontal: Spacing.lg,
+  headerGradient: {
     paddingTop: Spacing.md,
-    paddingBottom: Spacing.sm,
+    paddingBottom: Spacing.lg,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+  },
+  headerTitle: {
+    fontSize: FontSize.xl,
+    fontFamily: 'ProductSans-Bold',
+    color: Colors.white,
+    flex: 1,
+    textAlign: 'center',
+  },
+  headerSpacer: {
+    width: 80, // Same width as BackButton to center the title
   },
   keyboardView: {
     flex: 1,

@@ -135,3 +135,4 @@ class ChatStorage:
     def bucket_name() -> str:
         # Default bucket name
         return os.getenv('CHAT_STORAGE_BUCKET', 'chat-uploads')
+

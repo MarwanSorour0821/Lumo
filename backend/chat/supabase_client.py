@@ -17,3 +17,4 @@ def get_supabase_client() -> Client:
         
         _supabase_client = create_client(url, key)
     return _supabase_client
+

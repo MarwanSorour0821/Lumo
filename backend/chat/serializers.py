@@ -37,3 +37,4 @@ class ClearHistorySerializer(serializers.Serializer):
     """Serializer for clearing chat history."""
     
     user_id = serializers.CharField(max_length=255)
+

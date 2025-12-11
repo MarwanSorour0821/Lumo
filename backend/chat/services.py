@@ -362,3 +362,4 @@ Do NOT:
 
 # Singleton instance
 chat_service = ChatService()
+

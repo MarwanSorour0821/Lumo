@@ -239,3 +239,4 @@ const styles = StyleSheet.create({
     lineHeight: FontSize.md * 1.5,
   },
 });
+
