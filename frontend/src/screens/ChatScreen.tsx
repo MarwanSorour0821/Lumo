@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,16 +12,20 @@ import {
   Modal,
   Pressable,
   Animated,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import Svg, { Path, Circle, G } from 'react-native-svg';
+import * as Haptics from 'expo-haptics';
+import Svg, { Path } from 'react-native-svg';
 import { Colors, Spacing, FontSize, BorderRadius } from '../constants/theme';
 import { RootStackParamList } from '../types';
 import BackButton from '../../components/BackButton';
 import { getCurrentSession, getUserProfile } from '../lib/supabase';
+import { sendChatMessage, getChatHistory, ChatMessage } from '../lib/chat';
+import { MarkdownText } from '../components/MarkdownText';
 
 // Plus Icon (light gray)
 const PlusIcon = ({ size = 20, color = '#808080' }: { size?: number; color?: string }) => (
@@ -30,26 +34,6 @@ const PlusIcon = ({ size = 20, color = '#808080' }: { size?: number; color?: str
       d="M12 5v14M5 12h14"
       stroke={color}
       strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </Svg>
-);
-
-// Microphone Icon
-const MicrophoneIcon = ({ size = 20, color = '#808080' }: { size?: number; color?: string }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"
-      stroke={color}
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <Path
-      d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"
-      stroke={color}
-      strokeWidth={1.5}
       strokeLinecap="round"
       strokeLinejoin="round"
     />
@@ -115,64 +99,175 @@ const FileIcon = ({ size = 24, color = '#FFFFFF' }: { size?: number; color?: str
   </Svg>
 );
 
+// Typing Indicator Component
+const TypingIndicator = () => {
+  const dot1 = useRef(new Animated.Value(0)).current;
+  const dot2 = useRef(new Animated.Value(0)).current;
+  const dot3 = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const animateDot = (dot: Animated.Value, delay: number) => {
+      return Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(dot, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+    };
+
+    const animation = Animated.parallel([
+      animateDot(dot1, 0),
+      animateDot(dot2, 150),
+      animateDot(dot3, 300),
+    ]);
+
+    animation.start();
+
+    return () => animation.stop();
+  }, [dot1, dot2, dot3]);
+
+  const dotStyle = (animatedValue: Animated.Value) => ({
+    opacity: animatedValue.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0.3, 1],
+    }),
+    transform: [
+      {
+        translateY: animatedValue.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, -4],
+        }),
+      },
+    ],
+  });
+
+  return (
+    <View style={styles.typingContainer}>
+      <View style={styles.typingBubble}>
+        <Animated.View style={[styles.typingDot, dotStyle(dot1)]} />
+        <Animated.View style={[styles.typingDot, dotStyle(dot2)]} />
+        <Animated.View style={[styles.typingDot, dotStyle(dot3)]} />
+      </View>
+    </View>
+  );
+};
+
+// Message Bubble Component
+const MessageBubble = ({ message }: { message: ChatMessage }) => {
+  const isUser = message.role === 'user';
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(isUser ? 20 : -20)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [fadeAnim, slideAnim]);
+
+  return (
+    <Animated.View
+      style={[
+        styles.messageBubbleContainer,
+        isUser ? styles.userBubbleContainer : styles.assistantBubbleContainer,
+        {
+          opacity: fadeAnim,
+          transform: [{ translateX: slideAnim }],
+        },
+      ]}
+    >
+      <View
+        style={[
+          styles.messageBubble,
+          isUser ? styles.userBubble : styles.assistantBubble,
+        ]}
+      >
+        {isUser ? (
+          <Text style={styles.userMessageText}>{message.content}</Text>
+        ) : (
+          <MarkdownText style={styles.assistantMessageText}>
+            {message.content}
+          </MarkdownText>
+        )}
+      </View>
+    </Animated.View>
+  );
+};
+
 type ChatScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Chat'>;
 };
 
 export function ChatScreen({ navigation }: ChatScreenProps) {
   const [message, setMessage] = useState('');
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [userName, setUserName] = useState<string | null>(null);
-  const [isNameLoaded, setIsNameLoaded] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const nameFade = useRef(new Animated.Value(0)).current;
+  const scrollViewRef = useRef<ScrollView>(null);
 
-  React.useEffect(() => {
-    const fetchUserName = async () => {
+  // Load user info and chat history on mount
+  useEffect(() => {
+    const initialize = async () => {
       try {
         const { data: sessionData } = await getCurrentSession();
-        console.log('ChatScreen - Session data:', sessionData);
         
         if (sessionData.user?.id) {
-          // Get user profile from public.users table
+          setUserId(sessionData.user.id);
+          
+          // Load user profile for name
           const { data: profileData, error } = await getUserProfile(sessionData.user.id);
           
-          console.log('ChatScreen - Profile data:', profileData);
-          console.log('ChatScreen - Profile error:', error);
-
-          if (!error && profileData && profileData.first_name) {
-            console.log('ChatScreen - Using first_name from profile:', profileData.first_name);
+          if (!error && profileData?.first_name) {
             setUserName(profileData.first_name);
           } else {
-            // Try to get name from user metadata or email as last resort
             const emailName = sessionData.user.email?.split('@')[0];
             if (emailName) {
-              // Capitalize first letter
-              const capitalized = emailName.charAt(0).toUpperCase() + emailName.slice(1);
-              console.log('ChatScreen - Using email name:', capitalized);
-              setUserName(capitalized);
-            } else {
-              console.log('ChatScreen - No name found, leaving empty');
-              setUserName(null);
+              setUserName(emailName.charAt(0).toUpperCase() + emailName.slice(1));
             }
           }
-        } else {
-          console.log('ChatScreen - No user session');
-          setUserName(null);
+
+          // Load chat history
+          const historyResponse = await getChatHistory(sessionData.user.id);
+          if (historyResponse.success && historyResponse.messages) {
+            setMessages(historyResponse.messages);
+          }
         }
       } catch (error) {
-        console.error('Error fetching user name:', error);
-        setUserName(null);
+        console.error('Error initializing chat:', error);
+      } finally {
+        setIsInitialLoading(false);
       }
-
-      setIsNameLoaded(true);
     };
 
-    fetchUserName();
+    initialize();
   }, []);
 
-  // Fade in the greeting smoothly when the name is ready
-  React.useEffect(() => {
-    if (isNameLoaded) {
+  // Fade in greeting when loaded and no messages
+  useEffect(() => {
+    if (!isInitialLoading && messages.length === 0) {
       nameFade.setValue(0);
       Animated.timing(nameFade, {
         toValue: 1,
@@ -180,7 +275,67 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
         useNativeDriver: true,
       }).start();
     }
-  }, [isNameLoaded, nameFade]);
+  }, [isInitialLoading, messages.length, nameFade]);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    }
+  }, [messages, isTyping]);
+
+  const handleSendMessage = useCallback(async () => {
+    if (!message.trim() || !userId || isLoading) return;
+
+    const userMessage = message.trim();
+    setMessage('');
+    
+    // Haptic feedback
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    // Optimistically add user message
+    const tempUserMessage: ChatMessage = {
+      id: Date.now(),
+      role: 'user',
+      content: userMessage,
+      created_at: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, tempUserMessage]);
+    
+    // Show typing indicator
+    setIsLoading(true);
+    setIsTyping(true);
+
+    try {
+      const response = await sendChatMessage(userId, userMessage);
+      
+      if (response.success && response.response) {
+        // Add assistant response
+        const assistantMessage: ChatMessage = {
+          id: Date.now() + 1,
+          role: 'assistant',
+          content: response.response,
+          created_at: new Date().toISOString(),
+        };
+        setMessages(prev => [...prev, assistantMessage]);
+        
+        // Success haptic
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        // Error haptic
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        console.error('Chat error:', response.error);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setIsLoading(false);
+      setIsTyping(false);
+    }
+  }, [message, userId, isLoading]);
 
   const handlePickImage = async () => {
     try {
@@ -197,7 +352,6 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
       });
 
       if (!result.canceled && result.assets[0]) {
-        // Handle selected image
         console.log('Selected image:', result.assets[0].uri);
         setModalVisible(false);
       }
@@ -214,7 +368,6 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
       });
 
       if (!result.canceled && result.assets[0]) {
-        // Handle selected file
         console.log('Selected file:', result.assets[0]);
         setModalVisible(false);
       }
@@ -222,6 +375,8 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
       console.error('Error picking file:', error);
     }
   };
+
+  const hasMessages = messages.length > 0;
 
   return (
     <View style={styles.container}>
@@ -241,13 +396,22 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
           keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
         >
           <ScrollView
+            ref={scrollViewRef}
             style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[
+              styles.scrollContent,
+              !hasMessages && styles.scrollContentCentered,
+            ]}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
-            {/* Centered Greeting */}
-            <View style={styles.greetingContainer}>
-              {isNameLoaded && (
+            {isInitialLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={Colors.primary} />
+              </View>
+            ) : !hasMessages ? (
+              /* Centered Greeting - only shown when no messages */
+              <View style={styles.greetingContainer}>
                 <Animated.View style={{ opacity: nameFade }}>
                   <Text style={styles.greetingText}>
                     Hello {userName ?? ''}
@@ -256,8 +420,16 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
                     How may I assist you?
                   </Text>
                 </Animated.View>
-              )}
-            </View>
+              </View>
+            ) : (
+              /* Chat Messages */
+              <View style={styles.messagesContainer}>
+                {messages.map((msg) => (
+                  <MessageBubble key={msg.id} message={msg} />
+                ))}
+                {isTyping && <TypingIndicator />}
+              </View>
+            )}
           </ScrollView>
 
           {/* Chat Input Bar */}
@@ -285,9 +457,24 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
                 autoComplete="off"
                 textContentType="none"
                 importantForAutofill="no"
+                returnKeyType="send"
+                onSubmitEditing={handleSendMessage}
+                editable={!isLoading}
               />
-              <TouchableOpacity style={styles.sendButton} activeOpacity={0.7}>
-                <SendIcon size={20} color={Colors.black} />
+              <TouchableOpacity 
+                style={[
+                  styles.sendButton,
+                  (!message.trim() || isLoading) && styles.sendButtonDisabled,
+                ]} 
+                activeOpacity={0.7}
+                onPress={handleSendMessage}
+                disabled={!message.trim() || isLoading}
+              >
+                {isLoading ? (
+                  <ActivityIndicator size="small" color={Colors.black} />
+                ) : (
+                  <SendIcon size={20} color={Colors.black} />
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -361,10 +548,17 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
+  },
+  scrollContentCentered: {
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.xl,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   greetingContainer: {
     alignItems: 'center',
@@ -381,6 +575,64 @@ const styles = StyleSheet.create({
     color: Colors.dark.textSecondary,
     fontFamily: 'ProductSans-Regular',
     textAlign: 'center',
+  },
+  messagesContainer: {
+    paddingTop: Spacing.md,
+  },
+  messageBubbleContainer: {
+    marginBottom: Spacing.md,
+  },
+  userBubbleContainer: {
+    alignItems: 'flex-end',
+  },
+  assistantBubbleContainer: {
+    alignItems: 'flex-start',
+  },
+  messageBubble: {
+    maxWidth: '85%',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm + 2,
+    borderRadius: BorderRadius.lg,
+  },
+  userBubble: {
+    backgroundColor: Colors.primary,
+    borderBottomRightRadius: 4,
+  },
+  assistantBubble: {
+    backgroundColor: Colors.dark.surface,
+    borderBottomLeftRadius: 4,
+  },
+  userMessageText: {
+    fontSize: FontSize.md,
+    color: Colors.white,
+    fontFamily: 'ProductSans-Regular',
+    lineHeight: FontSize.md * 1.4,
+  },
+  assistantMessageText: {
+    fontSize: FontSize.md,
+    color: Colors.white,
+    fontFamily: 'ProductSans-Regular',
+    lineHeight: FontSize.md * 1.4,
+  },
+  typingContainer: {
+    alignItems: 'flex-start',
+    marginBottom: Spacing.md,
+  },
+  typingBubble: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.dark.surface,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm + 4,
+    borderRadius: BorderRadius.lg,
+    borderBottomLeftRadius: 4,
+    gap: 4,
+  },
+  typingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.dark.textSecondary,
   },
   inputContainer: {
     flexDirection: 'row',
@@ -422,6 +674,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  sendButtonDisabled: {
+    opacity: 0.5,
   },
   modalOverlay: {
     flex: 1,
@@ -472,4 +727,3 @@ const styles = StyleSheet.create({
     color: Colors.white,
   },
 });
-

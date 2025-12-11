@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'ai_analysis',
+    'chat',
 ]
 
 MIDDLEWARE = [
