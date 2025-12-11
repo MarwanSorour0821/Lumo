@@ -26,7 +26,7 @@ export function MyLabScreen({ navigation }: MyLabScreenProps) {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.title}>My Lab</Text>
+          <Text style={styles.title}>Your blood tests</Text>
           <Text style={styles.subtitle}>Your laboratory results and analysis</Text>
         </ScrollView>
         <BottomNavBar currentRoute="MyLab" />
