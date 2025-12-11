@@ -99,7 +99,7 @@ export function BottomNavBar({ currentRoute }: BottomNavBarProps) {
       icon: HomeIcon,
     },
     {
-      name: 'My Lab',
+      name: 'History',
       route: 'MyLab' as keyof RootStackParamList,
       icon: MyLabIcon,
     },
