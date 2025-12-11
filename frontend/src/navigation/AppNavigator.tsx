@@ -15,6 +15,7 @@ import { MyLabScreen } from '../screens/MyLabScreen';
 import { ChatScreen } from '../screens/ChatScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { NotificationSettingsScreen } from '../screens/NotificationSettingsScreen';
+import { EditInformationScreen } from '../screens/EditInformationScreen';
 import { RootStackParamList } from '../types';
 import { Colors } from '../constants/theme';
 import { getCurrentSession } from '../lib/supabase';
@@ -98,6 +99,10 @@ export function AppNavigator() {
             animation: 'fade',
             animationDuration: 150,
           }}
+        />
+        <Stack.Screen 
+          name="EditInformation" 
+          component={EditInformationScreen}
         />
         <Stack.Screen 
           name="NotificationSettings" 

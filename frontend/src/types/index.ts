@@ -55,5 +55,6 @@ export type RootStackParamList = {
   Chat: undefined;
   Settings: undefined;
   NotificationSettings: undefined;
+  EditInformation: undefined;
 };
 

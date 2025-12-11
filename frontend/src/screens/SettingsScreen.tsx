@@ -320,7 +320,11 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
               text="Notifications" 
               onPress={() => navigation.navigate('NotificationSettings')}
             />
-            <SettingsItem icon={PersonIcon} text="Edit information" />
+            <SettingsItem 
+              icon={PersonIcon} 
+              text="Edit information" 
+              onPress={() => navigation.navigate('EditInformation')}
+            />
             <SettingsItem 
               icon={SignOutIcon} 
               text="Sign out" 
