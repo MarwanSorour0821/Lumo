@@ -70,6 +70,7 @@ export type RootStackParamList = {
   MyLab: undefined;
   Chat: undefined;
   Settings: undefined;
+  Analyse: undefined;
   NotificationSettings: undefined;
   EditInformation: undefined;
 };

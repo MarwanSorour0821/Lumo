@@ -280,6 +280,11 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
                 value={message}
                 onChangeText={setMessage}
                 multiline={false}
+                autoCorrect={false}
+                autoCapitalize="none"
+                autoComplete="off"
+                textContentType="none"
+                importantForAutofill="no"
               />
               <TouchableOpacity style={styles.sendButton} activeOpacity={0.7}>
                 <SendIcon size={20} color={Colors.black} />

@@ -18,6 +18,7 @@ import { ChatScreen } from '../screens/ChatScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { NotificationSettingsScreen } from '../screens/NotificationSettingsScreen';
 import { EditInformationScreen } from '../screens/EditInformationScreen';
+import { AnalyseScreen } from '../screens/AnalyseScreen';
 
 import { RootStackParamList } from '../types';
 import { Colors } from '../constants/theme';
@@ -102,6 +103,11 @@ export function AppNavigator() {
         <Stack.Screen
           name="Settings"
           component={SettingsScreen}
+          options={{ animation: 'fade', animationDuration: 150 }}
+        />
+        <Stack.Screen
+          name="Analyse"
+          component={AnalyseScreen}
           options={{ animation: 'fade', animationDuration: 150 }}
         />
 

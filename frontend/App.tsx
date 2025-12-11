@@ -5,6 +5,7 @@ import { Text as RNText, TextInput as RNTextInput } from 'react-native';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { AppNavigator } from './src/navigation/AppNavigator';
+import { Colors } from './src/constants/theme';
 
 // Keep the native splash screen visible while we load resources
 SplashScreen.preventAutoHideAsync().catch(() => {
@@ -28,7 +29,17 @@ export default function App() {
       if (!TextAny.defaultProps) TextAny.defaultProps = {};
       if (!TextInputAny.defaultProps) TextInputAny.defaultProps = {};
       TextAny.defaultProps.style = [TextAny.defaultProps.style, { fontFamily: 'ProductSans-Regular' }];
-      TextInputAny.defaultProps.style = [TextInputAny.defaultProps.style, { fontFamily: 'ProductSans-Regular' }];
+      TextInputAny.defaultProps.style = [
+        TextInputAny.defaultProps.style,
+        { fontFamily: 'ProductSans-Regular' },
+      ];
+      // Disable platform autofill tints (yellow) and keep consistent focus color
+      TextInputAny.defaultProps.autoCorrect = false;
+      TextInputAny.defaultProps.autoCapitalize = 'none';
+      TextInputAny.defaultProps.autoComplete = 'off';
+      TextInputAny.defaultProps.textContentType = 'none';
+      TextInputAny.defaultProps.importantForAutofill = 'no';
+      TextInputAny.defaultProps.selectionColor = Colors.primary;
 
       // Hide splash once fonts are ready
       SplashScreen.hideAsync().catch(() => {

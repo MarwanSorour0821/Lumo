@@ -130,7 +130,9 @@ export function BottomNavBar({ currentRoute }: BottomNavBarProps) {
   const handlePlusPress = () => {
     // Trigger haptic feedback
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // TODO: Add action for plus button
+    if (activeRoute !== 'Analyse') {
+      navigation.navigate('Analyse');
+    }
   };
 
   return (
