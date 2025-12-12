@@ -24,10 +24,8 @@ export interface UserProfile {
   updatedAt: Date;
 }
 
-/** Added from analysisPage branch **/
 import { BloodTestAnalysisResponse, SavedAnalysis } from '../lib/api';
 
-/** From main branch - KEEP **/
 export interface AppleSignUpData {
   userId: string;
   email?: string;
@@ -39,8 +37,6 @@ export interface AppleSignUpData {
 export type RootStackParamList = {
   Onboarding: undefined;
   Login: undefined;
-
-  /** MAIN branch signup flow (keep) **/
   SignUpPersonal: undefined;
   SignUpCredentials: { firstName: string; lastName: string };
   SignUpSex: { signUpData: SignUpData | AppleSignUpData };
@@ -59,16 +55,12 @@ export type RootStackParamList = {
     heightInches: string;
     heightUnit: 'cm' | 'ft';
   };
-
-  /** YOUR branch screens (analysis) **/
   SignUpBiometrics: { signUpData: SignUpData };
   MainApp: undefined;
   AnalysisResults: { 
     analysisData: BloodTestAnalysisResponse;
     analysisId?: string;
   };
-
-  /** MAIN branch app pages **/
   Home: undefined;
   MyLab: { openAnalysisId?: string } | undefined;
   Chat: undefined;
@@ -78,7 +70,6 @@ export type RootStackParamList = {
   EditInformation: undefined;
 };
 
-/** YOUR Tab navigator types (keep) **/
 export type TabParamList = {
   Home: undefined;
   Analyse: undefined;

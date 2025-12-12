@@ -21,6 +21,7 @@ DEBUG = True
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', '172.20.10.2', '0.0.0.0', '192.168.68.52', '192.168.68.50']
 
 
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -34,6 +35,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'ai_analysis',
     'analyses',
+    'chat',
 ]
 
 MIDDLEWARE = [
