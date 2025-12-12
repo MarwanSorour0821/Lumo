@@ -10,6 +10,7 @@ import Svg, { Path, G } from 'react-native-svg';
 import { Button } from '../components/Button';
 import { Colors, FontSize, FontWeight, Spacing, BorderRadius } from '../constants/theme';
 import { RootStackParamList } from '../types';
+import { analyzeBloodTest, saveAnalysis } from '../lib/api';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -122,18 +123,22 @@ export function AnalyseScreen() {
     setLoading(true);
     
     try {
-      // Import the API function
-      const { analyzeBloodTest } = require('../lib/api');
-      
-      // Call the API
+      // Step 1: Analyze the blood test with AI
       const result = await analyzeBloodTest(selectedFile);
       
-      // Navigate to results screen
-      navigation.navigate('AnalysisResults', { analysisData: result });
+      // Step 2: Save the analysis to the database
+      const savedAnalysis = await saveAnalysis(
+        result.parsed_data,
+        result.analysis
+      );
       
       // Reset the form
       setSelectedFile(null);
       setFileType(null);
+      
+      // Step 3: Navigate to MyLab with the new analysis ID to auto-open it
+      navigation.navigate('MyLab', { openAnalysisId: savedAnalysis.id });
+      
     } catch (error) {
       Alert.alert(
         'Analysis Failed',

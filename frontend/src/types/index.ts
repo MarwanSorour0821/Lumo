@@ -25,7 +25,7 @@ export interface UserProfile {
 }
 
 /** Added from analysisPage branch **/
-import { BloodTestAnalysisResponse } from '../lib/api';
+import { BloodTestAnalysisResponse, SavedAnalysis } from '../lib/api';
 
 /** From main branch - KEEP **/
 export interface AppleSignUpData {
@@ -63,11 +63,14 @@ export type RootStackParamList = {
   /** YOUR branch screens (analysis) **/
   SignUpBiometrics: { signUpData: SignUpData };
   MainApp: undefined;
-  AnalysisResults: { analysisData: BloodTestAnalysisResponse };
+  AnalysisResults: { 
+    analysisData: BloodTestAnalysisResponse;
+    analysisId?: string;
+  };
 
   /** MAIN branch app pages **/
   Home: undefined;
-  MyLab: undefined;
+  MyLab: { openAnalysisId?: string } | undefined;
   Chat: undefined;
   Settings: undefined;
   Analyse: undefined;

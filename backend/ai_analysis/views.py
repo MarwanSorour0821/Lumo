@@ -14,6 +14,12 @@ class AnalyzeBloodTestView(APIView):
     def post(self, request, *args, **kwargs):
         """
         Endpoint to upload and analyze blood test image/PDF
+        
+        Flow:
+        1. Upload file validation
+        2. Parse document using AWS Textract (OCR)
+        3. Analyze parsed data using GPT-5.1
+        4. Return combined results
         """
         serializer = BloodTestUploadSerializer(data=request.data)
         
@@ -37,15 +43,23 @@ class AnalyzeBloodTestView(APIView):
             # Initialize OpenAI service
             ai_service = OpenAIService()
             
-            # Step 1: Parse the image with GPT-4o
-            print("\n=== STEP 1: Parsing blood test image with GPT-4o ===")
-            parsed_data = ai_service.parse_blood_test_image(uploaded_file)
-            print("Parsed Data:")
-            print(json.dumps(parsed_data, indent=2))
+            # Step 1: Parse the document with AWS Textract (raw OCR, no processing)
+            print("\n=== STEP 1: Parsing blood test with AWS Textract ===")
+            raw_textract_data = ai_service.parse_blood_test_with_textract(
+                uploaded_file, 
+                uploaded_file.name
+            )
             
-            # Step 2: Analyze with GPT-5.1
-            print("\n=== STEP 2: Analyzing with GPT-5.1 ===")
-            analysis = ai_service.analyze_blood_test(parsed_data)
+            # Step 2: GPT-5.1 does BOTH extraction AND analysis from raw Textract data
+            print("\n=== STEP 2: GPT-5.1 Extraction & Analysis ===")
+            result = ai_service.analyze_blood_test(raw_textract_data)
+            
+            # Result contains both parsed_data (structured biomarkers) and analysis (text)
+            parsed_data = result['parsed_data']
+            analysis = result['analysis']
+            
+            print("\n=== EXTRACTED DATA ===")
+            print(json.dumps(parsed_data, indent=2))
             print("\n=== ANALYSIS RESULT ===")
             print(analysis)
             print("\n" + "="*50 + "\n")
@@ -70,6 +84,8 @@ class AnalyzeBloodTestView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             return Response(
                 {'error': 'Failed to analyze blood test', 'details': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
