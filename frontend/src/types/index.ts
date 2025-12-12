@@ -24,33 +24,8 @@ export interface UserProfile {
   updatedAt: Date;
 }
 
-/** Added from analysisPage branch **/
-export interface PatientInfo {
-  name?: string | null;
-  age?: string | null;
-  test_date?: string | null;
-}
+import { BloodTestAnalysisResponse, SavedAnalysis } from '../lib/api';
 
-export interface TestResult {
-  marker: string;
-  value: string;
-  unit: string;
-  reference_range: string;
-  status: 'normal' | 'high' | 'low' | null;
-}
-
-export interface ParsedBloodTestData {
-  patient_info: PatientInfo;
-  test_results: TestResult[];
-}
-
-export interface BloodTestAnalysisResponse {
-  parsed_data: ParsedBloodTestData;
-  analysis: string;
-  created_at: string;
-}
-
-/** From main branch - KEEP **/
 export interface AppleSignUpData {
   userId: string;
   email?: string;
@@ -62,8 +37,6 @@ export interface AppleSignUpData {
 export type RootStackParamList = {
   Onboarding: undefined;
   Login: undefined;
-
-  /** MAIN branch signup flow (keep) **/
   SignUpPersonal: undefined;
   SignUpCredentials: { firstName: string; lastName: string };
   SignUpSex: { signUpData: SignUpData | AppleSignUpData };
@@ -82,15 +55,14 @@ export type RootStackParamList = {
     heightInches: string;
     heightUnit: 'cm' | 'ft';
   };
-
-  /** YOUR branch screens (analysis) **/
   SignUpBiometrics: { signUpData: SignUpData };
   MainApp: undefined;
-  AnalysisResults: { analysisData: BloodTestAnalysisResponse };
-
-  /** MAIN branch app pages **/
+  AnalysisResults: { 
+    analysisData: BloodTestAnalysisResponse;
+    analysisId?: string;
+  };
   Home: undefined;
-  MyLab: undefined;
+  MyLab: { openAnalysisId?: string } | undefined;
   Chat: undefined;
   Settings: undefined;
   Analyse: undefined;
@@ -98,7 +70,6 @@ export type RootStackParamList = {
   EditInformation: undefined;
 };
 
-/** YOUR Tab navigator types (keep) **/
 export type TabParamList = {
   Home: undefined;
   Analyse: undefined;
