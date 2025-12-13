@@ -38,3 +38,4 @@ class ClearHistorySerializer(serializers.Serializer):
     
     user_id = serializers.CharField(max_length=255)
 
+

@@ -693,20 +693,14 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
             {/* Text Input Field */}
             <View style={styles.inputWrapper}>
               <TextInput
-                style={styles.textInput}
                 placeholder="Ask anything"
-                placeholderTextColor={Colors.dark.textSecondary}
                 value={message}
                 onChangeText={setMessage}
                 multiline={false}
-                autoCorrect={false}
-                autoCapitalize="none"
-                autoComplete="off"
-                textContentType="none"
-                importantForAutofill="no"
                 returnKeyType="send"
                 onSubmitEditing={handleSendMessage}
                 editable={!isDisabled}
+                style={styles.textInput}
               />
               <TouchableOpacity 
                 style={[
@@ -967,17 +961,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: Colors.dark.surface,
     borderRadius: BorderRadius.full,
-    paddingHorizontal: Spacing.md,
+    paddingRight: Spacing.sm,
+    paddingLeft: Spacing.md,
     paddingVertical: Spacing.sm,
-    minHeight: 48,
   },
   textInput: {
     flex: 1,
-    fontSize: FontSize.md,
-    fontFamily: 'ProductSans-Regular',
-    color: Colors.white,
-    padding: 0,
     marginRight: Spacing.sm,
+    color: Colors.white,
   },
   sendButton: {
     width: 32,

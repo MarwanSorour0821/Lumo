@@ -145,57 +145,63 @@ export function SignUpCredentialsScreen({ navigation, route }: SignUpCredentials
                   }
                 ]}
               >
-                <Input
-                  label="Your email"
-                  value={email}
-                  onChangeText={setEmail}
-                  placeholder="i.e. johndoe@gmail.com"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  error={errors.email}
-                  isDark={true}
-                  variant="underline"
-                />
+                <View style={styles.fullWidthInput}>
+                  <Input
+                    label="Your email"
+                    value={email}
+                    onChangeText={setEmail}
+                    placeholder="i.e. johndoe@gmail.com"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    error={errors.email}
+                    isDark={true}
+                    variant="underline"
+                  />
+                </View>
                 
-                <Input
-                  label="Password"
-                  value={password}
-                  onChangeText={setPassword}
-                  placeholder="Enter your password"
-                  secureTextEntry
-                  error={errors.password}
-                  isDark={true}
-                  variant="underline"
-                />
+                <View style={styles.fullWidthInput}>
+                  <Input
+                    label="Password"
+                    value={password}
+                    onChangeText={setPassword}
+                    placeholder="Enter your password"
+                    secureTextEntry
+                    error={errors.password}
+                    isDark={true}
+                    variant="underline"
+                  />
+                </View>
                 
-                <Input
-                  label="Confirm Password"
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  placeholder="Confirm your password"
-                  secureTextEntry
-                  error={errors.confirmPassword}
-                  isDark={true}
-                  variant="underline"
-                />
+                <View style={styles.fullWidthInput}>
+                  <Input
+                    label="Confirm Password"
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    placeholder="Confirm your password"
+                    secureTextEntry
+                    error={errors.confirmPassword}
+                    isDark={true}
+                    variant="underline"
+                  />
+                </View>
               </Animated.View>
             </View>
+            
+            <Animated.View 
+              style={[
+                styles.buttonContainer,
+                {
+                  opacity: buttonFade,
+                }
+              ]}
+            >
+              <PrimaryButton
+                text="Continue"
+                onPress={handleContinue}
+                theme="dark"
+              />
+            </Animated.View>
           </ScrollView>
-          
-          <Animated.View 
-            style={[
-              styles.buttonContainer,
-              {
-                opacity: buttonFade,
-              }
-            ]}
-          >
-            <PrimaryButton
-              text="Continue"
-              onPress={handleContinue}
-              theme="dark"
-            />
-          </Animated.View>
         </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
@@ -228,7 +234,11 @@ const styles = StyleSheet.create({
     fontFamily: 'ProductSans-Regular',
   },
   inputsContainer: {
+    flexDirection: 'column',
     gap: 0,
+  },
+  fullWidthInput: {
+    width: '100%',
   },
   keyboardView: {
     flex: 1,
@@ -237,7 +247,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    flexGrow: 1,
     paddingVertical: Spacing.lg,
   },
   socialButtons: {
@@ -260,4 +269,5 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.lg,
   },
 });
+
 

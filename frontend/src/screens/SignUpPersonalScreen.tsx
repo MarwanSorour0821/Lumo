@@ -204,46 +204,46 @@ export function SignUpPersonalScreen({ navigation }: SignUpPersonalScreenProps) 
                 </View>
               </Animated.View>
             </View>
-          </ScrollView>
-          
-          {/* Apple Sign In Button */}
-          <Animated.View 
-            style={[
-              styles.appleButtonContainer,
-              { opacity: buttonFade }
-            ]}
-          >
-            <TouchableOpacity
-              style={styles.appleButton}
-              onPress={handleAppleSignIn}
-              disabled={isAppleLoading}
-              activeOpacity={0.8}
+            
+            {/* Apple Sign In Button */}
+            <Animated.View 
+              style={[
+                styles.appleButtonContainer,
+                { opacity: buttonFade }
+              ]}
             >
-              {isAppleLoading ? (
-                <ActivityIndicator color="#000000" size="small" />
-              ) : (
-                <>
-                  <AppleIcon size={20} color="#000000" />
-                  <Text style={styles.appleButtonText}>Continue with Apple</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </Animated.View>
-          
-          <Animated.View 
-            style={[
-              styles.buttonContainer,
-              {
-                opacity: buttonFade,
-              }
-            ]}
-          >
-            <PrimaryButton
-              text="Continue"
-              onPress={handleContinue}
-              theme="dark"
-            />
-          </Animated.View>
+              <TouchableOpacity
+                style={styles.appleButton}
+                onPress={handleAppleSignIn}
+                disabled={isAppleLoading}
+                activeOpacity={0.8}
+              >
+                {isAppleLoading ? (
+                  <ActivityIndicator color="#000000" size="small" />
+                ) : (
+                  <>
+                    <AppleIcon size={20} color="#000000" />
+                    <Text style={styles.appleButtonText}>Continue with Apple</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </Animated.View>
+            
+            <Animated.View 
+              style={[
+                styles.buttonContainer,
+                {
+                  opacity: buttonFade,
+                }
+              ]}
+            >
+              <PrimaryButton
+                text="Continue"
+                onPress={handleContinue}
+                theme="dark"
+              />
+            </Animated.View>
+          </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
@@ -270,7 +270,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    flexGrow: 1,
     paddingVertical: Spacing.lg,
   },
   headingContainer: {
@@ -286,7 +285,7 @@ const styles = StyleSheet.create({
     fontFamily: 'ProductSans-Regular',
   },
   inputsContainer: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     gap: Spacing.md,
   },
   row: {
@@ -294,7 +293,7 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   halfInput: {
-    flex: 1,
+    width: '100%',
   },
   socialButtons: {
     marginTop: Spacing.lg,
