@@ -5,7 +5,6 @@ import {
   StyleSheet,
   StatusBar,
   ScrollView,
-  TextInput,
   TouchableOpacity,
   Animated,
   Alert,
@@ -13,10 +12,14 @@ import {
   Platform,
   ActivityIndicator,
   Modal,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
+import { RulerPicker } from 'react-native-ruler-picker';
 import PrimaryButton from '../../components/PrimaryButton';
 import BackButton from '../../components/BackButton';
 import { ProgressBar } from '../components/ProgressBar';
@@ -37,14 +40,16 @@ type SignUpWeightScreenProps = {
 export function SignUpWeightScreen({ navigation, route }: SignUpWeightScreenProps) {
   const { signUpData, sex, age, height, heightFeet, heightInches, heightUnit } = route.params;
   
-  const [weight, setWeight] = useState('');
-  const [weightUnit, setWeightUnit] = useState<'kg' | 'lbs'>('kg');
-  const [weightFocused, setWeightFocused] = useState(false);
+  // Initialize with default values based on unit
+  const [weightUnit, setWeightUnit] = useState<'kg' | 'lbs'>('lbs');
+  const [weight, setWeight] = useState<number>(weightUnit === 'kg' ? 70 : 154);
   const [loading, setLoading] = useState(false);
-  const weightBorderAnim = useRef(new Animated.Value(0)).current;
   const headingFade = useRef(new Animated.Value(0)).current;
   const contentFade = useRef(new Animated.Value(0)).current;
   const buttonFade = useRef(new Animated.Value(0)).current;
+  const previousWeightRef = useRef<number>(weightUnit === 'kg' ? 70 : 154);
+  
+  const screenWidth = Dimensions.get('window').width;
 
   useEffect(() => {
     Animated.parallel([
@@ -68,13 +73,31 @@ export function SignUpWeightScreen({ navigation, route }: SignUpWeightScreenProp
     ]).start();
   }, []);
 
+  // Handle unit conversion when switching units
+  const prevUnitRef = useRef(weightUnit);
   useEffect(() => {
-    Animated.timing(weightBorderAnim, {
-      toValue: weightFocused ? 1 : 0,
-      duration: 200,
-      useNativeDriver: false,
-    }).start();
-  }, [weightFocused, weightBorderAnim]);
+    if (prevUnitRef.current !== weightUnit) {
+      const currentWeight = weight;
+      if (weightUnit === 'kg') {
+        // Convert from lbs to kg
+        const newWeight = Math.round(currentWeight * 0.453592);
+        if (newWeight >= 30 && newWeight <= 300) {
+          setWeight(newWeight);
+        } else {
+          setWeight(70); // Default kg value
+        }
+      } else {
+        // Convert from kg to lbs
+        const newWeight = Math.round(currentWeight / 0.453592);
+        if (newWeight >= 66 && newWeight <= 660) {
+          setWeight(newWeight);
+        } else {
+          setWeight(154); // Default lbs value
+        }
+      }
+      prevUnitRef.current = weightUnit;
+    }
+  }, [weightUnit, weight]);
 
   // Conversion functions
   const feetInchesToCm = (feet: number, inches: number): number => {
@@ -86,19 +109,19 @@ export function SignUpWeightScreen({ navigation, route }: SignUpWeightScreenProp
   };
 
   const handleContinue = async () => {
-    const weightNum = parseFloat(weight);
-    if (!weight || isNaN(weightNum)) {
-      Alert.alert('Please enter a valid weight');
+    const weightNum = weight;
+    if (!weightNum || isNaN(weightNum)) {
+      Alert.alert('Please select a valid weight');
       return;
     }
     if (weightUnit === 'kg') {
       if (weightNum < 30 || weightNum > 300) {
-        Alert.alert('Please enter a valid weight between 30 and 300 kg');
+        Alert.alert('Please select a valid weight between 30 and 300 kg');
         return;
       }
     } else {
       if (weightNum < 66 || weightNum > 660) {
-        Alert.alert('Please enter a valid weight between 66 and 660 lbs');
+        Alert.alert('Please select a valid weight between 66 and 660 lbs');
         return;
       }
     }
@@ -125,9 +148,9 @@ export function SignUpWeightScreen({ navigation, route }: SignUpWeightScreenProp
       // Convert weight to kg
       let weightInKg: number;
       if (weightUnit === 'kg') {
-        weightInKg = parseFloat(weight);
+        weightInKg = weight;
       } else {
-        weightInKg = lbsToKg(parseFloat(weight));
+        weightInKg = lbsToKg(weight);
       }
 
       let userId: string;
@@ -258,10 +281,13 @@ export function SignUpWeightScreen({ navigation, route }: SignUpWeightScreenProp
     }
   };
 
-  const borderOpacity = weightBorderAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 1],
-  });
+  // Ruler picker configuration
+  const rulerConfig = {
+    min: weightUnit === 'kg' ? 30 : 66,
+    max: weightUnit === 'kg' ? 300 : 660,
+    step: weightUnit === 'kg' ? 1 : 1,
+    unit: weightUnit === 'kg' ? 'kg' : 'lbs',
+  };
 
   return (
     <View style={styles.container}>
@@ -285,6 +311,7 @@ export function SignUpWeightScreen({ navigation, route }: SignUpWeightScreenProp
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            contentInsetAdjustmentBehavior="never"
           >
             <View style={styles.headingContainer}>
               <Animated.Text 
@@ -295,7 +322,7 @@ export function SignUpWeightScreen({ navigation, route }: SignUpWeightScreenProp
                   }
                 ]}
               >
-                Your Weight
+                What is Your Weight?
               </Animated.Text>
               
               <Animated.Text 
@@ -306,7 +333,7 @@ export function SignUpWeightScreen({ navigation, route }: SignUpWeightScreenProp
                   }
                 ]}
               >
-                What's your weight?
+                Vestibulum sed sagittis nisi, a euismod mauris.
               </Animated.Text>
             </View>
 
@@ -318,6 +345,7 @@ export function SignUpWeightScreen({ navigation, route }: SignUpWeightScreenProp
                 }
               ]}
             >
+              <View style={styles.contentWrapper}>
               {/* Unit Toggle */}
               <View style={styles.unitToggleContainer}>
                 <TouchableOpacity
@@ -327,13 +355,20 @@ export function SignUpWeightScreen({ navigation, route }: SignUpWeightScreenProp
                   ]}
                   onPress={() => setWeightUnit('kg')}
                 >
+                  {weightUnit === 'kg' ? (
+                    <View style={styles.unitToggleIcon}>
+                      <Text style={styles.unitToggleCheckmark}>✓</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.unitToggleDot} />
+                  )}
                   <Text
                     style={[
                       styles.unitToggleText,
                       weightUnit === 'kg' && styles.unitToggleTextActive,
                     ]}
                   >
-                    kg
+                    Kgs
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -343,41 +378,88 @@ export function SignUpWeightScreen({ navigation, route }: SignUpWeightScreenProp
                   ]}
                   onPress={() => setWeightUnit('lbs')}
                 >
+                  {weightUnit === 'lbs' ? (
+                    <View style={styles.unitToggleIcon}>
+                      <Text style={styles.unitToggleCheckmark}>✓</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.unitToggleDot} />
+                  )}
                   <Text
                     style={[
                       styles.unitToggleText,
                       weightUnit === 'lbs' && styles.unitToggleTextActive,
                     ]}
                   >
-                    lbs
+                    Ibs
                   </Text>
                 </TouchableOpacity>
               </View>
 
-              <View style={styles.inputContainer}>
-                <View style={{ position: 'relative', width: 200 }}>
-                  <TextInput
-                    style={styles.textInput}
-                    value={weight}
-                    onChangeText={setWeight}
-                    placeholder={weightUnit === 'kg' ? '70' : '154'}
-                    placeholderTextColor={Colors.dark.textSecondary}
-                    keyboardType="numeric"
-                    onFocus={() => setWeightFocused(true)}
-                    onBlur={() => setWeightFocused(false)}
-                  />
-                  <View style={[styles.border, { backgroundColor: Colors.dark.border }]} />
-                  <Animated.View
-                    style={[
-                      styles.border,
-                      styles.borderAnimated,
-                      {
-                        backgroundColor: Colors.primary,
-                        opacity: borderOpacity,
-                      },
-                    ]}
-                  />
-                </View>
+              {/* Weight Display */}
+              <View style={styles.weightDisplayContainer}>
+                <Text style={styles.weightDisplay}>
+                  {Math.round(weight)} {weightUnit === 'kg' ? 'kg' : 'lbs'}
+                </Text>
+              </View>
+
+              {/* Ruler Picker */}
+              <View style={styles.rulerContainer}>
+                {/* Left fade gradient */}
+                <LinearGradient
+                  colors={[Colors.dark.background, 'transparent']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.fadeGradientLeft}
+                  pointerEvents="none"
+                />
+                <RulerPicker
+                  min={rulerConfig.min}
+                  max={rulerConfig.max}
+                  step={rulerConfig.step}
+                  initialValue={weight}
+                  onValueChange={(value: string) => {
+                    const newWeight = Math.round(parseFloat(value));
+                    if (newWeight !== previousWeightRef.current) {
+                      previousWeightRef.current = newWeight;
+                      setWeight(newWeight);
+                      // Trigger haptic feedback when value changes
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    }
+                  }}
+                  onValueChangeEnd={(value: string) => {
+                    const newWeight = Math.round(parseFloat(value));
+                    setWeight(newWeight);
+                    previousWeightRef.current = newWeight;
+                  }}
+                  unit={rulerConfig.unit}
+                  height={180}
+                  width={screenWidth}
+                  indicatorColor={Colors.primary}
+                  indicatorHeight={80}
+                  gapBetweenSteps={10}
+                  shortStepHeight={30}
+                  longStepHeight={90}
+                  stepWidth={1.5}
+                  valueTextStyle={{
+                    color: Colors.white,
+                    fontSize: 16,
+                  }}
+                  unitTextStyle={{
+                    color: Colors.white,
+                    fontSize: 16,
+                  }}
+                  fractionDigits={0}
+                />
+                {/* Right fade gradient */}
+                <LinearGradient
+                  colors={['transparent', Colors.dark.background]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.fadeGradientRight}
+                  pointerEvents="none"
+                />
+              </View>
               </View>
             </Animated.View>
 
@@ -390,7 +472,7 @@ export function SignUpWeightScreen({ navigation, route }: SignUpWeightScreenProp
               ]}
             >
               <PrimaryButton
-                text="Create Account"
+                text="Continue"
                 onPress={handleContinue}
                 disabled={loading}
                 theme="dark"
@@ -444,20 +526,26 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xxl,
   },
   heading: {
-    fontSize: 40,
-    fontFamily: 'ProductSans-Regular',
+    fontSize: FontSize.xxl,
+    fontFamily: 'ProductSans-Bold',
     color: Colors.white,
     marginBottom: Spacing.sm,
+    textAlign: 'center',
   },
   subtitle: {
-    fontSize: FontSize.md,
+    fontSize: FontSize.sm,
     fontFamily: 'ProductSans-Regular',
     color: Colors.dark.textSecondary,
     marginTop: Spacing.xs,
+    textAlign: 'center',
   },
   content: {
     flex: 1,
     justifyContent: 'center',
+    paddingVertical: Spacing.xl,
+  },
+  contentWrapper: {
+    width: '100%',
   },
   unitToggleContainer: {
     flexDirection: 'row',
@@ -466,16 +554,40 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   unitToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.full,
     borderWidth: 1,
     borderColor: Colors.dark.border,
-    backgroundColor: 'transparent',
+    backgroundColor: Colors.dark.surface,
+    minWidth: 100,
+    justifyContent: 'center',
+    gap: Spacing.xs,
   },
   unitToggleActive: {
     borderColor: Colors.primary,
-    backgroundColor: 'rgba(176, 19, 40, 0.15)',
+    backgroundColor: Colors.primary,
+  },
+  unitToggleIcon: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: Colors.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  unitToggleCheckmark: {
+    color: Colors.primary,
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  unitToggleDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.dark.textSecondary,
   },
   unitToggleText: {
     fontSize: FontSize.md,
@@ -483,32 +595,45 @@ const styles = StyleSheet.create({
     fontFamily: 'ProductSans-Regular',
   },
   unitToggleTextActive: {
-    color: Colors.primary,
+    color: Colors.white,
     fontFamily: 'ProductSans-Bold',
   },
-  inputContainer: {
-    width: '100%',
+  weightDisplayContainer: {
     alignItems: 'center',
-    justifyContent: 'center',
+    marginBottom: Spacing.xl,
+    marginTop: Spacing.lg,
   },
-  textInput: {
-    width: 200,
-    fontSize: FontSize.xl,
+  weightDisplay: {
+    fontSize: 48,
+    fontFamily: 'ProductSans-Bold',
     color: Colors.white,
-    fontFamily: 'ProductSans-Regular',
     textAlign: 'center',
-    paddingVertical: Spacing.xs,
-    paddingBottom: 4,
   },
-  border: {
+  rulerContainer: {
+    width: Dimensions.get('window').width,
+    alignSelf: 'stretch',
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.xl,
+    marginLeft: -Spacing.lg, // Negative margin to extend beyond left padding
+    marginRight: -Spacing.lg, // Negative margin to extend beyond right padding
+    overflow: 'visible',
+    position: 'relative',
+  },
+  fadeGradientLeft: {
     position: 'absolute',
-    bottom: 0,
     left: 0,
-    right: 0,
-    height: 1,
+    top: 0,
+    bottom: 0,
+    width: 60,
+    zIndex: 1,
   },
-  borderAnimated: {
-    height: 1,
+  fadeGradientRight: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: 60,
+    zIndex: 1,
   },
   buttonContainer: {
     paddingBottom: Spacing.lg,
@@ -533,4 +658,5 @@ const styles = StyleSheet.create({
     color: Colors.white,
   },
 });
+
 

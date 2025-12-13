@@ -138,23 +138,23 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
                 variant="underline"
               />
             </Animated.View>
+            
+            <Animated.View style={[styles.buttonContainer, { opacity: buttonFade }]}>
+              <PrimaryButton
+                text={loading ? 'Signing in...' : 'Sign In'}
+                onPress={handleSignIn}
+                theme="dark"
+                disabled={loading}
+              />
+              <TouchableOpacity
+                style={styles.switchAuth}
+                onPress={() => navigation.navigate('SignUpPersonal')}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.switchAuthText}>Don't have an account? Get Started</Text>
+              </TouchableOpacity>
+            </Animated.View>
           </ScrollView>
-
-          <Animated.View style={[styles.buttonContainer, { opacity: buttonFade }]}>
-            <PrimaryButton
-              text={loading ? 'Signing in...' : 'Sign In'}
-              onPress={handleSignIn}
-              theme="dark"
-              disabled={loading}
-            />
-            <TouchableOpacity
-              style={styles.switchAuth}
-              onPress={() => navigation.navigate('SignUpPersonal')}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.switchAuthText}>Don't have an account? Get Started</Text>
-            </TouchableOpacity>
-          </Animated.View>
         </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
@@ -181,7 +181,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    flexGrow: 1,
     paddingVertical: Spacing.lg,
     paddingHorizontal: Spacing.lg,
   },
@@ -199,8 +198,9 @@ const styles = StyleSheet.create({
     height: Spacing.md,
   },
   buttonContainer: {
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: 0,
     paddingBottom: Spacing.lg,
+    marginTop: Spacing.xl,
     gap: Spacing.md,
   },
   switchAuth: {

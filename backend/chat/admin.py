@@ -16,3 +16,4 @@ class ChatMessageAdmin(admin.ModelAdmin):
         return obj.content[:50] + '...' if len(obj.content) > 50 else obj.content
     short_content.short_description = 'Content'
 
+

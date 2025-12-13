@@ -136,3 +136,4 @@ class ChatStorage:
         # Default bucket name
         return os.getenv('CHAT_STORAGE_BUCKET', 'chat-uploads')
 
+

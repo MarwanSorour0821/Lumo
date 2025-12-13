@@ -3,8 +3,8 @@ import base64
 from io import BytesIO
 from PIL import Image
 from openai import OpenAI
+from django.db import connection
 from .models import ChatMessage, ChatStorage
-from .supabase_client import get_supabase_client
 
 
 class ChatService:
@@ -22,8 +22,13 @@ class ChatService:
    - *Italics* for medical terminology (with explanations)
    - Bullet points for lists
    - Numbered lists for steps or procedures
-4. **Accurate but cautious** - Always remind users to consult healthcare professionals for medical decisions
-5. **Concise** - Keep responses focused and not overly long
+4. **Mathematical expressions** - ALL formulas, calculations, and mathematical expressions MUST be formatted in LaTeX:
+   - For inline math (within a sentence): Use \\(formula\\) or $formula$
+   - For display math (centered, on its own line): Use \\[formula\\] or $$formula$$
+   - Example: \\[\\text{BMI} = \\frac{\\text{weight (kg)}}{\\text{height (m)}^2}\\]
+   - **IMPORTANT**: Every mathematical expression, equation, formula, or calculation MUST be wrapped in LaTeX delimiters. Do not include raw mathematical notation without LaTeX formatting.
+5. **Accurate but cautious** - Always remind users to consult healthcare professionals for medical decisions
+6. **Concise** - Keep responses focused and not overly long
 
 **IMPORTANT - Scope of Knowledge:**
 You are specifically trained and experienced in health-related topics including:
@@ -47,6 +52,9 @@ Is there anything health-related I can assist you with instead?"
 
 Always include a brief disclaimer when giving health-related advice that users should consult with their healthcare provider for personalized medical advice.
 
+**User Information:**
+You will be provided with the user's personal information (name, age, biological sex, height, weight) in the system message below. **IMPORTANT:** When users ask about their personal information (like "What's my name?", "How old am I?", "What's my height?", etc.), you MUST use the provided user information to answer their questions directly. Do NOT say you don't have access to this information - it is provided to you in the system message. Answer naturally and directly using the information provided. For example, if a user asks "What's my name?" and the system message includes "Name: John Doe", you should respond with "Your name is John Doe" or simply "John Doe". This information is provided to help you give personalized health advice and answer questions about the user's own data.
+
 Do NOT:
 - Diagnose conditions
 - Prescribe treatments
@@ -63,6 +71,97 @@ Do NOT:
 
     def __init__(self):
         self.client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+    
+    def get_user_profile_info(self, user_id: str) -> dict:
+        """
+        Fetch user profile information from Supabase using Django's database connection.
+        Returns a dictionary with user information or empty dict if not found.
+        """
+        try:
+            # Use Django's database connection to query Supabase PostgreSQL directly
+            with connection.cursor() as cursor:
+                # Query the public.users table (not auth.users)
+                cursor.execute("""
+                    SELECT 
+                        first_name, 
+                        last_name, 
+                        biological_sex, 
+                        date_of_birth, 
+                        height_cm, 
+                        weight_kg, 
+                        email
+                    FROM public.users
+                    WHERE id = %s
+                """, [user_id])
+                
+                row = cursor.fetchone()
+                
+                if row:
+                    user_info = {
+                        'first_name': row[0],
+                        'last_name': row[1],
+                        'biological_sex': row[2],
+                        'date_of_birth': row[3],
+                        'height_cm': row[4],
+                        'weight_kg': row[5],
+                        'email': row[6],
+                    }
+                    return user_info
+                    
+            return {}
+        except Exception as e:
+            return {}
+    
+    def build_user_context_prompt(self, user_profile: dict) -> str:
+        """
+        Build a user context string from profile information to include in the system prompt.
+        """
+        if not user_profile:
+            return ""
+        
+        context_parts = []
+        
+        if user_profile.get('first_name'):
+            context_parts.append(f"Name: {user_profile['first_name']}")
+            if user_profile.get('last_name'):
+                context_parts[-1] += f" {user_profile['last_name']}"
+        
+        if user_profile.get('biological_sex'):
+            sex = user_profile['biological_sex']
+            context_parts.append(f"Biological Sex: {sex.capitalize()}")
+        
+        if user_profile.get('date_of_birth'):
+            # Calculate age from date of birth
+            try:
+                from datetime import datetime
+                dob_str = user_profile['date_of_birth']
+                # Handle different date formats
+                if 'T' in dob_str:
+                    # ISO format with time
+                    dob = datetime.fromisoformat(dob_str.replace('Z', '+00:00'))
+                else:
+                    # Date only format
+                    dob = datetime.fromisoformat(dob_str)
+                
+                # Calculate age
+                today = datetime.now(dob.tzinfo) if dob.tzinfo else datetime.now()
+                age = (today - dob).days // 365
+                context_parts.append(f"Age: {age} years old")
+            except Exception:
+                # If parsing fails, just include the date as-is
+                context_parts.append(f"Date of Birth: {user_profile['date_of_birth']}")
+        
+        if user_profile.get('height_cm'):
+            context_parts.append(f"Height: {user_profile['height_cm']} cm")
+        
+        if user_profile.get('weight_kg'):
+            context_parts.append(f"Weight: {user_profile['weight_kg']} kg")
+        
+        if not context_parts:
+            return ""
+        
+        user_context = "\n\n**Current User's Information (use this when answering questions about the user):**\n" + "\n".join(f"- {part}" for part in context_parts)
+        return user_context
     
     def encode_image_to_base64(self, image_bytes: bytes) -> str:
         """Convert image bytes to base64 string with resize/compression."""
@@ -139,12 +238,17 @@ Do NOT:
             message_type='text'
         )
         
+        # Get user profile information
+        user_profile = self.get_user_profile_info(user_id)
+        user_context = self.build_user_context_prompt(user_profile)
+        system_prompt = self.SYSTEM_PROMPT + user_context
+        
         # Get conversation history
         history = ChatMessage.get_conversation_history(user_id, conversation_minutes)
         
         # Build messages array for OpenAI
         messages = [
-            {"role": "system", "content": self.SYSTEM_PROMPT}
+            {"role": "system", "content": system_prompt}
         ]
         messages.extend(history)
         
@@ -228,12 +332,17 @@ Do NOT:
             file_size=file_size
         )
         
+        # Get user profile information
+        user_profile = self.get_user_profile_info(user_id)
+        user_context = self.build_user_context_prompt(user_profile)
+        system_prompt = self.SYSTEM_PROMPT + user_context
+        
         # Get conversation history (text only for context)
         history = ChatMessage.get_conversation_history(user_id, conversation_minutes)
         
         # Build messages - include history but use vision for the current image
         messages = [
-            {"role": "system", "content": self.SYSTEM_PROMPT}
+            {"role": "system", "content": system_prompt}
         ]
         
         # Add history (excluding the just-added image message)
@@ -309,12 +418,17 @@ Do NOT:
             file_size=file_size
         )
         
+        # Get user profile information
+        user_profile = self.get_user_profile_info(user_id)
+        user_context = self.build_user_context_prompt(user_profile)
+        system_prompt = self.SYSTEM_PROMPT + user_context
+        
         # Get conversation history
         history = ChatMessage.get_conversation_history(user_id, conversation_minutes)
         
         # Build messages
         messages = [
-            {"role": "system", "content": self.SYSTEM_PROMPT}
+            {"role": "system", "content": system_prompt}
         ]
         
         # Add history (excluding the just-added PDF message)
@@ -362,4 +476,5 @@ Do NOT:
 
 # Singleton instance
 chat_service = ChatService()
+
 

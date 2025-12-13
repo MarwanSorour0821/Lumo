@@ -5,13 +5,13 @@ import {
   StyleSheet,
   StatusBar,
   ScrollView,
-  TextInput,
   Animated,
   Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Picker } from '@react-native-picker/picker';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import PrimaryButton from '../../components/PrimaryButton';
@@ -28,12 +28,13 @@ type SignUpAgeScreenProps = {
 export function SignUpAgeScreen({ navigation, route }: SignUpAgeScreenProps) {
   const { signUpData, sex } = route.params;
   
-  const [age, setAge] = useState('');
-  const [ageFocused, setAgeFocused] = useState(false);
-  const ageBorderAnim = useRef(new Animated.Value(0)).current;
+  const [age, setAge] = useState<number>(24);
   const headingFade = useRef(new Animated.Value(0)).current;
   const contentFade = useRef(new Animated.Value(0)).current;
   const buttonFade = useRef(new Animated.Value(0)).current;
+
+  // Generate age options from 18 to 100
+  const ageOptions = Array.from({ length: 83 }, (_, i) => i + 18);
 
   useEffect(() => {
     Animated.parallel([
@@ -57,27 +58,13 @@ export function SignUpAgeScreen({ navigation, route }: SignUpAgeScreenProps) {
     ]).start();
   }, []);
 
-  useEffect(() => {
-    Animated.timing(ageBorderAnim, {
-      toValue: ageFocused ? 1 : 0,
-      duration: 200,
-      useNativeDriver: false,
-    }).start();
-  }, [ageFocused, ageBorderAnim]);
-
   const handleContinue = () => {
-    const ageNum = parseInt(age, 10);
-    if (!age || isNaN(ageNum) || ageNum < 18 || ageNum > 100) {
-      Alert.alert('Please enter a valid age between 18 and 100');
+    if (!age || age < 18 || age > 100) {
+      Alert.alert('Please select a valid age between 18 and 100');
       return;
     }
-    navigation.navigate('SignUpHeight', { signUpData, sex, age });
+    navigation.navigate('SignUpHeight', { signUpData, sex, age: age.toString() });
   };
-
-  const borderOpacity = ageBorderAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 1],
-  });
 
   return (
     <View style={styles.container}>
@@ -134,30 +121,21 @@ export function SignUpAgeScreen({ navigation, route }: SignUpAgeScreenProps) {
                 }
               ]}
             >
-              <View style={styles.inputContainer}>
-                <View style={{ position: 'relative', width: 200 }}>
-                  <TextInput
-                    style={styles.textInput}
-                    value={age}
-                    onChangeText={setAge}
-                    placeholder="24"
-                    placeholderTextColor={Colors.dark.textSecondary}
-                    keyboardType="numeric"
-                    onFocus={() => setAgeFocused(true)}
-                    onBlur={() => setAgeFocused(false)}
-                  />
-                  <View style={[styles.border, { backgroundColor: Colors.dark.border }]} />
-                  <Animated.View
-                    style={[
-                      styles.border,
-                      styles.borderAnimated,
-                      {
-                        backgroundColor: Colors.primary,
-                        opacity: borderOpacity,
-                      },
-                    ]}
-                  />
-                </View>
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={age}
+                  onValueChange={(itemValue) => setAge(itemValue as number)}
+                  style={styles.picker}
+                  itemStyle={styles.pickerItem}
+                >
+                  {ageOptions.map((ageOption) => (
+                    <Picker.Item
+                      key={ageOption}
+                      label={ageOption.toString()}
+                      value={ageOption}
+                    />
+                  ))}
+                </Picker>
               </View>
             </Animated.View>
 
@@ -225,32 +203,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  inputContainer: {
+  pickerContainer: {
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  textInput: {
+  picker: {
     width: 200,
-    fontSize: FontSize.xl,
+    height: 200,
     color: Colors.white,
+  },
+  pickerItem: {
+    color: Colors.white,
+    fontSize: FontSize.xl,
     fontFamily: 'ProductSans-Regular',
-    textAlign: 'center',
-    paddingVertical: Spacing.xs,
-    paddingBottom: 4,
-  },
-  border: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 1,
-  },
-  borderAnimated: {
-    height: 1,
   },
   buttonContainer: {
     paddingBottom: Spacing.lg,
   },
 });
+
 

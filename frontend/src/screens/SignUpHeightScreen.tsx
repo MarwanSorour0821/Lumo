@@ -5,16 +5,18 @@ import {
   StyleSheet,
   StatusBar,
   ScrollView,
-  TextInput,
-  TouchableOpacity,
   Animated,
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
+import { RulerPicker } from 'react-native-ruler-picker';
 import PrimaryButton from '../../components/PrimaryButton';
 import BackButton from '../../components/BackButton';
 import { ProgressBar } from '../components/ProgressBar';
@@ -29,19 +31,21 @@ type SignUpHeightScreenProps = {
 export function SignUpHeightScreen({ navigation, route }: SignUpHeightScreenProps) {
   const { signUpData, sex, age } = route.params;
   
-  const [height, setHeight] = useState('');
-  const [heightFeet, setHeightFeet] = useState('');
-  const [heightInches, setHeightInches] = useState('');
-  const [heightUnit, setHeightUnit] = useState<'cm' | 'ft'>('cm');
-  const [heightFocused, setHeightFocused] = useState(false);
-  const [heightFeetFocused, setHeightFeetFocused] = useState(false);
-  const [heightInchesFocused, setHeightInchesFocused] = useState(false);
-  const heightBorderAnim = useRef(new Animated.Value(0)).current;
-  const heightFeetBorderAnim = useRef(new Animated.Value(0)).current;
-  const heightInchesBorderAnim = useRef(new Animated.Value(0)).current;
+  const [height, setHeight] = useState<number>(170); // Default cm value
   const headingFade = useRef(new Animated.Value(0)).current;
   const contentFade = useRef(new Animated.Value(0)).current;
   const buttonFade = useRef(new Animated.Value(0)).current;
+  const previousHeightRef = useRef<number>(170);
+  
+  const screenWidth = Dimensions.get('window').width;
+
+  // Convert cm to ft/in
+  const cmToFeetInches = (cm: number) => {
+    const totalInches = cm / 2.54;
+    const feet = Math.floor(totalInches / 12);
+    const inches = Math.round(totalInches % 12);
+    return { feet, inches };
+  };
 
   useEffect(() => {
     Animated.parallel([
@@ -65,64 +69,33 @@ export function SignUpHeightScreen({ navigation, route }: SignUpHeightScreenProp
     ]).start();
   }, []);
 
-  useEffect(() => {
-    Animated.timing(heightBorderAnim, {
-      toValue: heightFocused ? 1 : 0,
-      duration: 200,
-      useNativeDriver: false,
-    }).start();
-  }, [heightFocused, heightBorderAnim]);
-
-  useEffect(() => {
-    Animated.timing(heightFeetBorderAnim, {
-      toValue: heightFeetFocused ? 1 : 0,
-      duration: 200,
-      useNativeDriver: false,
-    }).start();
-  }, [heightFeetFocused, heightFeetBorderAnim]);
-
-  useEffect(() => {
-    Animated.timing(heightInchesBorderAnim, {
-      toValue: heightInchesFocused ? 1 : 0,
-      duration: 200,
-      useNativeDriver: false,
-    }).start();
-  }, [heightInchesFocused, heightInchesBorderAnim]);
 
   const handleContinue = () => {
-    if (heightUnit === 'cm') {
-      const heightNum = parseInt(height, 10);
-      if (!height || isNaN(heightNum) || heightNum < 100 || heightNum > 250) {
-        Alert.alert('Please enter a valid height between 100 and 250 cm');
-        return;
-      }
-    } else {
-      const feetNum = parseInt(heightFeet, 10);
-      const inchesNum = parseInt(heightInches, 10);
-      if (!heightFeet || isNaN(feetNum) || feetNum < 3 || feetNum > 8) {
-        Alert.alert('Please enter a valid height (feet between 3 and 8)');
-        return;
-      }
-      if (!heightInches || isNaN(inchesNum) || inchesNum < 0 || inchesNum >= 12) {
-        Alert.alert('Please enter a valid height (inches between 0 and 11)');
-        return;
-      }
+    const heightNum = height;
+    if (isNaN(heightNum) || heightNum < 100 || heightNum > 250) {
+      Alert.alert('Please select a valid height between 100 and 250 cm');
+      return;
     }
-    navigation.navigate('SignUpWeight', { signUpData, sex, age, height, heightFeet, heightInches, heightUnit });
+    navigation.navigate('SignUpWeight', { 
+      signUpData, 
+      sex, 
+      age, 
+      height: height.toString(), 
+      heightFeet: '', 
+      heightInches: '', 
+      heightUnit: 'cm'
+    });
   };
 
-  const borderOpacity = heightBorderAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 1],
-  });
-  const feetBorderOpacity = heightFeetBorderAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 1],
-  });
-  const inchesBorderOpacity = heightInchesBorderAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 1],
-  });
+  // Ruler picker configuration for cm
+  const rulerConfig = {
+    min: 100,
+    max: 250,
+    step: 1,
+    unit: 'cm',
+  };
+
+  const { feet, inches } = cmToFeetInches(height);
 
   return (
     <View style={styles.container}>
@@ -167,7 +140,7 @@ export function SignUpHeightScreen({ navigation, route }: SignUpHeightScreenProp
                   }
                 ]}
               >
-                What's your height?
+                What is your height?
               </Animated.Text>
             </View>
 
@@ -179,123 +152,74 @@ export function SignUpHeightScreen({ navigation, route }: SignUpHeightScreenProp
                 }
               ]}
             >
-              {/* Unit Toggle */}
-              <View style={styles.unitToggleContainer}>
-                <TouchableOpacity
-                  style={[
-                    styles.unitToggle,
-                    heightUnit === 'cm' && styles.unitToggleActive,
-                  ]}
-                  onPress={() => setHeightUnit('cm')}
-                >
-                  <Text
-                    style={[
-                      styles.unitToggleText,
-                      heightUnit === 'cm' && styles.unitToggleTextActive,
-                    ]}
-                  >
-                    cm
+              <View style={styles.contentWrapper}>
+                {/* Height Display */}
+                <View style={styles.heightDisplayContainer}>
+                  <Text style={styles.heightDisplay}>
+                    {Math.round(height)} cm
                   </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.unitToggle,
-                    heightUnit === 'ft' && styles.unitToggleActive,
-                  ]}
-                  onPress={() => setHeightUnit('ft')}
-                >
-                  <Text
-                    style={[
-                      styles.unitToggleText,
-                      heightUnit === 'ft' && styles.unitToggleTextActive,
-                    ]}
-                  >
-                    ft/in
+                  <Text style={styles.heightDisplayConverted}>
+                    {feet} ft {inches} in
                   </Text>
-                </TouchableOpacity>
-              </View>
+                </View>
 
-              <View style={styles.inputContainer}>
-                {heightUnit === 'cm' ? (
-                  <View style={{ position: 'relative', width: 200 }}>
-                    <TextInput
-                      style={styles.textInput}
-                      value={height}
-                      onChangeText={setHeight}
-                      placeholder="170"
-                      placeholderTextColor={Colors.dark.textSecondary}
-                      keyboardType="numeric"
-                      onFocus={() => setHeightFocused(true)}
-                      onBlur={() => setHeightFocused(false)}
-                    />
-                    <View style={[styles.border, { backgroundColor: Colors.dark.border }]} />
-                    <Animated.View
-                      style={[
-                        styles.border,
-                        styles.borderAnimated,
-                        {
-                          backgroundColor: Colors.primary,
-                          opacity: borderOpacity,
-                        },
-                      ]}
-                    />
-                  </View>
-                ) : (
-                  <View style={styles.feetInchesContainer}>
-                    <View style={styles.feetInchesInputWrapper}>
-                      <Text style={styles.unitLabelLeft}>ft</Text>
-                      <View style={{ position: 'relative', flex: 1, marginLeft: Spacing.sm }}>
-                        <TextInput
-                          style={styles.feetInchesInput}
-                          value={heightFeet}
-                          onChangeText={setHeightFeet}
-                          placeholder="5"
-                          placeholderTextColor={Colors.dark.textSecondary}
-                          keyboardType="numeric"
-                          onFocus={() => setHeightFeetFocused(true)}
-                          onBlur={() => setHeightFeetFocused(false)}
-                        />
-                        <View style={[styles.border, { backgroundColor: Colors.dark.border }]} />
-                        <Animated.View
-                          style={[
-                            styles.border,
-                            styles.borderAnimated,
-                            {
-                              backgroundColor: Colors.primary,
-                              opacity: feetBorderOpacity,
-                            },
-                          ]}
-                        />
-                      </View>
-                    </View>
-                    <View style={[styles.feetInchesInputWrapper, { marginLeft: Spacing.lg }]}>
-                      <Text style={styles.unitLabelLeft}>in</Text>
-                      <View style={{ position: 'relative', flex: 1, marginLeft: Spacing.sm }}>
-                        <TextInput
-                          style={styles.feetInchesInput}
-                          value={heightInches}
-                          onChangeText={setHeightInches}
-                          placeholder="10"
-                          placeholderTextColor={Colors.dark.textSecondary}
-                          keyboardType="numeric"
-                          onFocus={() => setHeightInchesFocused(true)}
-                          onBlur={() => setHeightInchesFocused(false)}
-                        />
-                        <View style={[styles.border, { backgroundColor: Colors.dark.border }]} />
-                        <Animated.View
-                          style={[
-                            styles.border,
-                            styles.borderAnimated,
-                            {
-                              backgroundColor: Colors.primary,
-                              opacity: inchesBorderOpacity,
-                            },
-                          ]}
-                        />
-                      </View>
-                    </View>
-                  </View>
-                )}
+                {/* Ruler Picker */}
+                <View style={styles.rulerContainer}>
+                  {/* Left fade gradient */}
+                  <LinearGradient
+                    colors={[Colors.dark.background, 'transparent']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.fadeGradientLeft}
+                    pointerEvents="none"
+                  />
+                  <RulerPicker
+                    min={rulerConfig.min}
+                    max={rulerConfig.max}
+                    step={rulerConfig.step}
+                    initialValue={height}
+                    onValueChange={(value: string) => {
+                      const newHeight = Math.round(parseFloat(value));
+                      if (newHeight !== previousHeightRef.current) {
+                        previousHeightRef.current = newHeight;
+                        setHeight(newHeight);
+                        // Trigger haptic feedback when value changes
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      }
+                    }}
+                    onValueChangeEnd={(value: string) => {
+                      const newHeight = Math.round(parseFloat(value));
+                      setHeight(newHeight);
+                      previousHeightRef.current = newHeight;
+                    }}
+                    unit={rulerConfig.unit}
+                    height={180}
+                    width={screenWidth}
+                    indicatorColor={Colors.primary}
+                    indicatorHeight={80}
+                    gapBetweenSteps={10}
+                    shortStepHeight={30}
+                    longStepHeight={90}
+                    stepWidth={1.5}
+                    valueTextStyle={{
+                      color: Colors.white,
+                      fontSize: 16,
+                    }}
+                    unitTextStyle={{
+                      color: Colors.white,
+                      fontSize: 16,
+                    }}
+                    fractionDigits={0}
+                  />
+                  {/* Right fade gradient */}
+                  <LinearGradient
+                    colors={['transparent', Colors.dark.background]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.fadeGradientRight}
+                    pointerEvents="none"
+                  />
+                </View>
               </View>
             </Animated.View>
 
@@ -361,86 +285,58 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     justifyContent: 'center',
+    paddingVertical: Spacing.xl,
   },
-  unitToggleContainer: {
-    flexDirection: 'row',
-    gap: Spacing.md,
+  contentWrapper: {
+    width: '100%',
+  },
+  heightDisplayContainer: {
+    alignItems: 'center',
     marginBottom: Spacing.xl,
-    justifyContent: 'center',
+    marginTop: Spacing.lg,
   },
-  unitToggle: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    backgroundColor: 'transparent',
-  },
-  unitToggleActive: {
-    borderColor: Colors.primary,
-    backgroundColor: 'rgba(176, 19, 40, 0.15)',
-  },
-  unitToggleText: {
-    fontSize: FontSize.md,
-    color: Colors.dark.textSecondary,
-    fontFamily: 'ProductSans-Regular',
-  },
-  unitToggleTextActive: {
-    color: Colors.primary,
+  heightDisplay: {
+    fontSize: 48,
     fontFamily: 'ProductSans-Bold',
-  },
-  inputContainer: {
-    width: '100%',
-    alignItems: 'center',
-  },
-  textInput: {
-    width: 200,
-    fontSize: FontSize.xl,
     color: Colors.white,
-    fontFamily: 'ProductSans-Regular',
     textAlign: 'center',
-    paddingVertical: Spacing.xs,
-    paddingBottom: 4,
   },
-  border: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 1,
-  },
-  borderAnimated: {
-    height: 1,
-  },
-  feetInchesContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    width: '100%',
-    paddingHorizontal: Spacing.xl,
-    alignSelf: 'flex-start',
-  },
-  feetInchesInputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  feetInchesInput: {
-    flex: 1,
-    fontSize: FontSize.xl,
-    color: Colors.white,
+  heightDisplayConverted: {
+    fontSize: 24,
     fontFamily: 'ProductSans-Regular',
-    textAlign: 'left',
-    paddingVertical: Spacing.xs,
-    paddingBottom: 4,
-  },
-  unitLabelLeft: {
-    fontSize: FontSize.md,
     color: Colors.dark.textSecondary,
-    fontFamily: 'ProductSans-Regular',
-    minWidth: 30,
+    textAlign: 'center',
+    marginTop: Spacing.sm,
+  },
+  rulerContainer: {
+    width: Dimensions.get('window').width,
+    alignSelf: 'stretch',
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.xl,
+    marginLeft: -Spacing.lg,
+    marginRight: -Spacing.lg,
+    overflow: 'visible',
+    position: 'relative',
+  },
+  fadeGradientLeft: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 60,
+    zIndex: 1,
+  },
+  fadeGradientRight: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: 60,
+    zIndex: 1,
   },
   buttonContainer: {
     paddingBottom: Spacing.lg,
   },
 });
+
 
