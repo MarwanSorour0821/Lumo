@@ -8,6 +8,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path, G } from 'react-native-svg';
 import { Button } from '../components/Button';
+import BackButton from '../../components/BackButton';
 import { Colors, FontSize, FontWeight, Spacing, BorderRadius } from '../constants/theme';
 import { RootStackParamList } from '../types';
 import { analyzeBloodTest, saveAnalysis } from '../lib/api';
@@ -160,6 +161,12 @@ export function AnalyseScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <View style={styles.headerContainer}>
+        <BackButton
+          onPress={() => navigation.goBack()}
+          theme="dark"
+        />
+      </View>
       <View style={styles.content}>
         {/* Document Icon */}
         <View style={styles.iconContainer}>
@@ -210,6 +217,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.dark.background,
+  },
+  headerContainer: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.sm,
   },
   content: {
     flex: 1,

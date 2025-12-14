@@ -17,3 +17,4 @@ class ChatMessageAdmin(admin.ModelAdmin):
     short_content.short_description = 'Content'
 
 
+
