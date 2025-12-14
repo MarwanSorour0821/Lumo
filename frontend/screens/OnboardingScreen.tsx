@@ -412,41 +412,41 @@ export default function OnboardingScreen({
       </ScrollView>
       
       {/* Bottom Section - outside ScrollView so it can be above the fill */}
-      <View style={styles.bottomSection}>
-        <View style={styles.content}>
-          <Animated.Text 
-            style={[
-              styles.mainText, 
-              { 
-                color: themeColors.primaryText,
-                opacity: mainTextFade,
-                transform: [{ translateY: mainTextSlide }],
-              }
-            ]}
-          >
-            Top-class premium{'\n'}analysis on your{'\n'}blood tests at your{'\n'}finger tips.
-          </Animated.Text>
-          
-          <Animated.Text 
-            style={[
-              styles.subText, 
-              { 
-                color: themeColors.secondaryText,
-                opacity: subTextFade,
-              }
-            ]}
-          >
-            Create an account and join over 100,000{'\n'}people who are already using our app.
-          </Animated.Text>
-        </View>
+        <View style={styles.bottomSection}>
+          <View style={styles.content}>
+            <Animated.Text 
+              style={[
+                styles.mainText, 
+                { 
+                  color: themeColors.primaryText,
+                  opacity: mainTextFade,
+                  transform: [{ translateY: mainTextSlide }],
+                }
+              ]}
+            >
+              Top-class premium{'\n'}analysis on your{'\n'}blood tests at your{'\n'}finger tips.
+            </Animated.Text>
+            
+            <Animated.Text 
+              style={[
+                styles.subText, 
+                { 
+                  color: themeColors.secondaryText,
+                  opacity: subTextFade,
+                }
+              ]}
+            >
+              Create an account and join over 100,000{'\n'}people who are already using our app.
+            </Animated.Text>
+          </View>
 
-        <Animated.View
-          style={{
-            opacity: buttonFade,
+          <Animated.View
+            style={{
+              opacity: buttonFade,
             position: 'relative',
             zIndex: 4,
-          }}
-        >
+            }}
+          >
           <View style={styles.interactiveButtonContainer}>
             <TouchableOpacity
               activeOpacity={1}
@@ -483,18 +483,18 @@ export default function OnboardingScreen({
             </TouchableOpacity>
           </View>
           
-          <TouchableOpacity
-            style={styles.signInLink}
-            onPress={() => navigation.navigate('Login')}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.signInText, { color: themeColors.secondaryText }]}>
-              Already have an account?{' '}
-              <Text style={[styles.signInTextBold, { color: themeColors.primaryText }]}>Sign in</Text>
-            </Text>
-          </TouchableOpacity>
-        </Animated.View>
-      </View>
+            <TouchableOpacity
+              style={styles.signInLink}
+              onPress={() => navigation.navigate('Login')}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.signInText, { color: themeColors.secondaryText }]}>
+                Already have an account?{' '}
+                <Text style={[styles.signInTextBold, { color: themeColors.primaryText }]}>Sign in</Text>
+              </Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
       
       {/* Red fill effect - fills from bottom to top with wavy top - only visible when holding */}
       <Animated.View
