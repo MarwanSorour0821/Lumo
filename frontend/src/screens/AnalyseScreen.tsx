@@ -8,6 +8,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path, G } from 'react-native-svg';
 import { Button } from '../components/Button';
+import BloodCellsLoader from '../components/BloodCellsLoader';
 import { Colors, FontSize, FontWeight, Spacing, BorderRadius } from '../constants/theme';
 import { RootStackParamList } from '../types';
 import { analyzeBloodTest, saveAnalysis } from '../lib/api';
@@ -19,6 +20,7 @@ export function AnalyseScreen() {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileType, setFileType] = useState<'image' | 'pdf' | null>(null);
   const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState<number>(0);
 
   const requestPermissions = async () => {
     const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
@@ -121,9 +123,27 @@ export function AnalyseScreen() {
     }
     
     setLoading(true);
+    setProgress(0);
+    
+    // Progress tracking: simulate Textract progress (0-50%) over 40-50 seconds
+    // Then complete to 100% when API call finishes
+    const progressInterval = setInterval(() => {
+      setProgress(prev => {
+        // Progress to 50% over ~45 seconds (Textract phase)
+        if (prev < 50) {
+          return Math.min(50, prev + 0.5);
+        }
+        // Once at 50%, slowly progress to 90% (GPT phase)
+        else if (prev < 90) {
+          return Math.min(90, prev + 0.2);
+        }
+        return prev;
+      });
+    }, 500); // Update every 500ms
     
     try {
       // Step 1: Analyze the blood test with AI
+      // This includes Textract (~50% progress) and GPT-5.1 (~100% progress)
       const result = await analyzeBloodTest(selectedFile);
       
       // Step 2: Save the analysis to the database
@@ -132,20 +152,30 @@ export function AnalyseScreen() {
         result.analysis
       );
       
+      // Complete the progress
+      clearInterval(progressInterval);
+      setProgress(100);
+      
+      // Small delay to show 100% completion
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
       // Reset the form
       setSelectedFile(null);
       setFileType(null);
+      setLoading(false);
+      setProgress(0);
       
       // Step 3: Navigate to MyLab with the new analysis ID to auto-open it
       navigation.navigate('MyLab', { openAnalysisId: savedAnalysis.id });
       
     } catch (error) {
+      clearInterval(progressInterval);
+      setLoading(false);
+      setProgress(0);
       Alert.alert(
         'Analysis Failed',
         error instanceof Error ? error.message : 'Failed to analyze blood test. Please try again.'
       );
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -192,15 +222,19 @@ export function AnalyseScreen() {
           </View>
         )}
       </View>
-      {/* Done Button */}
+      
+      {/* Done Button or Loading Progress Bar */}
       <View style={styles.buttonContainer}>
-        <Button
-          title="Done"
-          onPress={handleDone}
-          variant="primary"
-          loading={loading}
-          disabled={!selectedFile}
-        />
+        {loading ? (
+          <BloodCellsLoader progress={progress} />
+        ) : (
+          <Button
+            title="Done"
+            onPress={handleDone}
+            variant="primary"
+            disabled={!selectedFile}
+          />
+        )}
       </View>
     </SafeAreaView>
   );
@@ -272,5 +306,6 @@ const styles = StyleSheet.create({
   buttonContainer: {
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.lg,
+    alignItems: 'center',
   },
 });
