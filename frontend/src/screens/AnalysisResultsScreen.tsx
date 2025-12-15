@@ -179,7 +179,7 @@ const parseAnalysisIntoInsights = (analysisText: string): Array<{category: strin
   return insights;
 };
 
-export function AnalysisResultsScreen({ route }: AnalysisResultsScreenProps) {
+export function AnalysisResultsScreen({ navigation, route }: AnalysisResultsScreenProps) {
   const { analysisData } = route.params;
   const [expandedSections, setExpandedSections] = useState({});
 
@@ -250,7 +250,7 @@ export function AnalysisResultsScreen({ route }: AnalysisResultsScreenProps) {
         <View style={styles.infoCardsContainer}>
           {/* You Card */}
           <View style={styles.infoCard}>
-            <Text style={styles.infoCardTitle}>{patientInfo.name}</Text>
+            <Text style={styles.infoCardTitle}>{patientInfo.name || 'You'}</Text>
             {(patientInfo as any).birth_date && (
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Birth date</Text>
