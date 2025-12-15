@@ -54,12 +54,16 @@ class AnalyzeBloodTestView(APIView):
             print("\n=== STEP 2: GPT-5.1 Extraction & Analysis ===")
             result = ai_service.analyze_blood_test(raw_textract_data)
             
-            # Result contains both parsed_data (structured biomarkers) and analysis (text)
+            # Result contains parsed_data (structured biomarkers), analysis (text), and structured_analysis (JSON)
             parsed_data = result['parsed_data']
             analysis = result['analysis']
+            structured_analysis = result.get('structured_analysis')
             
             print("\n=== EXTRACTED DATA ===")
             print(json.dumps(parsed_data, indent=2))
+            if structured_analysis:
+                print("\n=== STRUCTURED ANALYSIS ===")
+                print(json.dumps(structured_analysis, indent=2))
             print("\n=== ANALYSIS RESULT ===")
             print(analysis)
             print("\n" + "="*50 + "\n")
@@ -68,6 +72,7 @@ class AnalyzeBloodTestView(APIView):
             response_data = {
                 'parsed_data': parsed_data,
                 'analysis': analysis,
+                'structured_analysis': structured_analysis,
                 'created_at': timezone.now()
             }
             

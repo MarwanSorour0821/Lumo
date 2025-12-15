@@ -114,28 +114,35 @@ IMPORTANT EXTRACTION RULES:
 - The key-value pairs may contain patient info but are often noisy for biomarkers
 - Compare each value to its reference range to determine status (high/low/normal)
 
-THEN, after the JSON block, provide your analysis in this structure:
+THEN, after the JSON block, provide a SECOND JSON block with structured analysis in this EXACT format:
+```json
+{{
+  "test_overview": "A high-level summary paragraph (2-4 sentences) that provides an overall interpretation of ALL biomarkers in this test. This should give a general health picture, highlighting key patterns, areas of concern, and positive aspects. Write naturally and clearly.",
+  "sections": [
+    {{
+      "category": "Category Name (e.g., 'Cholesterol Balance', 'Liver Function', 'Blood Cell Analysis', 'Kidney Function')",
+      "icon": "medical-outline",
+      "biomarkers": ["Hemoglobin", "RBC"],
+      "summary": "A brief one-line summary (max 100 characters) of what this section covers",
+      "details": "Detailed explanation (2-4 paragraphs) covering ALL biomarkers in this category. For EACH biomarker in the category, explain: 1) What it measures, 2) What the current value indicates for THAT specific biomarker, 3) Health implications, 4) Any recommendations. Be specific about each biomarker mentioned in the 'biomarkers' array."
+    }}
+  ]
+}}
+```
 
-1. OVERVIEW: Brief summary of overall health status based on the results
+IMPORTANT ANALYSIS RULES:
+- Group biomarkers logically by function/system (e.g., all cholesterol markers together, all liver markers together, all blood cell counts together)
+- Create sections dynamically based on what categories of biomarkers are present in the test
+- The test_overview should synthesize ALL biomarkers into one cohesive summary
+- Each section MUST include a "biomarkers" array listing the exact biomarker names (e.g., ["Hemoglobin", "RBC", "WBC"]) that belong to that section
+- In the "details" field, explain EACH biomarker individually - what it measures, what the value means, implications
+- Each section should focus on biomarkers that belong to the same physiological system or function
+- Use clear, non-technical language. When using medical terms, explain them
+- Icons should be from Ionicons: 'medical-outline', 'heart-outline', 'water-outline', 'pulse-outline', 'flask-outline', 'body-outline', 'speedometer-outline'
+- Choose icons that match the category (heart for cardiovascular, water for kidney/fluid, etc.)
+- Be thorough - every biomarker in test_results should be mentioned in at least one section
 
-2. DETAILED FINDINGS: For each abnormal or noteworthy marker:
-   - What it measures
-   - What the current value indicates  
-   - Potential health implications
-   - Whether it's concerning or not
-
-3. NORMAL RESULTS: List which markers are within normal ranges (brief)
-
-4. RECOMMENDATIONS:
-   - Lifestyle changes if applicable
-   - Whether to consult a doctor
-   - Any follow-up tests that might be needed
-
-5. IMPORTANT NOTES:
-   - Remind that this is AI analysis and not a substitute for professional medical advice
-   - Encourage consulting with healthcare provider for proper interpretation
-
-Be thorough but use clear, non-technical language when possible. When using medical terms, explain them."""
+After the second JSON block, you may include additional detailed analysis text if needed."""
 
         # Call GPT-5.1 with responses API
         response = self.client.responses.create(
@@ -147,8 +154,8 @@ Be thorough but use clear, non-technical language when possible. When using medi
         
         output_text = response.output_text
         
-        # Parse the response to extract JSON and analysis text
-        parsed_data, analysis_text = self._parse_gpt_response(output_text)
+        # Parse the response to extract JSON data, structured analysis, and remaining text
+        parsed_data, structured_analysis, analysis_text = self._parse_gpt_response(output_text)
         
         logger.info("")
         logger.info("="*60)
@@ -156,10 +163,13 @@ Be thorough but use clear, non-technical language when possible. When using medi
         logger.info("="*60)
         logger.info(f"   Extracted {len(parsed_data.get('test_results', []))} biomarkers")
         logger.info(f"   Patient: {parsed_data.get('patient_info', {}).get('name', 'Unknown')}")
+        if structured_analysis:
+            logger.info(f"   Structured analysis: {len(structured_analysis.get('sections', []))} sections")
         
         return {
             "parsed_data": parsed_data,
-            "analysis": analysis_text
+            "analysis": analysis_text,
+            "structured_analysis": structured_analysis
         }
     
     def _format_textract_for_gpt(self, structured):
@@ -198,30 +208,42 @@ Be thorough but use clear, non-technical language when possible. When using medi
     
     def _parse_gpt_response(self, output_text):
         """
-        Parse GPT-5.1 response to extract JSON data and analysis text.
+        Parse GPT-5.1 response to extract JSON data, structured analysis, and remaining text.
         """
         import re
-        
-        # Try to extract JSON block
-        json_match = re.search(r'```json\s*([\s\S]*?)\s*```', output_text)
         
         parsed_data = {
             "patient_info": {"name": None, "age": None, "sex": None, "test_date": None},
             "test_results": []
         }
+        structured_analysis = None
         analysis_text = output_text
         
-        if json_match:
-            try:
-                json_str = json_match.group(1)
-                parsed_data = json.loads(json_str)
-                # Remove JSON block from analysis text
-                analysis_text = output_text[json_match.end():].strip()
-                # Clean up any leading dashes or whitespace
-                analysis_text = re.sub(r'^[\s\-]*', '', analysis_text)
-            except json.JSONDecodeError as e:
-                logger.warning(f"Failed to parse JSON from GPT response: {e}")
-                # Keep the full output as analysis
-                analysis_text = output_text
+        # Extract all JSON blocks
+        json_matches = list(re.finditer(r'```json\s*([\s\S]*?)\s*```', output_text))
         
-        return parsed_data, analysis_text
+        if json_matches:
+            # First JSON block is the parsed_data (biomarkers)
+            try:
+                json_str = json_matches[0].group(1)
+                parsed_data = json.loads(json_str)
+                logger.info(f"✅ Parsed biomarker data: {len(parsed_data.get('test_results', []))} markers")
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse first JSON block from GPT response: {e}")
+            
+            # Second JSON block is the structured analysis (if present)
+            if len(json_matches) > 1:
+                try:
+                    json_str = json_matches[1].group(1)
+                    structured_analysis = json.loads(json_str)
+                    logger.info(f"✅ Parsed structured analysis: {len(structured_analysis.get('sections', []))} sections")
+                except json.JSONDecodeError as e:
+                    logger.warning(f"Failed to parse second JSON block (structured analysis): {e}")
+            
+            # Remove all JSON blocks from analysis text
+            last_match_end = json_matches[-1].end()
+            analysis_text = output_text[last_match_end:].strip()
+            # Clean up any leading dashes or whitespace
+            analysis_text = re.sub(r'^[\s\-]*', '', analysis_text)
+        
+        return parsed_data, structured_analysis, analysis_text

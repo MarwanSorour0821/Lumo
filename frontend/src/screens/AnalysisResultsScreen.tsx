@@ -15,17 +15,20 @@ type AnalysisResultsScreenProps = {
 };
 
 // Circular Progress Component
-const CircularProgress = ({ percentage, size = 80 }) => {
+const CircularProgress = ({ percentage, size = 80, color = null }: { percentage: number; size?: number; color?: string | null }) => {
   const strokeWidth = 8;
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
   const strokeDashoffset = circumference - (percentage / 100) * circumference;
   
   const getColor = () => {
+    if (color) return color;
     if (percentage >= 80) return '#10b981'; // green
     if (percentage >= 60) return '#f59e0b'; // yellow
     return '#ef4444'; // red
   };
+  
+  const progressColor = getColor();
 
   return (
     <View style={{ width: size, height: size }}>
@@ -44,7 +47,7 @@ const CircularProgress = ({ percentage, size = 80 }) => {
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke={getColor()}
+          stroke={progressColor}
           strokeWidth={strokeWidth}
           fill="none"
           strokeDasharray={circumference}
@@ -54,14 +57,14 @@ const CircularProgress = ({ percentage, size = 80 }) => {
         />
       </Svg>
       <View style={styles.progressTextContainer}>
-        <Text style={[styles.progressText, { color: getColor() }]}>{percentage}%</Text>
+        <Text style={[styles.progressText, { color: progressColor }]}>{percentage}%</Text>
       </View>
     </View>
   );
 };
 
 // Range Bar Component
-const RangeBar = ({ value, min, max, unit, status }) => {
+const RangeBar = ({ value, min, max, unit, status }: { value: number; min: number; max: number; unit: string; status: string }) => {
   const percentage = ((value - min) / (max - min)) * 100;
   const clampedPercentage = Math.max(0, Math.min(100, percentage));
   
@@ -180,7 +183,7 @@ export function AnalysisResultsScreen({ route }: AnalysisResultsScreenProps) {
   const [expandedSections, setExpandedSections] = useState({});
 
   const toggleSection = (section: string) => {
-    setExpandedSections(prev => ({
+    setExpandedSections((prev: { [key: string]: boolean }) => ({
       ...prev,
       [section]: !prev[section]
     }));
@@ -189,9 +192,39 @@ export function AnalysisResultsScreen({ route }: AnalysisResultsScreenProps) {
   // Calculate overall health score
   const testResults = analysisData.parsed_data.test_results || [];
   const overallScore = calculateHealthScore(testResults);
+  
+  // Calculate normal range percentage
+  const normalCount = testResults.filter(r => r.status === 'normal').length;
+  const normalRangePercentage = testResults.length > 0 ? Math.round((normalCount / testResults.length) * 100) : 0;
+  const abnormalCount = testResults.length - normalCount;
+  
+  // Get patient info
+  const patientInfo: any = analysisData.parsed_data.patient_info || {};
+  
+  // Format date helper
+  const formatDate = (dateString: string | null | undefined) => {
+    if (!dateString) return 'N/A';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    } catch {
+      return dateString;
+    }
+  };
 
-  // Parse analysis into insights
-  const aiInsights = parseAnalysisIntoInsights(analysisData.analysis || '');
+  // Get structured analysis if available
+  const structuredAnalysis = (analysisData as any).structured_analysis || null;
+  
+  // Get test overview - use structured if available, otherwise extract from analysis text
+  let testOverview = structuredAnalysis?.test_overview || null;
+  if (!testOverview && analysisData.analysis) {
+    // Extract first paragraph as overview fallback
+    const firstParagraph = analysisData.analysis.split('\n\n')[0] || analysisData.analysis.split('OVERVIEW:')[1]?.split('\n')[0] || analysisData.analysis.substring(0, 300);
+    testOverview = firstParagraph.trim();
+  }
+  
+  // Get sections - use structured if available, otherwise parse from analysis
+  const aiInsights = structuredAnalysis?.sections || parseAnalysisIntoInsights(analysisData.analysis || '');
 
   return (
     <SafeAreaView style={styles.container}>
@@ -208,16 +241,84 @@ export function AnalysisResultsScreen({ route }: AnalysisResultsScreenProps) {
           </Text>
         </View>
 
-        {/* Overall Health Score Card */}
-        {testResults.length > 0 && (
-          <View style={styles.scoreCard}>
-            <View style={styles.scoreHeader}>
-              <View>
-                <Text style={styles.scoreTitle}>Overall Health Score</Text>
-                <Text style={styles.scoreSubtitle}>Based on {testResults.length} parameter{testResults.length !== 1 ? 's' : ''}</Text>
+        {/* Three Info Cards */}
+        <View style={styles.infoCardsContainer}>
+          {/* You Card */}
+          <View style={styles.infoCard}>
+            <Text style={styles.infoCardTitle}>You</Text>
+            {(patientInfo as any).birth_date && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Birth date</Text>
+                <Text style={styles.infoValue}>{formatDate((patientInfo as any).birth_date)}</Text>
               </View>
-              <CircularProgress percentage={overallScore} size={70} />
+            )}
+            {patientInfo.age && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Age</Text>
+                <Text style={styles.infoValue}>{patientInfo.age}</Text>
+              </View>
+            )}
+            {(patientInfo as any).sex && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Gender</Text>
+                <Text style={styles.infoValue}>{(patientInfo as any).sex}</Text>
+              </View>
+            )}
+            {patientInfo.test_date && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Test Date</Text>
+                <Text style={styles.infoValue}>{formatDate(patientInfo.test_date)}</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Scan Card */}
+          <View style={styles.infoCard}>
+            <Text style={styles.infoCardTitle}>Scan</Text>
+            {patientInfo.test_date && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Test Date</Text>
+                <Text style={styles.infoValue}>{formatDate(patientInfo.test_date)}</Text>
+              </View>
+            )}
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Date Analyzed</Text>
+              <Text style={styles.infoValue}>{formatDate(analysisData.created_at)}</Text>
             </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Test Type</Text>
+              <Text style={styles.infoValue}>blood test</Text>
+            </View>
+            
+            <View style={styles.biomarkerSummary}>
+              <View style={styles.biomarkerStat}>
+                <Text style={styles.biomarkerNumber}>{testResults.length}</Text>
+                <Text style={styles.biomarkerLabel}>biomarkers</Text>
+              </View>
+              <View style={styles.biomarkerStat}>
+                <Text style={[styles.biomarkerNumber, abnormalCount > 0 && styles.biomarkerNumberAbnormal]}>{abnormalCount}</Text>
+                <Text style={styles.biomarkerLabel}>abnormal</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* In Normal Range Card */}
+          <View style={styles.infoCard}>
+            <Text style={styles.normalRangeTitle}>In normal range</Text>
+            <View style={styles.normalRangeCircleContainer}>
+              <CircularProgress percentage={normalRangePercentage} size={120} color="#10b981" />
+            </View>
+            <Text style={styles.normalRangeSubtext}>of total biomarkers</Text>
+          </View>
+        </View>
+
+        {/* Test Overview Section */}
+        {testOverview && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Test Overview</Text>
+            <Text style={styles.testOverviewText}>
+              {testOverview}
+            </Text>
           </View>
         )}
 
@@ -277,39 +378,47 @@ export function AnalysisResultsScreen({ route }: AnalysisResultsScreenProps) {
           </View>
         )}
 
-        {/* AI Insights */}
+        {/* AI Analysis Sections */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>AI Insights</Text>
+          <Text style={styles.sectionTitle}>Interpretation</Text>
           
-          {aiInsights.map((insight, index) => (
-            <TouchableOpacity
-              key={index}
-              style={styles.insightCard}
-              onPress={() => toggleSection(insight.category + index)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.insightHeader}>
-                <View style={styles.insightIconContainer}>
-                  <Ionicons name={insight.icon as any} size={20} color={Colors.primary} />
+          {aiInsights.length > 0 ? (
+            aiInsights.map((insight: any, index: number) => (
+              <TouchableOpacity
+                key={index}
+                style={styles.insightCard}
+                onPress={() => toggleSection((insight.category || 'Section') + index)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.insightHeader}>
+                  <View style={styles.insightIconContainer}>
+                    <Ionicons name={(insight.icon || 'medical-outline') as any} size={20} color={Colors.primary} />
+                  </View>
+                  <View style={styles.insightHeaderText}>
+                    <Text style={styles.insightCategory}>{insight.category || 'Analysis'}</Text>
+                    {insight.summary && (
+                      <Text style={styles.insightSummary}>{insight.summary}</Text>
+                    )}
+                  </View>
+                  <Ionicons
+                    name={(expandedSections as any)[(insight.category || 'Section') + index] ? 'chevron-up' : 'chevron-down'}
+                    size={20}
+                    color={Colors.dark.textSecondary}
+                  />
                 </View>
-                <View style={styles.insightHeaderText}>
-                  <Text style={styles.insightCategory}>{insight.category}</Text>
-                  <Text style={styles.insightSummary}>{insight.summary}</Text>
-                </View>
-                <Ionicons
-                  name={expandedSections[insight.category + index] ? 'chevron-up' : 'chevron-down'}
-                  size={20}
-                  color={Colors.dark.textSecondary}
-                />
-              </View>
-              
-              {expandedSections[insight.category + index] && (
-                <View style={styles.insightDetails}>
-                  <Text style={styles.insightDetailsText}>{insight.details}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          ))}
+                
+                {(expandedSections as { [key: string]: boolean })[(insight.category || 'Section') + index] && (
+                  <View style={styles.insightDetails}>
+                    <Text style={styles.insightDetailsText}>{insight.details || insight.summary || ''}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))
+          ) : (
+            <View style={styles.insightCard}>
+              <Text style={styles.insightDetailsText}>{analysisData.analysis || 'No detailed analysis available.'}</Text>
+            </View>
+          )}
         </View>
 
         {/* Disclaimer */}
@@ -348,6 +457,84 @@ const styles = StyleSheet.create({
   date: {
     fontSize: FontSize.sm,
     color: Colors.dark.textSecondary,
+  },
+  infoCardsContainer: {
+    flexDirection: 'column',
+    gap: Spacing.md,
+    marginBottom: Spacing.xl,
+  },
+  infoCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  infoCardTitle: {
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.bold,
+    color: Colors.white,
+    marginBottom: Spacing.md,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  infoLabel: {
+    fontSize: FontSize.sm,
+    color: Colors.dark.textSecondary,
+  },
+  infoValue: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.bold,
+    color: Colors.white,
+  },
+  biomarkerSummary: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: Spacing.md,
+    paddingTop: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.dark.border,
+  },
+  biomarkerStat: {
+    alignItems: 'center',
+  },
+  biomarkerNumber: {
+    fontSize: FontSize.xxl,
+    fontWeight: FontWeight.bold,
+    color: Colors.white,
+    marginBottom: 2,
+  },
+  biomarkerNumberAbnormal: {
+    color: '#ef4444',
+  },
+  biomarkerLabel: {
+    fontSize: FontSize.xs,
+    color: Colors.dark.textSecondary,
+  },
+  normalRangeTitle: {
+    fontSize: FontSize.md,
+    color: Colors.dark.textSecondary,
+    marginBottom: Spacing.md,
+  },
+  normalRangeCircleContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: Spacing.md,
+  },
+  normalRangeSubtext: {
+    fontSize: FontSize.xs,
+    color: Colors.dark.textSecondary,
+    textAlign: 'center',
+    marginTop: Spacing.xs,
+  },
+  testOverviewText: {
+    fontSize: FontSize.md,
+    color: Colors.white,
+    lineHeight: FontSize.md * 1.6,
   },
   scoreCard: {
     backgroundColor: 'rgba(176, 19, 40, 0.1)',
