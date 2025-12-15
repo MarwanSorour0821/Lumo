@@ -1,24 +1,22 @@
-import { useColorScheme } from 'react-native';
-
 export const Colors = {
   primary: '#C7002B', // Vibrant red from image
   primaryDark: '#8E0F20',
   primaryLight: '#D4283D',
   
-  light: {
-    background: '#FFFFFF',
-    surface: '#F5F5F5',
-    text: '#1A1A1A',
-    textSecondary: '#666666',
-    border: '#E0E0E0',
-    inputBackground: 'rgba(255, 255, 255, 0.1)',
-  },
+  // Always use dark mode colors
+  background: '#000000', // Pure black from image
+  surface: '#1A1A1A', // Dark grey for search bar and test items
+  text: '#FFFFFF',
+  textSecondary: '#808080', // Medium grey for placeholder and sub-text
+  border: '#333333',
+  inputBackground: 'rgba(255, 255, 255, 0.08)',
   
+  // Legacy dark object for backward compatibility
   dark: {
-    background: '#000000', // Pure black from image
-    surface: '#1A1A1A', // Dark grey for search bar and test items
+    background: '#000000',
+    surface: '#1A1A1A',
     text: '#FFFFFF',
-    textSecondary: '#808080', // Medium grey for placeholder and sub-text
+    textSecondary: '#808080',
     border: '#333333',
     inputBackground: 'rgba(255, 255, 255, 0.08)',
   },
@@ -65,12 +63,10 @@ export const FontWeight = {
 };
 
 export function useThemeColors() {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-  
+  // Always return dark mode colors
   return {
-    isDark,
-    colors: isDark ? Colors.dark : Colors.light,
+    isDark: true,
+    colors: Colors.dark,
     primary: Colors.primary,
   };
 }

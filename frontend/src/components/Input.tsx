@@ -61,9 +61,7 @@ export function Input({
     }).start();
   }, [isSecure, eyeIconAnim]);
 
-  const defaultBorderColor = isUnderline 
-    ? Colors.dark.border 
-    : (isDark ? Colors.dark.border : Colors.light.border);
+  const defaultBorderColor = Colors.dark.border;
   const focusedBorderColor = Colors.primary;
   
   const borderOpacity = borderAnim.interpolate({
@@ -75,7 +73,7 @@ export function Input({
     <View style={[styles.container, style]}>
       <Text style={[
         isUnderline ? styles.underlineLabel : styles.label,
-        { color: isDark ? (isUnderline ? Colors.dark.textSecondary : Colors.dark.text) : (isUnderline ? Colors.light.textSecondary : Colors.light.text) }
+        { color: isUnderline ? Colors.dark.textSecondary : Colors.dark.text }
       ]}>
         {label}
       </Text>
@@ -90,16 +88,16 @@ export function Input({
               borderLeftWidth: isUnderline ? 0 : 1,
               borderRightWidth: isUnderline ? 0 : 1,
               borderBottomWidth: 1,
-              backgroundColor: isUnderline ? 'transparent' : (isDark ? Colors.dark.inputBackground : Colors.light.inputBackground),
+              backgroundColor: isUnderline ? 'transparent' : Colors.dark.inputBackground,
             },
           ]}
         >
           <TextInput
-            style={[styles.input, isUnderline && styles.underlineInput, { color: isDark ? Colors.dark.text : Colors.light.text }]}
+            style={[styles.input, isUnderline && styles.underlineInput, { color: Colors.dark.text }]}
             value={value}
             onChangeText={onChangeText}
             placeholder={placeholder}
-            placeholderTextColor={isDark ? Colors.dark.textSecondary : Colors.light.textSecondary}
+            placeholderTextColor={Colors.dark.textSecondary}
             secureTextEntry={isSecure}
             keyboardType={keyboardType}
             autoCapitalize={autoCapitalize}
@@ -134,7 +132,7 @@ export function Input({
                 >
                   <Svg width={20} height={20} viewBox="0 0 512 512">
                     <Path
-                      fill={isDark ? Colors.dark.textSecondary : Colors.light.textSecondary}
+                      fill={Colors.dark.textSecondary}
                       fillRule="evenodd"
                       d="m89.752 59.582l138.656 138.656C236.763 194.239 246.12 192 256 192c35.346 0 64 28.654 64 64c0 9.881-2.239 19.239-6.237 27.594l138.656 138.655l-30.17 30.17l-59.207-59.208c-29.128 19.7-64.646 33.456-107.042 33.456C106.667 426.667 42.667 256 42.667 256s22.862-60.965 73.14-110.02L59.583 89.751zm56.355 116.695c-28.73 27.818-47.477 60.904-56.726 79.73C107.404 292.697 161.739 384 256 384c29.106 0 54.406-8.706 76.006-21.823l-48.414-48.414C275.238 317.761 265.881 320 256 320c-35.346 0-64-28.654-64-64c0-9.88 2.24-19.238 6.238-27.592ZM256 85.334C405.334 85.334 469.334 256 469.334 256s-14.239 37.97-44.955 78.09l-30.56-30.567c13.43-18.244 22.99-35.702 28.802-47.53C404.597 219.302 350.262 128 256.001 128c-11.838 0-23.046 1.44-33.631 4.031l-34.04-34.049c20.25-7.905 42.775-12.648 67.67-12.648"
                     />
@@ -163,7 +161,7 @@ export function Input({
                   <Svg width={20} height={20} viewBox="0 0 24 24">
                     <G
                       fill="none"
-                      stroke={isDark ? Colors.dark.textSecondary : Colors.light.textSecondary}
+                      stroke={Colors.dark.textSecondary}
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth="2"

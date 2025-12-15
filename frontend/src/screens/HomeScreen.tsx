@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,8 @@ import {
   ScrollView,
   TextInput,
   TouchableOpacity,
+  Animated,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -15,6 +17,8 @@ import { Colors, Spacing, FontSize, BorderRadius } from '../constants/theme';
 import { RootStackParamList } from '../types';
 import { getCurrentSession, getUserCreationDate } from '../lib/supabase';
 import { BottomNavBar } from '../components/BottomNavBar';
+import { getAnalyses, AnalysisListItem } from '../lib/api';
+import { useFocusEffect } from '@react-navigation/native';
 
 type HomeScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Home'>;
@@ -67,21 +71,13 @@ const MedicalIcon = ({ size = 80, color = '#FFFFFF' }: { size?: number; color?: 
   </Svg>
 );
 
-// Flask/Test Tube Icon
-const FlaskIcon = ({ size = 20, color = '#000000' }: { size?: number; color?: string }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+// Document/Test Icon
+const DocumentIcon = ({ size = 20, color = '#000000' }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 512 512" fill="none">
     <Path
-      d="M9 2v6M15 2v6M9 8h6M7 8h10v12a2 2 0 01-2 2H9a2 2 0 01-2-2V8z"
-      stroke={color}
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <Path
-      d="M12 12v8M10 16h4"
-      stroke={color}
-      strokeWidth={2}
-      strokeLinecap="round"
+      fill={color}
+      fillRule="evenodd"
+      d="m384 85.333l85.334 85.333v256H42.667V85.333zM373.334 128h-288v256h341.333V181.333zm-224 42.666L149.333 320H384v21.334H128V170.666zm64 64v64h-42.667v-64zm64-42.666v106.666h-42.667V192zm64 64v42.666h-42.667V256z"
     />
   </Svg>
 );
@@ -101,14 +97,10 @@ const ChevronDownIcon = ({ size = 16, color = '#000000' }: { size?: number; colo
 
 // Arrow Right Icon (circular)
 const ArrowRightIcon = ({ size = 24, color = '#FFFFFF' }: { size?: number; color?: string }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Circle cx="12" cy="12" r="10" stroke={color} strokeWidth={1.5} />
+  <Svg width={size} height={size} viewBox="0 0 256 256" fill="none">
     <Path
-      d="M9 12l3 3 3-3M12 9v6"
-      stroke={color}
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      fill={color}
+      d="M128 26a102 102 0 1 0 102 102A102.12 102.12 0 0 0 128 26Zm0 192a90 90 0 1 1 90-90a90.1 90.1 0 0 1-90 90Zm44.24-94.24a6 6 0 0 1 0 8.48l-32 32a6 6 0 0 1-8.48-8.48L153.51 134H88a6 6 0 0 1 0-12h65.51l-21.75-21.76a6 6 0 0 1 8.48-8.48Z"
     />
   </Svg>
 );
@@ -116,6 +108,13 @@ const ArrowRightIcon = ({ size = 24, color = '#FFFFFF' }: { size?: number; color
 export function HomeScreen({ navigation }: HomeScreenProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [myTestsExpanded, setMyTestsExpanded] = useState(true);
+  const [analyses, setAnalyses] = useState<AnalysisListItem[]>([]);
+  const [loadingTests, setLoadingTests] = useState(false);
+  const [loadingAnalysisId, setLoadingAnalysisId] = useState<string | null>(null);
+  
+  // Animation values for smooth expand/collapse
+  const expandAnim = useRef(new Animated.Value(1)).current;
+  const chevronRotate = useRef(new Animated.Value(0)).current;
   
   // Initialize selectedDate to today (without time)
   const getToday = () => {
@@ -165,6 +164,102 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
 
     loadAccountCreationDate();
   }, []);
+
+  // Initialize animation state
+  useEffect(() => {
+    expandAnim.setValue(myTestsExpanded ? 1 : 0);
+    chevronRotate.setValue(myTestsExpanded ? 1 : 0);
+  }, []);
+
+  // Fetch analyses for current month
+  const fetchAnalyses = async () => {
+    try {
+      setLoadingTests(true);
+      const data = await getAnalyses();
+      setAnalyses(data);
+    } catch (error) {
+      console.error('Error fetching analyses:', error);
+      setAnalyses([]);
+    } finally {
+      setLoadingTests(false);
+    }
+  };
+
+  // Fetch analyses when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchAnalyses();
+    }, [])
+  );
+
+  // Filter analyses for the selected date's month
+  const getSelectedMonthTests = () => {
+    const selectedMonth = selectedDate.getMonth();
+    const selectedYear = selectedDate.getFullYear();
+
+    return analyses.filter((analysis) => {
+      const analysisDate = new Date(analysis.created_at);
+      return (
+        analysisDate.getMonth() === selectedMonth &&
+        analysisDate.getFullYear() === selectedYear
+      );
+    });
+  };
+
+  const selectedMonthTests = getSelectedMonthTests();
+
+  // Format date for test item display
+  const formatTestDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  // Handle test item press
+  const handleTestPress = async (analysisId: string) => {
+    setLoadingAnalysisId(analysisId);
+    try {
+      const { getAnalysis } = await import('../lib/api');
+      const analysisData = await getAnalysis(analysisId);
+      navigation.navigate('AnalysisResults', {
+        analysisData: {
+          parsed_data: analysisData.parsed_data,
+          analysis: analysisData.analysis,
+          created_at: analysisData.created_at,
+        },
+        analysisId: analysisData.id,
+      });
+    } catch (error) {
+      console.error('Error loading analysis:', error);
+    } finally {
+      setLoadingAnalysisId(null);
+    }
+  };
+
+  // Handle expand/collapse with animation
+  const toggleTestsExpanded = () => {
+    const toValue = myTestsExpanded ? 0 : 1;
+    
+    Animated.parallel([
+      Animated.timing(expandAnim, {
+        toValue,
+        duration: 300,
+        useNativeDriver: false, // Height animation requires layout
+      }),
+      Animated.timing(chevronRotate, {
+        toValue,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    
+    setMyTestsExpanded(!myTestsExpanded);
+  };
 
   // Format date for display
   const formatDate = (date: Date) => {
@@ -302,28 +397,74 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
           {/* My Tests Section */}
           <TouchableOpacity
             style={styles.myTestsHeader}
-            onPress={() => setMyTestsExpanded(!myTestsExpanded)}
+            onPress={toggleTestsExpanded}
             activeOpacity={0.8}
           >
             <View style={styles.myTestsHeaderLeft}>
-              <FlaskIcon size={20} color={Colors.black} />
-              <Text style={styles.myTestsHeaderText}>MY TESTS (2)</Text>
+              <DocumentIcon size={20} color={Colors.black} />
+              <View style={styles.myTestsHeaderTextContainer}>
+                <Text style={styles.myTestsHeaderText}>MY TESTS</Text>
+                <Text style={styles.testCountText}>{'\u0028'}{selectedMonthTests.length}{'\u0029'}</Text>
+              </View>
             </View>
-            <ChevronDownIcon size={16} color={Colors.black} />
+            <Animated.View
+              style={{
+                transform: [
+                  {
+                    rotate: chevronRotate.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0deg', '180deg'],
+                    }),
+                  },
+                ],
+              }}
+            >
+              <ChevronDownIcon size={16} color={Colors.black} />
+            </Animated.View>
           </TouchableOpacity>
 
           {/* Test List Items */}
-          {myTestsExpanded && (
+          <Animated.View
+            style={{
+              maxHeight: expandAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, 1000], // Adjust based on max expected height
+              }),
+              opacity: expandAnim,
+              overflow: 'hidden',
+            }}
+          >
             <View style={styles.testList}>
-              <TouchableOpacity style={styles.testItem} activeOpacity={0.8}>
-                <View style={styles.testItemContent}>
-                  <Text style={styles.testItemName}>Example test</Text>
-                  <Text style={styles.testItemDate}>December 9, 2025 18:07</Text>
+              {loadingTests ? (
+                <View style={styles.loadingContainer}>
+                  <Text style={styles.loadingText}>Loading tests...</Text>
                 </View>
-                <ArrowRightIcon size={24} color={Colors.white} />
-              </TouchableOpacity>
+              ) : selectedMonthTests.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>No tests this month</Text>
+                </View>
+              ) : (
+                selectedMonthTests.map((test) => (
+                  <TouchableOpacity
+                    key={test.id}
+                    style={styles.testItem}
+                    activeOpacity={0.8}
+                    onPress={() => handleTestPress(test.id)}
+                  >
+                    <View style={styles.testItemContent}>
+                      <Text style={styles.testItemName}>{test.title}</Text>
+                      <Text style={styles.testItemDate}>{formatTestDate(test.created_at)}</Text>
+                    </View>
+                    {loadingAnalysisId === test.id ? (
+                      <ActivityIndicator size="small" color={Colors.white} />
+                    ) : (
+                      <ArrowRightIcon size={24} color={Colors.white} />
+                    )}
+                  </TouchableOpacity>
+                ))
+              )}
             </View>
-          )}
+          </Animated.View>
         </ScrollView>
         <BottomNavBar currentRoute="Home" />
       </SafeAreaView>
@@ -344,7 +485,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: Spacing.lg,
-    paddingTop: 80,
+    paddingTop: 40,
     paddingBottom: Spacing.xl,
   },
   header: {
@@ -455,12 +596,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.sm,
   },
+  myTestsHeaderTextContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
   myTestsHeaderText: {
     fontSize: FontSize.sm,
     fontFamily: 'ProductSans-Bold',
     color: Colors.black,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+  testCountText: {
+    fontSize: FontSize.sm,
+    fontFamily: 'System', // Use system font to avoid font-specific rendering issues
+    color: Colors.black,
+    textTransform: 'none',
+    letterSpacing: 0,
+    fontWeight: '400',
   },
   testList: {
     gap: Spacing.md,
@@ -487,6 +641,25 @@ const styles = StyleSheet.create({
     fontFamily: 'ProductSans-Regular',
     color: Colors.dark.textSecondary,
   },
+  loadingContainer: {
+    padding: Spacing.md,
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: FontSize.sm,
+    fontFamily: 'ProductSans-Regular',
+    color: Colors.dark.textSecondary,
+  },
+  emptyContainer: {
+    padding: Spacing.md,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: FontSize.sm,
+    fontFamily: 'ProductSans-Regular',
+    color: Colors.dark.textSecondary,
+  },
 });
+
 
 

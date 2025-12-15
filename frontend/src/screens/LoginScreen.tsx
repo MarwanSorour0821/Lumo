@@ -138,22 +138,22 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
                 variant="underline"
               />
             </Animated.View>
-            
-            <Animated.View style={[styles.buttonContainer, { opacity: buttonFade }]}>
-              <PrimaryButton
-                text={loading ? 'Signing in...' : 'Sign In'}
-                onPress={handleSignIn}
-                theme="dark"
-                disabled={loading}
-              />
-              <TouchableOpacity
-                style={styles.switchAuth}
-                onPress={() => navigation.navigate('SignUpPersonal')}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.switchAuthText}>Don't have an account? Get Started</Text>
-              </TouchableOpacity>
-            </Animated.View>
+
+          <Animated.View style={[styles.buttonContainer, { opacity: buttonFade }]}>
+            <PrimaryButton
+              text={loading ? 'Signing in...' : 'Sign In'}
+              onPress={handleSignIn}
+              theme="dark"
+              disabled={loading}
+            />
+            <TouchableOpacity
+              style={styles.switchAuth}
+              onPress={() => navigation.navigate('SignUpPersonal')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.switchAuthText}>Don't have an account? Get Started</Text>
+            </TouchableOpacity>
+          </Animated.View>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>

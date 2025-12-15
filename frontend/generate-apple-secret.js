@@ -25,3 +25,4 @@ const token = jwt.sign(
 console.log(token);
 
 
+
