@@ -250,7 +250,7 @@ export function AnalysisResultsScreen({ route }: AnalysisResultsScreenProps) {
         <View style={styles.infoCardsContainer}>
           {/* You Card */}
           <View style={styles.infoCard}>
-            <Text style={styles.infoCardTitle}>You</Text>
+            <Text style={styles.infoCardTitle}>{patientInfo.name}</Text>
             {(patientInfo as any).birth_date && (
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Birth date</Text>
@@ -505,13 +505,6 @@ export function AnalysisResultsScreen({ route }: AnalysisResultsScreenProps) {
           </View>
         )}
 
-        {/* Disclaimer */}
-        <View style={styles.disclaimer}>
-          <Ionicons name="information-circle-outline" size={20} color="#f59e0b" />
-          <Text style={styles.disclaimerText}>
-            This analysis is AI-generated and should not replace professional medical advice.
-          </Text>
-        </View>
       </ScrollView>
     </SafeAreaView>
   );
