@@ -212,19 +212,17 @@ export function AnalysisResultsScreen({ route }: AnalysisResultsScreenProps) {
     }
   };
 
-  // Get structured analysis if available
-  const structuredAnalysis = (analysisData as any).structured_analysis || null;
+  // Get structured analysis - analysis is now JSON (structured_analysis)
+  const structuredAnalysis = analysisData.analysis && typeof analysisData.analysis === 'object' 
+    ? analysisData.analysis 
+    : (analysisData as any).structured_analysis || null;
   
-  // Get test overview - use structured if available, otherwise extract from analysis text
-  let testOverview = structuredAnalysis?.test_overview || null;
-  if (!testOverview && analysisData.analysis) {
-    // Extract first paragraph as overview fallback
-    const firstParagraph = analysisData.analysis.split('\n\n')[0] || analysisData.analysis.split('OVERVIEW:')[1]?.split('\n')[0] || analysisData.analysis.substring(0, 300);
-    testOverview = firstParagraph.trim();
-  }
+  // Get test overview from structured analysis
+  const testOverview = structuredAnalysis?.test_overview || null;
   
-  // Get sections - use structured if available, otherwise parse from analysis
-  const aiInsights = structuredAnalysis?.sections || parseAnalysisIntoInsights(analysisData.analysis || '');
+  // Get sections from structured analysis, fallback to parsing if needed (for old data)
+  const aiInsights = structuredAnalysis?.sections || 
+    (typeof analysisData.analysis === 'string' ? parseAnalysisIntoInsights(analysisData.analysis) : []);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -322,104 +320,183 @@ export function AnalysisResultsScreen({ route }: AnalysisResultsScreenProps) {
           </View>
         )}
 
-        {/* Test Results Grid */}
-        {testResults.length > 0 && (
+        {/* Category Sections with Biomarkers */}
+        {aiInsights.length > 0 ? (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Test Results</Text>
+            <Text style={styles.sectionTitle}>Analysis by Category</Text>
             
-            {testResults.map((result, index) => {
-              const parsedRange = parseReferenceRange(result.reference_range || '');
-              const numericValue = parseFloat(result.value);
+            {aiInsights.map((insight: any, index: number) => {
+              // Get biomarkers for this category
+              const categoryBiomarkers = insight.biomarkers || [];
+              const categoryResults = testResults.filter((result: any) => 
+                categoryBiomarkers.includes(result.marker)
+              );
               
               return (
-                <View key={index} style={styles.resultCard}>
-                  <View style={styles.resultHeader}>
-                    <Text style={styles.markerName}>{result.marker}</Text>
-                    {result.status && (
-                      <View style={[
-                        styles.statusBadge,
-                        result.status === 'normal' && styles.statusNormal,
-                        result.status === 'low' && styles.statusLow,
-                        result.status === 'high' && styles.statusHigh,
-                      ]}>
-                        <Text style={styles.statusText}>{result.status.toUpperCase()}</Text>
+                <View key={index} style={styles.categorySection}>
+                  {/* Category Header */}
+                  <View style={styles.categoryHeader}>
+                    <View style={styles.categoryHeaderLeft}>
+                      <View style={styles.insightIconContainer}>
+                        <Ionicons name={(insight.icon || 'medical-outline') as any} size={20} color={Colors.primary} />
                       </View>
-                    )}
+                      <Text style={styles.categoryTitle}>{insight.category || 'Analysis'}</Text>
+                    </View>
                   </View>
                   
-                  {parsedRange && !isNaN(numericValue) ? (
-                    <>
-                      <RangeBar
-                        value={numericValue}
-                        min={parsedRange.min}
-                        max={parsedRange.max}
-                        unit={result.unit || ''}
-                        status={result.status || 'normal'}
-                      />
-                      <Text style={styles.referenceText}>
-                        Reference: {result.reference_range}
-                      </Text>
-                    </>
-                  ) : (
-                    <View style={styles.simpleValueContainer}>
-                      <Text style={styles.simpleValue}>
-                        {result.value} {result.unit}
-                      </Text>
-                      {result.reference_range && (
-                        <Text style={styles.referenceText}>
-                          Reference: {result.reference_range}
+                  {/* Summary */}
+                  {insight.summary && (
+                    <View style={styles.categorySummary}>
+                      <Text style={styles.categorySummaryText}>{insight.summary}</Text>
+                    </View>
+                  )}
+                  
+                  {/* Details */}
+                  {insight.details && (
+                    <TouchableOpacity
+                      onPress={() => toggleSection((insight.category || 'Section') + index)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.categoryDetailsToggle}>
+                        <Text style={styles.categoryDetailsToggleText}>
+                          {(expandedSections as any)[(insight.category || 'Section') + index] 
+                            ? 'Hide Details' 
+                            : 'Show Details'}
                         </Text>
-                      )}
+                        <Ionicons
+                          name={(expandedSections as any)[(insight.category || 'Section') + index] ? 'chevron-up' : 'chevron-down'}
+                          size={16}
+                          color={Colors.primary}
+                        />
+                      </View>
+                    </TouchableOpacity>
+                  )}
+                  
+                  {/* Expanded Details */}
+                  {(expandedSections as { [key: string]: boolean })[(insight.category || 'Section') + index] && insight.details && (
+                    <View style={styles.categoryDetails}>
+                      <Text style={styles.categoryDetailsText}>{insight.details}</Text>
+                    </View>
+                  )}
+                  
+                  {/* Biomarker Indicators for this Category */}
+                  {categoryResults.length > 0 && (
+                    <View style={styles.categoryBiomarkers}>
+                      {categoryResults.map((result: any, resultIndex: number) => {
+                        const parsedRange = parseReferenceRange(result.reference_range || '');
+                        const numericValue = parseFloat(result.value);
+                        
+                        return (
+                          <View key={resultIndex} style={styles.resultCard}>
+                            <View style={styles.resultHeader}>
+                              <Text style={styles.markerName}>{result.marker}</Text>
+                              {result.status && (
+                                <View style={[
+                                  styles.statusBadge,
+                                  result.status === 'normal' && styles.statusNormal,
+                                  result.status === 'low' && styles.statusLow,
+                                  result.status === 'high' && styles.statusHigh,
+                                ]}>
+                                  <Text style={styles.statusText}>{result.status.toUpperCase()}</Text>
+                                </View>
+                              )}
+                            </View>
+                            
+                            {parsedRange && !isNaN(numericValue) ? (
+                              <>
+                                <RangeBar
+                                  value={numericValue}
+                                  min={parsedRange.min}
+                                  max={parsedRange.max}
+                                  unit={result.unit || ''}
+                                  status={result.status || 'normal'}
+                                />
+                                <Text style={styles.referenceText}>
+                                  Reference: {result.reference_range}
+                                </Text>
+                              </>
+                            ) : (
+                              <View style={styles.simpleValueContainer}>
+                                <Text style={styles.simpleValue}>
+                                  {result.value} {result.unit}
+                                </Text>
+                                {result.reference_range && (
+                                  <Text style={styles.referenceText}>
+                                    Reference: {result.reference_range}
+                                  </Text>
+                                )}
+                              </View>
+                            )}
+                          </View>
+                        );
+                      })}
                     </View>
                   )}
                 </View>
               );
             })}
           </View>
-        )}
-
-        {/* AI Analysis Sections */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Interpretation</Text>
-          
-          {aiInsights.length > 0 ? (
-            aiInsights.map((insight: any, index: number) => (
-              <TouchableOpacity
-                key={index}
-                style={styles.insightCard}
-                onPress={() => toggleSection((insight.category || 'Section') + index)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.insightHeader}>
-                  <View style={styles.insightIconContainer}>
-                    <Ionicons name={(insight.icon || 'medical-outline') as any} size={20} color={Colors.primary} />
-                  </View>
-                  <View style={styles.insightHeaderText}>
-                    <Text style={styles.insightCategory}>{insight.category || 'Analysis'}</Text>
-                    {insight.summary && (
-                      <Text style={styles.insightSummary}>{insight.summary}</Text>
+        ) : (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Test Results</Text>
+            {testResults.length > 0 ? (
+              testResults.map((result, index) => {
+                const parsedRange = parseReferenceRange(result.reference_range || '');
+                const numericValue = parseFloat(result.value);
+                
+                return (
+                  <View key={index} style={styles.resultCard}>
+                    <View style={styles.resultHeader}>
+                      <Text style={styles.markerName}>{result.marker}</Text>
+                      {result.status && (
+                        <View style={[
+                          styles.statusBadge,
+                          result.status === 'normal' && styles.statusNormal,
+                          result.status === 'low' && styles.statusLow,
+                          result.status === 'high' && styles.statusHigh,
+                        ]}>
+                          <Text style={styles.statusText}>{result.status.toUpperCase()}</Text>
+                        </View>
+                      )}
+                    </View>
+                    
+                    {parsedRange && !isNaN(numericValue) ? (
+                      <>
+                        <RangeBar
+                          value={numericValue}
+                          min={parsedRange.min}
+                          max={parsedRange.max}
+                          unit={result.unit || ''}
+                          status={result.status || 'normal'}
+                        />
+                        <Text style={styles.referenceText}>
+                          Reference: {result.reference_range}
+                        </Text>
+                      </>
+                    ) : (
+                      <View style={styles.simpleValueContainer}>
+                        <Text style={styles.simpleValue}>
+                          {result.value} {result.unit}
+                        </Text>
+                        {result.reference_range && (
+                          <Text style={styles.referenceText}>
+                            Reference: {result.reference_range}
+                          </Text>
+                        )}
+                      </View>
                     )}
                   </View>
-                  <Ionicons
-                    name={(expandedSections as any)[(insight.category || 'Section') + index] ? 'chevron-up' : 'chevron-down'}
-                    size={20}
-                    color={Colors.dark.textSecondary}
-                  />
-                </View>
-                
-                {(expandedSections as { [key: string]: boolean })[(insight.category || 'Section') + index] && (
-                  <View style={styles.insightDetails}>
-                    <Text style={styles.insightDetailsText}>{insight.details || insight.summary || ''}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            ))
-          ) : (
-            <View style={styles.insightCard}>
-              <Text style={styles.insightDetailsText}>{analysisData.analysis || 'No detailed analysis available.'}</Text>
-            </View>
-          )}
-        </View>
+                );
+              })
+            ) : (
+              <View style={styles.insightCard}>
+                <Text style={styles.insightDetailsText}>
+                  {structuredAnalysis?.test_overview || 'No detailed analysis available.'}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Disclaimer */}
         <View style={styles.disclaimer}>
@@ -738,5 +815,68 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     color: Colors.white,
     lineHeight: FontSize.sm * 1.5,
+  },
+  categorySection: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    overflow: 'hidden',
+  },
+  categoryHeader: {
+    marginBottom: Spacing.md,
+  },
+  categoryHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    flexShrink: 1,
+  },
+  categoryTitle: {
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.bold,
+    color: Colors.white,
+    marginLeft: Spacing.md,
+    flex: 1,
+    flexShrink: 1,
+  },
+  categorySummary: {
+    marginBottom: Spacing.md,
+    paddingBottom: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.dark.border,
+  },
+  categorySummaryText: {
+    fontSize: FontSize.md,
+    color: Colors.white,
+    lineHeight: FontSize.md * 1.5,
+  },
+  categoryDetailsToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  categoryDetailsToggleText: {
+    fontSize: FontSize.sm,
+    color: Colors.primary,
+    fontWeight: FontWeight.semibold,
+  },
+  categoryDetails: {
+    marginBottom: Spacing.md,
+    paddingBottom: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.dark.border,
+  },
+  categoryDetailsText: {
+    fontSize: FontSize.sm,
+    color: Colors.white,
+    lineHeight: FontSize.sm * 1.6,
+  },
+  categoryBiomarkers: {
+    marginTop: Spacing.md,
   },
 });

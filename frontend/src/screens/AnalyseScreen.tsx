@@ -119,7 +119,7 @@ export function AnalyseScreen() {
       // Step 2: Save the analysis to the database
       const savedAnalysis = await saveAnalysis(
         result.parsed_data,
-        result.analysis
+        result.structured_analysis
       );
       
       // Complete the progress

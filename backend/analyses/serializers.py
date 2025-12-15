@@ -55,5 +55,5 @@ class AnalysisListSerializer(serializers.ModelSerializer):
 class CreateAnalysisSerializer(serializers.Serializer):
     """Serializer for creating a new analysis."""
     parsed_data = serializers.JSONField()
-    analysis = serializers.CharField()
+    analysis = serializers.JSONField()
     title = serializers.CharField(required=False, allow_blank=True, allow_null=True)
