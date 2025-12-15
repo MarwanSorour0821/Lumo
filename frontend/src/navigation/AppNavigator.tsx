@@ -22,7 +22,7 @@ import { AnalyseScreen } from '../screens/AnalyseScreen';
 
 import { RootStackParamList } from '../types';
 import { Colors } from '../constants/theme';
-import { getCurrentSession } from '../lib/supabase';
+import { getCurrentSession } from '../lib/index';
 
 /** YOUR ANALYSIS-PAGE IMPORTS (kept) **/
 import { SignUpBiometricsScreen } from '../screens/SignUpBiometricsScreen';

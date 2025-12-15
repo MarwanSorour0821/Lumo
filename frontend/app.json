@@ -14,10 +14,13 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.lumobloodapp.app"
+      "bundleIdentifier": "com.lumoblood.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
-      "package": "com.lumobloodapp.app",
+      "package": "com.lumoblood.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/splash-icon.png",
         "backgroundColor": "#000000"
