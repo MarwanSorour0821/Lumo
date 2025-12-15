@@ -102,7 +102,7 @@ export function MyLabScreen({ navigation, route }: MyLabScreenProps) {
     if (summary.includes('All markers normal')) {
       return '#22C55E'; // Green
     } else if (summary.includes('abnormal')) {
-      return '#EF4444'; // Red
+      return '#B01328'; // Brand red for abnormal markers
     }
     return Colors.dark.textSecondary;
   };
