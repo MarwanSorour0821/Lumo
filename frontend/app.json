@@ -17,6 +17,7 @@
       "bundleIdentifier": "com.lumobloodapp.app"
     },
     "android": {
+      "package": "com.lumobloodapp.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/splash-icon.png",
         "backgroundColor": "#000000"
@@ -29,6 +30,11 @@
     },
     "plugins": [
       "expo-web-browser"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "f3ab3c45-2ab3-40ae-82ad-71f139cf68e5"
+      }
+    }
   }
 }

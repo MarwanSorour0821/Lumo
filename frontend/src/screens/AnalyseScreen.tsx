@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert } from 'react-native';
+import { View, Text, StyleSheet, Alert, Modal, Pressable, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -22,6 +22,7 @@ export function AnalyseScreen() {
   const [fileType, setFileType] = useState<'image' | 'pdf' | null>(null);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState<number>(0);
+  const [attachmentModalVisible, setAttachmentModalVisible] = useState(false);
 
   const requestPermissions = async () => {
     const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
@@ -158,6 +159,63 @@ export function AnalyseScreen() {
     </Svg>
   );
 
+  const CameraIcon = ({ size = 32, color = '#FFFFFF' }: { size?: number; color?: string }) => (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+
+  const ImageIcon = ({ size = 32, color = '#FFFFFF' }: { size?: number; color?: string }) => (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2z"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M9 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM21 15l-5-5L5 21"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+
+  const FileIcon = ({ size = 32, color = '#FFFFFF' }: { size?: number; color?: string }) => (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M14 2v6h6M16 13H8M16 17H8M10 9H8"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -175,11 +233,11 @@ export function AnalyseScreen() {
         </View>
 
         {/* Title */}
-        <Text style={styles.title}>Upload a photo or PDF{'\n'}of your blood test</Text>
+        <Text style={styles.title}>Upload a photo or PDF of your blood test</Text>
 
         {/* Subtitle */}
         <Text style={styles.subtitle}>
-          Make sure all information is clear and visible{'\n'}for the most accurate results
+          Make sure all information is clear and visible for the most accurate results
         </Text>
 
         {/* Smooth Upload Flow */}
@@ -189,8 +247,71 @@ export function AnalyseScreen() {
           onPickDocument={handlePickDocument}
           selectedFile={selectedFile}
           fileType={fileType}
+          onOpenModal={() => setAttachmentModalVisible(true)}
         />
       </View>
+      
+      {/* Attachment Modal - reuse chat screen bottom sheet style */}
+      <Modal
+        visible={attachmentModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setAttachmentModalVisible(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setAttachmentModalVisible(false)}
+        >
+          <View style={styles.modalContent}>
+            <Pressable onPress={(e) => e.stopPropagation()}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Add Attachment</Text>
+              </View>
+              <View style={styles.modalOptions}>
+                <TouchableOpacity
+                  style={styles.modalOption}
+                  onPress={() => {
+                    setAttachmentModalVisible(false);
+                    handleTakePhoto();
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.modalOptionIcon}>
+                    <CameraIcon size={32} color={Colors.white} />
+                  </View>
+                  <Text style={styles.modalOptionText}>Camera</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.modalOption}
+                  onPress={() => {
+                    setAttachmentModalVisible(false);
+                    handlePickImage();
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.modalOptionIcon}>
+                    <ImageIcon size={32} color={Colors.white} />
+                  </View>
+                  <Text style={styles.modalOptionText}>Photo</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.modalOption}
+                  onPress={() => {
+                    setAttachmentModalVisible(false);
+                    handlePickDocument();
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.modalOptionIcon}>
+                    <FileIcon size={32} color={Colors.white} />
+                  </View>
+                  <Text style={styles.modalOptionText}>File</Text>
+                </TouchableOpacity>
+              </View>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
       
       {/* Done Button or Loading Progress Bar */}
       <View style={styles.buttonContainer}>
@@ -261,5 +382,52 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.lg,
     alignItems: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: Colors.dark.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.xl,
+  },
+  modalHeader: {
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.dark.border,
+  },
+  modalTitle: {
+    fontSize: FontSize.lg,
+    fontWeight: '600',
+    color: Colors.white,
+  },
+  modalOptions: {
+    flexDirection: 'row',
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
+    gap: Spacing.md,
+  },
+  modalOption: {
+    flex: 1,
+    alignItems: 'center',
+    padding: Spacing.sm,
+  },
+  modalOptionIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: Colors.dark.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.sm,
+  },
+  modalOptionText: {
+    fontSize: FontSize.md,
+    color: Colors.white,
   },
 });

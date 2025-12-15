@@ -11,6 +11,11 @@ interface UploadFlowProps {
   onPickDocument: () => void;
   selectedFile: string | null;
   fileType: 'image' | 'pdf' | null;
+  /**
+   * Optional external modal opener. When provided, the internal centered
+   * popup is disabled and this callback is used instead when pressing Upload.
+   */
+  onOpenModal?: () => void;
 }
 
 export const SmoothUploadFlow: React.FC<UploadFlowProps> = ({
@@ -19,6 +24,7 @@ export const SmoothUploadFlow: React.FC<UploadFlowProps> = ({
   onPickDocument,
   selectedFile,
   fileType,
+  onOpenModal,
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const backdropOpacity = useRef(new Animated.Value(0)).current;
@@ -28,6 +34,9 @@ export const SmoothUploadFlow: React.FC<UploadFlowProps> = ({
   const checkRotate = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    // If an external modal is provided, skip internal popup animations
+    if (onOpenModal) return;
+
     if (isMenuOpen) {
       // Reset animated values to 0 to ensure animation always starts from beginning
       backdropOpacity.setValue(0);
@@ -85,7 +94,7 @@ export const SmoothUploadFlow: React.FC<UploadFlowProps> = ({
         ]),
       ]).start();
     }
-  }, [isMenuOpen]);
+  }, [isMenuOpen, onOpenModal, backdropOpacity, menuScale, menuOpacity]);
 
   useEffect(() => {
     if (selectedFile) {
@@ -110,7 +119,7 @@ export const SmoothUploadFlow: React.FC<UploadFlowProps> = ({
       checkScale.setValue(0);
       checkRotate.setValue(0);
     }
-  }, [selectedFile]);
+  }, [selectedFile, checkScale, checkRotate]);
 
   const handleOptionPress = (action: () => void) => {
     setIsMenuOpen(false);
@@ -128,6 +137,15 @@ export const SmoothUploadFlow: React.FC<UploadFlowProps> = ({
     outputRange: ['0deg', '360deg'],
   });
 
+  const handleUploadPress = () => {
+    if (selectedFile) return;
+    if (onOpenModal) {
+      onOpenModal();
+    } else {
+      setIsMenuOpen(!isMenuOpen);
+    }
+  };
+
   return (
     <View style={styles.container}>
       {/* Upload Button */}
@@ -136,7 +154,7 @@ export const SmoothUploadFlow: React.FC<UploadFlowProps> = ({
           styles.uploadButton,
           selectedFile && styles.uploadButtonSuccess,
         ]}
-        onPress={() => !selectedFile && setIsMenuOpen(!isMenuOpen)}
+        onPress={handleUploadPress}
         disabled={!!selectedFile}
       >
         {selectedFile ? (
@@ -163,78 +181,80 @@ export const SmoothUploadFlow: React.FC<UploadFlowProps> = ({
         )}
       </TouchableOpacity>
 
-      {/* Centered Popup Modal */}
-      <Modal
-        visible={isMenuOpen}
-        transparent
-        animationType="none"
-        onRequestClose={() => setIsMenuOpen(false)}
-      >
-        <View style={styles.modalContainer}>
-          {/* Backdrop */}
-          <TouchableOpacity
-            style={styles.backdrop}
-            activeOpacity={1}
-            onPress={handleBackdropPress}
-          >
+      {/* Centered Popup Modal (used when no external modal is provided) */}
+      {!onOpenModal && (
+        <Modal
+          visible={isMenuOpen}
+          transparent
+          animationType="none"
+          onRequestClose={() => setIsMenuOpen(false)}
+        >
+          <View style={styles.modalContainer}>
+            {/* Backdrop */}
+            <TouchableOpacity
+              style={styles.backdrop}
+              activeOpacity={1}
+              onPress={handleBackdropPress}
+            >
+              <Animated.View
+                style={[
+                  styles.backdropAnimated,
+                  {
+                    opacity: backdropOpacity,
+                  },
+                ]}
+              />
+            </TouchableOpacity>
+
+            {/* Centered Menu Popup */}
             <Animated.View
               style={[
-                styles.backdropAnimated,
+                styles.popupContainer,
                 {
-                  opacity: backdropOpacity,
+                  opacity: menuOpacity,
+                  transform: [{ scale: menuScale }],
                 },
               ]}
-            />
-          </TouchableOpacity>
+            >
+              <View style={styles.menu}>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => handleOptionPress(onTakePhoto)}
+                >
+                  <View style={styles.menuIconContainer}>
+                    <Ionicons name="camera-outline" size={22} color={Colors.primary} />
+                  </View>
+                  <Text style={styles.menuItemText}>Take Photo</Text>
+                </TouchableOpacity>
 
-          {/* Centered Menu Popup */}
-          <Animated.View
-            style={[
-              styles.popupContainer,
-              {
-                opacity: menuOpacity,
-                transform: [{ scale: menuScale }],
-              },
-            ]}
-          >
-            <View style={styles.menu}>
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => handleOptionPress(onTakePhoto)}
-              >
-                <View style={styles.menuIconContainer}>
-                  <Ionicons name="camera-outline" size={22} color={Colors.primary} />
-                </View>
-                <Text style={styles.menuItemText}>Take Photo</Text>
-              </TouchableOpacity>
+                <View style={styles.menuDivider} />
 
-              <View style={styles.menuDivider} />
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => handleOptionPress(onPickImage)}
+                >
+                  <View style={styles.menuIconContainer}>
+                    <Ionicons name="image-outline" size={22} color={Colors.primary} />
+                  </View>
+                  <Text style={styles.menuItemText}>Choose from Library</Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => handleOptionPress(onPickImage)}
-              >
-                <View style={styles.menuIconContainer}>
-                  <Ionicons name="image-outline" size={22} color={Colors.primary} />
-                </View>
-                <Text style={styles.menuItemText}>Choose from Library</Text>
-              </TouchableOpacity>
+                <View style={styles.menuDivider} />
 
-              <View style={styles.menuDivider} />
-
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => handleOptionPress(onPickDocument)}
-              >
-                <View style={styles.menuIconContainer}>
-                  <Ionicons name="document-outline" size={22} color={Colors.primary} />
-                </View>
-                <Text style={styles.menuItemText}>Choose File</Text>
-              </TouchableOpacity>
-            </View>
-          </Animated.View>
-        </View>
-      </Modal>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => handleOptionPress(onPickDocument)}
+                >
+                  <View style={styles.menuIconContainer}>
+                    <Ionicons name="document-outline" size={22} color={Colors.primary} />
+                  </View>
+                  <Text style={styles.menuItemText}>Choose File</Text>
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 };

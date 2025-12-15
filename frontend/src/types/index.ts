@@ -2,7 +2,7 @@ export type BiologicalSex = 'male' | 'female';
 
 export interface SignUpData {
   firstName: string;
-  lastName: string;
+  lastName?: string; // optional last name
   email: string;
   password: string;
 }
@@ -24,7 +24,7 @@ export interface UserProfile {
   updatedAt: Date;
 }
 
-import { BloodTestAnalysisResponse, SavedAnalysis, StructuredAnalysis } from '../lib/api';
+import { BloodTestAnalysisResponse } from '../lib/api';
 
 export interface AppleSignUpData {
   userId: string;
@@ -34,10 +34,10 @@ export interface AppleSignUpData {
   isAppleSignIn: true;
 }
 
-// Type for analysis data in route params - analysis can be string (from API) or JSON (from saved)
+// Type for analysis data in route params - analysis can be string (from API) or JSON (from saved in future)
 export interface AnalysisRouteData {
   parsed_data: BloodTestAnalysisResponse['parsed_data'];
-  analysis: string | StructuredAnalysis; // Can be string (from API) or JSON (from saved)
+  analysis: string | any; // keep flexible to allow structured JSON
   created_at: string;
 }
 
@@ -45,7 +45,7 @@ export type RootStackParamList = {
   Onboarding: undefined;
   Login: undefined;
   SignUpPersonal: undefined;
-  SignUpCredentials: { firstName: string; lastName: string };
+  SignUpCredentials: { firstName: string; lastName?: string };
   SignUpSex: { signUpData: SignUpData | AppleSignUpData };
   SignUpAge: { signUpData: SignUpData | AppleSignUpData; sex: BiologicalSex };
   SignUpHeight: {

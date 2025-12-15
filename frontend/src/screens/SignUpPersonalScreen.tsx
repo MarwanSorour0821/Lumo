@@ -10,30 +10,19 @@ import {
   Animated,
   TouchableOpacity,
   Alert,
-  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import Svg, { Path } from 'react-native-svg';
 import { Input } from '../components/Input';
 import PrimaryButton from '../../components/PrimaryButton';
 import BackButton from '../../components/BackButton';
 import { ProgressBar } from '../components/ProgressBar';
+import GoogleSignInButton from '../components/GoogleSignInButton';
 import { Colors, FontSize, FontWeight, Spacing, BorderRadius } from '../constants/theme';
 import { RootStackParamList, AppleSignUpData } from '../types';
-import { signInWithApple } from '../lib/supabase';
+import { signInWithGoogle } from '../lib/supabase';
 
-// Apple Logo Icon Component
-const AppleIcon = ({ size = 24, color = '#000000' }: { size?: number; color?: string }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24">
-    <Path
-      fill={color}
-      d="M14.94 5.19A4.38 4.38 0 0 0 16 2a4.44 4.44 0 0 0-3 1.52a4.17 4.17 0 0 0-1 3.09a3.69 3.69 0 0 0 2.94-1.42Zm2.52 7.44a4.51 4.51 0 0 1 2.16-3.81a4.66 4.66 0 0 0-3.66-2c-1.56-.16-3 .91-3.83.91s-2-.89-3.3-.87a4.92 4.92 0 0 0-4.14 2.53C2.93 12.45 4.24 17 6 19.47c.8 1.21 1.8 2.58 3.12 2.53s1.75-.82 3.28-.82s2 .82 3.3.79s2.22-1.24 3.06-2.45a11 11 0 0 0 1.38-2.85a4.41 4.41 0 0 1-2.68-4.04Z"
-    />
-  </Svg>
-);
-
-type SignUpPersonalScreenProps = {
+ type SignUpPersonalScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'SignUpPersonal'>;
 };
 
@@ -41,7 +30,7 @@ export function SignUpPersonalScreen({ navigation }: SignUpPersonalScreenProps) 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isAppleLoading, setIsAppleLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const headingFade = useRef(new Animated.Value(0)).current;
   const inputsFade = useRef(new Animated.Value(0)).current;
   const buttonFade = useRef(new Animated.Value(0)).current;
@@ -73,81 +62,71 @@ export function SignUpPersonalScreen({ navigation }: SignUpPersonalScreenProps) 
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
-    
+
     if (!firstName.trim()) {
       newErrors.firstName = 'First name is required';
     }
-    if (!lastName.trim()) {
-      newErrors.lastName = 'Last name is required';
-    }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleContinue = () => {
     if (validateForm()) {
-      console.log('SignUpPersonalScreen - Navigating with:', {
-        firstName: firstName || '(empty)',
-        lastName: lastName || '(empty)'
-      });
-      
       navigation.navigate('SignUpCredentials', {
         firstName: firstName.trim(),
-        lastName: lastName.trim(),
+        lastName: lastName.trim() || undefined,
       });
     }
   };
 
-  const handleAppleSignIn = async () => {
-    setIsAppleLoading(true);
+  const handleGoogleSignIn = async () => {
+    setIsGoogleLoading(true);
     try {
-      const { data, error } = await signInWithApple();
-      
+      const { data, error } = await signInWithGoogle();
+
       if (error) {
         if (error.message !== 'Sign in cancelled') {
           Alert.alert('Sign In Error', error.message);
         }
-        setIsAppleLoading(false);
+        setIsGoogleLoading(false);
         return;
       }
 
       if (data.user) {
-        // Create Apple sign up data and continue to biometrics
-        const appleSignUpData: AppleSignUpData = {
+        const providerFirst = data.user.firstName || firstName || undefined;
+        const providerLast = data.user.lastName || lastName || undefined;
+
+        const googleSignUpData: AppleSignUpData = {
           userId: data.user.id,
           email: data.user.email,
-          firstName: firstName || undefined,
-          lastName: lastName || undefined,
+          firstName: providerFirst,
+          lastName: providerLast,
           isAppleSignIn: true,
         };
 
-        setIsAppleLoading(false);
-        // Skip credentials and go directly to sex selection
-        navigation.navigate('SignUpSex', { signUpData: appleSignUpData });
+        setIsGoogleLoading(false);
+        navigation.navigate('SignUpSex', { signUpData: googleSignUpData });
       } else {
         Alert.alert('Sign In Error', 'Failed to get user information');
-        setIsAppleLoading(false);
+        setIsGoogleLoading(false);
       }
     } catch (error: any) {
       Alert.alert('Sign In Error', error.message || 'An unexpected error occurred');
-      setIsAppleLoading(false);
+      setIsGoogleLoading(false);
     }
   };
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
-      
+
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.headerContainer}>
-          <BackButton
-            onPress={() => navigation.goBack()}
-            theme="dark"
-          />
+          <BackButton onPress={() => navigation.goBack()} theme="dark" />
         </View>
         <ProgressBar currentStep={1} totalSteps={7} />
-        
+
         <KeyboardAvoidingView
           style={styles.keyboardView}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -159,23 +138,23 @@ export function SignUpPersonalScreen({ navigation }: SignUpPersonalScreenProps) 
             keyboardShouldPersistTaps="handled"
           >
             <View style={styles.headingContainer}>
-              <Animated.Text 
+              <Animated.Text
                 style={[
                   styles.heading,
                   {
                     opacity: headingFade,
-                  }
+                  },
                 ]}
               >
                 What should we call you?
               </Animated.Text>
-              
-              <Animated.View 
+
+              <Animated.View
                 style={[
                   styles.inputsContainer,
                   {
                     opacity: inputsFade,
-                  }
+                  },
                 ]}
               >
                 <View style={styles.halfInput}>
@@ -204,45 +183,34 @@ export function SignUpPersonalScreen({ navigation }: SignUpPersonalScreenProps) 
                 </View>
               </Animated.View>
             </View>
-          
-          {/* Apple Sign In Button */}
-          <Animated.View 
-            style={[
-              styles.appleButtonContainer,
-              { opacity: buttonFade }
-            ]}
-          >
-            <TouchableOpacity
-              style={styles.appleButton}
-              onPress={handleAppleSignIn}
-              disabled={isAppleLoading}
-              activeOpacity={0.8}
+
+            {/* Google Sign In Button */}
+            <Animated.View
+              style={[
+                styles.socialButtonContainer,
+                { opacity: buttonFade },
+              ]}
             >
-              {isAppleLoading ? (
-                <ActivityIndicator color="#000000" size="small" />
-              ) : (
-                <>
-                  <AppleIcon size={20} color="#000000" />
-                  <Text style={styles.appleButtonText}>Continue with Apple</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </Animated.View>
-          
-          <Animated.View 
-            style={[
-              styles.buttonContainer,
-              {
-                opacity: buttonFade,
-              }
-            ]}
-          >
-            <PrimaryButton
-              text="Continue"
-              onPress={handleContinue}
-              theme="dark"
-            />
-          </Animated.View>
+              <GoogleSignInButton
+                onPress={handleGoogleSignIn}
+                loading={isGoogleLoading}
+              />
+            </Animated.View>
+
+            <Animated.View
+              style={[
+                styles.buttonContainer,
+                {
+                  opacity: buttonFade,
+                },
+              ]}
+            >
+              <PrimaryButton
+                text="Continue"
+                onPress={handleContinue}
+                theme="dark"
+              />
+            </Animated.View>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -295,43 +263,12 @@ const styles = StyleSheet.create({
   halfInput: {
     width: '100%',
   },
-  socialButtons: {
-    marginTop: Spacing.lg,
-  },
-  socialSpacer: {
-    height: Spacing.sm,
-  },
-  appleIcon: {
-    fontSize: 18,
-    color: Colors.black,
-  },
-  googleIcon: {
-    fontSize: 18,
-    fontWeight: FontWeight.bold,
-    color: '#4285F4',
+  socialButtonContainer: {
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.sm,
   },
   buttonContainer: {
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.lg,
   },
-  appleButtonContainer: {
-    paddingHorizontal: Spacing.lg,
-    marginBottom: Spacing.md,
-  },
-  appleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.full,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    gap: Spacing.sm,
-  },
-  appleButtonText: {
-    fontSize: FontSize.lg,
-    fontFamily: 'ProductSans-Bold',
-    color: '#000000',
-  },
 });
-

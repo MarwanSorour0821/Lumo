@@ -211,17 +211,17 @@ export function SignUpWeightScreen({ navigation, route }: SignUpWeightScreenProp
         signUpDataType: isAppleSignIn(signUpData) ? 'AppleSignUpData' : 'SignUpData'
       });
 
-      // Validate that we have the required data
-      if (!firstName || !lastName || !email) {
-        console.error('SignUpWeightScreen - Missing user information:', {
+      // Validate that we have the required data (last name optional)
+      if (!firstName || !email) {
+        console.error('SignUpWeightScreen - Missing required user information:', {
           firstName: firstName || 'MISSING',
-          lastName: lastName || 'MISSING',
+          lastName: lastName || 'MISSING (allowed)',
           email: email || 'MISSING',
           signUpDataKeys: Object.keys(signUpData)
         });
         Alert.alert(
           'Error',
-          'Missing user information. Please go back and ensure all fields are filled.'
+          'Missing required user information. Please go back and ensure your name and email are filled.'
         );
         setLoading(false);
         return;

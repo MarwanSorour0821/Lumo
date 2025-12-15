@@ -16,9 +16,10 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import BackButton from '../../components/BackButton';
 import PrimaryButton from '../../components/PrimaryButton';
 import { Input } from '../components/Input';
+import GoogleSignInButton from '../components/GoogleSignInButton';
 import { Colors, Spacing, FontSize } from '../constants/theme';
 import { RootStackParamList } from '../types';
-import { signInWithEmail } from '../lib/supabase';
+import { signInWithEmail, signInWithGoogle, getUserProfile } from '../lib/supabase';
 
 type LoginScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Login'>;
@@ -29,6 +30,7 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   const headingFade = useRef(new Animated.Value(0)).current;
   const inputsFade = useRef(new Animated.Value(0)).current;
@@ -68,6 +70,39 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
     return Object.keys(nextErrors).length === 0;
   };
 
+  const isProfileComplete = (profile: any | null) => {
+    if (!profile) return false;
+    const hasSex = !!profile.biological_sex;
+    const hasDob = !!profile.date_of_birth;
+    const hasHeight = typeof profile.height_cm === 'number';
+    const hasWeight = typeof profile.weight_kg === 'number';
+    return hasSex && hasDob && hasHeight && hasWeight;
+  };
+
+  const continueOrStartSignup = async (
+    userId: string,
+    userEmail?: string,
+    fallbackFirstName?: string,
+    fallbackLastName?: string
+  ) => {
+    const { data: profile } = await getUserProfile(userId);
+
+    if (isProfileComplete(profile)) {
+      navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+      return;
+    }
+
+    const signUpData = {
+      userId,
+      email: profile?.email || userEmail,
+      firstName: profile?.first_name || fallbackFirstName,
+      lastName: profile?.last_name || fallbackLastName,
+      isAppleSignIn: true,
+    } as any;
+
+    navigation.navigate('SignUpSex', { signUpData });
+  };
+
   const handleSignIn = async () => {
     if (!validate()) return;
     setLoading(true);
@@ -80,15 +115,37 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
     }
 
     if (data.user) {
+      await continueOrStartSignup(data.user.id, data.user.email || email.trim());
       setLoading(false);
-      // Navigate to Home screen
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Home' }],
-      });
     } else {
       setLoading(false);
       Alert.alert('Sign In Error', 'Unable to sign in. Please try again.');
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setIsGoogleLoading(true);
+    const { data, error } = await signInWithGoogle();
+
+    if (error) {
+      if (error.message !== 'Sign in cancelled') {
+        Alert.alert('Sign In Error', error.message);
+      }
+      setIsGoogleLoading(false);
+      return;
+    }
+
+    if (data.user) {
+      await continueOrStartSignup(
+        data.user.id,
+        data.user.email,
+        data.user.firstName,
+        data.user.lastName
+      );
+      setIsGoogleLoading(false);
+    } else {
+      setIsGoogleLoading(false);
+      Alert.alert('Sign In Error', 'Failed to get user information');
     }
   };
 
@@ -139,21 +196,27 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
               />
             </Animated.View>
 
-          <Animated.View style={[styles.buttonContainer, { opacity: buttonFade }]}>
-            <PrimaryButton
-              text={loading ? 'Signing in...' : 'Sign In'}
-              onPress={handleSignIn}
-              theme="dark"
-              disabled={loading}
-            />
-            <TouchableOpacity
-              style={styles.switchAuth}
-              onPress={() => navigation.navigate('SignUpPersonal')}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.switchAuthText}>Don't have an account? Get Started</Text>
-            </TouchableOpacity>
-          </Animated.View>
+            <Animated.View style={[styles.buttonContainer, { opacity: buttonFade }]}>
+              <GoogleSignInButton
+                onPress={handleGoogleSignIn}
+                loading={isGoogleLoading}
+              />
+
+              <PrimaryButton
+                text={loading ? 'Signing in...' : 'Sign In'}
+                onPress={handleSignIn}
+                theme="dark"
+                disabled={loading}
+              />
+
+              <TouchableOpacity
+                style={styles.switchAuth}
+                onPress={() => navigation.navigate('SignUpPersonal')}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.switchAuthText}>Don't have an account? Get Started</Text>
+              </TouchableOpacity>
+            </Animated.View>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -212,5 +275,3 @@ const styles = StyleSheet.create({
     fontFamily: 'ProductSans-Regular',
   },
 });
-
-
