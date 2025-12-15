@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import Svg, { Circle } from 'react-native-svg';
 import { Colors, Spacing, FontSize, FontWeight, BorderRadius } from '../constants/theme';
 import { RootStackParamList } from '../types';
 import { BottomNavBar } from '../components/BottomNavBar';
@@ -106,37 +107,115 @@ export function MyLabScreen({ navigation, route }: MyLabScreenProps) {
     return Colors.dark.textSecondary;
   };
 
-  const renderAnalysisCard = (item: AnalysisListItem) => (
-    <TouchableOpacity
-      key={item.id}
-      style={styles.analysisCard}
-      onPress={() => handleOpenAnalysis(item.id)}
-      activeOpacity={0.7}
-    >
-      <View style={styles.cardContent}>
-        <View style={styles.cardMainContent}>
-          <View style={styles.cardInfo}>
-            <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
-            <View style={styles.cardMeta}>
-              <Text style={styles.cardDate}>{formatDate(item.created_at)}</Text>
-              <View style={styles.metaDivider} />
-              <Text style={styles.markersText}>{item.markers_count} markers</Text>
+  const renderAnalysisCard = (item: AnalysisListItem) => {
+    const parseAbnormalFromSummary = (summary?: string) => {
+      if (!summary) return { abnormal: null, total: null };
+      // Support formats like "2 / 18" or "2 of 18"
+      const match = summary.match(/(\d+)\s*(?:\/|of)\s*(\d+)/i);
+      if (match) {
+        const abnormal = parseInt(match[1], 10);
+        const total = parseInt(match[2], 10);
+        if (!isNaN(abnormal) && !isNaN(total)) {
+          return { abnormal, total };
+        }
+      }
+      // Handle "All markers normal" style summaries
+      if (/all\s+markers\s+normal/i.test(summary)) {
+        return { abnormal: 0, total: item.markers_count || null };
+      }
+      return { abnormal: null, total: null };
+    };
+
+    const { abnormal, total: parsedTotal } = parseAbnormalFromSummary(item.summary);
+    const total = parsedTotal || item.markers_count || null;
+
+    // If explicitly “all markers normal”, force 100 even if total is missing.
+    if (abnormal === 0) {
+      const safeTotal = total || 1; // avoid divide-by-zero, still yields 100
+      const score = Math.max(0, Math.min(100, Math.round(((safeTotal - 0) / safeTotal) * 100)));
+      // reuse scoreColor/arc below
+      // return computed score via fallthrough
+    }
+
+    const normalCount =
+      abnormal !== null && total !== null ? Math.max(total - abnormal, 0) : null;
+    const score =
+      abnormal === 0
+        ? 100
+        : normalCount !== null && total
+          ? Math.max(0, Math.min(100, Math.round((normalCount / total) * 100)))
+          : null;
+
+    const scoreColor =
+      score === null
+        ? Colors.dark.textSecondary
+        : score >= 80
+          ? '#22C55E'
+          : score >= 50
+            ? '#F59E0B'
+            : '#EF4444';
+
+    const radius = 18;
+    const stroke = 4;
+    const circumference = 2 * Math.PI * radius;
+    const strokeDashoffset =
+      score !== null ? circumference * (1 - score / 100) : circumference;
+
+    return (
+      <TouchableOpacity
+        key={item.id}
+        style={styles.analysisCard}
+        onPress={() => handleOpenAnalysis(item.id)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.cardContent}>
+          <View style={styles.cardMainContent}>
+            <View style={styles.cardInfo}>
+              <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
+              <View style={styles.cardMeta}>
+                <Text style={styles.cardDate}>{formatDate(item.created_at)}</Text>
+                <View style={styles.metaDivider} />
+                <Text style={styles.markersText}>{item.markers_count} markers</Text>
+              </View>
+              <Text style={[styles.summaryText, { color: getStatusColor(item.summary) }]} numberOfLines={1}>
+                {item.summary}
+              </Text>
             </View>
-            <Text style={[styles.summaryText, { color: getStatusColor(item.summary) }]} numberOfLines={1}>
-              {item.summary}
-            </Text>
+          </View>
+          <View style={styles.chevronContainer}>
+            <View style={styles.gaugeWrapper}>
+              <Svg width={44} height={44} viewBox="0 0 44 44">
+                <Circle
+                  cx="22"
+                  cy="22"
+                  r={radius}
+                  stroke="rgba(255,255,255,0.15)"
+                  strokeWidth={stroke}
+                  fill="none"
+                />
+                <Circle
+                  cx="22"
+                  cy="22"
+                  r={radius}
+                  stroke={scoreColor}
+                  strokeWidth={stroke}
+                  strokeLinecap="round"
+                  fill="none"
+                  strokeDasharray={`${circumference} ${circumference}`}
+                  strokeDashoffset={strokeDashoffset}
+                  transform="rotate(-90 22 22)"
+                />
+              </Svg>
+              <Text style={styles.gaugeText}>{score !== null ? `${score}%` : '--'}</Text>
+            </View>
+            {loadingAnalysisId === item.id ? (
+              <ActivityIndicator size="small" color={Colors.primary} />
+            ) : null}
           </View>
         </View>
-        <View style={styles.chevronContainer}>
-          {loadingAnalysisId === item.id ? (
-            <ActivityIndicator size="small" color={Colors.primary} />
-          ) : (
-            <Ionicons name="chevron-forward" size={18} color={Colors.dark.textSecondary} />
-          )}
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
@@ -313,6 +392,20 @@ const styles = StyleSheet.create({
   chevronContainer: {
     justifyContent: 'center',
     alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  gaugeWrapper: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  gaugeText: {
+    position: 'absolute',
+    fontSize: FontSize.xs,
+    fontFamily: 'ProductSans-Bold',
+    color: Colors.white,
   },
   emptyState: {
     flex: 1,
