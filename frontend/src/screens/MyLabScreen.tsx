@@ -70,7 +70,7 @@ export function MyLabScreen({ navigation, route }: MyLabScreenProps) {
       navigation.navigate('AnalysisResults', {
         analysisData: {
           parsed_data: analysisData.parsed_data,
-          analysis: analysisData.analysis,
+          analysis: analysisData.analysis, // This is now JSON (structured_analysis)
           created_at: analysisData.created_at,
         },
         analysisId: analysisData.id,

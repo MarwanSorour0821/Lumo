@@ -18,6 +18,7 @@ interface ButtonProps {
   style?: ViewStyle;
   textStyle?: TextStyle;
   icon?: React.ReactNode;
+  showArrow?: boolean;
 }
 
 export function Button({
@@ -29,6 +30,7 @@ export function Button({
   style,
   textStyle,
   icon,
+  showArrow = true,
 }: ButtonProps) {
   const getButtonStyle = () => {
     switch (variant) {
@@ -73,8 +75,15 @@ export function Button({
       ) : (
         <>
           {icon && icon}
-          <Text style={[styles.text, getTextStyle(), textStyle]}>{title}</Text>
-          <Text style={[styles.arrow, getTextStyle()]}>→</Text>
+          <Text style={[
+            styles.text, 
+            (!showArrow && !icon) && styles.textCentered,
+            getTextStyle(), 
+            textStyle
+          ]}>
+            {title}
+          </Text>
+          {showArrow && <Text style={[styles.arrow, getTextStyle()]}>→</Text>}
         </>
       )}
     </TouchableOpacity>
@@ -112,6 +121,11 @@ const styles = StyleSheet.create({
     textAlign: 'left',
     marginLeft: Spacing.sm,
     fontFamily: 'ProductSans-Bold',
+  },
+  textCentered: {
+    flex: 1,
+    textAlign: 'center',
+    marginLeft: 0,
   },
   primaryText: {
     color: Colors.white,

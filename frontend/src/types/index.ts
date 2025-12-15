@@ -24,7 +24,7 @@ export interface UserProfile {
   updatedAt: Date;
 }
 
-import { BloodTestAnalysisResponse, SavedAnalysis } from '../lib/api';
+import { BloodTestAnalysisResponse, SavedAnalysis, StructuredAnalysis } from '../lib/api';
 
 export interface AppleSignUpData {
   userId: string;
@@ -32,6 +32,13 @@ export interface AppleSignUpData {
   firstName?: string;
   lastName?: string;
   isAppleSignIn: true;
+}
+
+// Type for analysis data in route params - analysis can be string (from API) or JSON (from saved)
+export interface AnalysisRouteData {
+  parsed_data: BloodTestAnalysisResponse['parsed_data'];
+  analysis: string | StructuredAnalysis; // Can be string (from API) or JSON (from saved)
+  created_at: string;
 }
 
 export type RootStackParamList = {
@@ -58,7 +65,7 @@ export type RootStackParamList = {
   SignUpBiometrics: { signUpData: SignUpData };
   MainApp: undefined;
   AnalysisResults: { 
-    analysisData: BloodTestAnalysisResponse;
+    analysisData: AnalysisRouteData;
     analysisId?: string;
   };
   Home: undefined;

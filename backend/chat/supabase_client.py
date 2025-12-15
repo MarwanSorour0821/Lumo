@@ -1,9 +1,10 @@
 import os
+from typing import Optional
 from supabase import create_client, Client
 
 
 # Lazy singleton for Supabase client
-_supabase_client: Client | None = None
+_supabase_client: Optional[Client] = None
 
 
 def get_supabase_client() -> Client:
