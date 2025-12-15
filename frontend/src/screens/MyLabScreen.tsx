@@ -9,6 +9,8 @@ import {
   RefreshControl,
   ActivityIndicator,
   Alert,
+  Platform,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -18,6 +20,8 @@ import { Colors, Spacing, FontSize, FontWeight, BorderRadius } from '../constant
 import { RootStackParamList } from '../types';
 import { BottomNavBar } from '../components/BottomNavBar';
 import { getAnalyses, getAnalysis, AnalysisListItem } from '../lib/api';
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 type MyLabScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'MyLab'>;
@@ -29,6 +33,7 @@ export function MyLabScreen({ navigation, route }: MyLabScreenProps) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadingAnalysisId, setLoadingAnalysisId] = useState<string | null>(null);
 
   const fetchAnalyses = async (showRefreshing = false) => {
     try {
@@ -65,6 +70,7 @@ export function MyLabScreen({ navigation, route }: MyLabScreenProps) {
   }, [route.params?.openAnalysisId]);
 
   const handleOpenAnalysis = async (analysisId: string) => {
+    setLoadingAnalysisId(analysisId);
     try {
       const analysisData = await getAnalysis(analysisId);
       navigation.navigate('AnalysisResults', {
@@ -77,6 +83,8 @@ export function MyLabScreen({ navigation, route }: MyLabScreenProps) {
       });
     } catch (err) {
       Alert.alert('Error', err instanceof Error ? err.message : 'Failed to load analysis');
+    } finally {
+      setLoadingAnalysisId(null);
     }
   };
 
@@ -106,23 +114,25 @@ export function MyLabScreen({ navigation, route }: MyLabScreenProps) {
       activeOpacity={0.7}
     >
       <View style={styles.cardContent}>
-        <View style={styles.cardHeader}>
-          <View style={styles.iconContainer}>
-            <Ionicons name="flask" size={24} color={Colors.primary} />
-          </View>
+        <View style={styles.cardMainContent}>
           <View style={styles.cardInfo}>
-            <Text style={styles.cardTitle}>{item.title}</Text>
-            <Text style={styles.cardDate}>{formatDate(item.created_at)}</Text>
+            <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
+            <View style={styles.cardMeta}>
+              <Text style={styles.cardDate}>{formatDate(item.created_at)}</Text>
+              <View style={styles.metaDivider} />
+              <Text style={styles.markersText}>{item.markers_count} markers</Text>
+            </View>
+            <Text style={[styles.summaryText, { color: getStatusColor(item.summary) }]} numberOfLines={1}>
+              {item.summary}
+            </Text>
           </View>
-          <Ionicons name="chevron-forward" size={20} color={Colors.dark.textSecondary} />
         </View>
-        <View style={styles.cardFooter}>
-          <View style={styles.markersBadge}>
-            <Text style={styles.markersText}>{item.markers_count} markers</Text>
-          </View>
-          <Text style={[styles.summaryText, { color: getStatusColor(item.summary) }]}>
-            {item.summary}
-          </Text>
+        <View style={styles.chevronContainer}>
+          {loadingAnalysisId === item.id ? (
+            <ActivityIndicator size="small" color={Colors.primary} />
+          ) : (
+            <Ionicons name="chevron-forward" size={18} color={Colors.dark.textSecondary} />
+          )}
         </View>
       </View>
     </TouchableOpacity>
@@ -168,11 +178,15 @@ export function MyLabScreen({ navigation, route }: MyLabScreenProps) {
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          bounces={true}
+          alwaysBounceVertical={true}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => fetchAnalyses(true)}
               tintColor={Colors.primary}
+              colors={[Colors.primary]}
+              progressBackgroundColor={Colors.dark.surface}
             />
           }
         >
@@ -213,18 +227,19 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: Spacing.lg,
-    paddingTop: 80,
+    paddingTop: 40,
     paddingBottom: Spacing.xl,
     flexGrow: 1,
+    minHeight: SCREEN_HEIGHT * 1.1, // Ensure content is always scrollable
   },
   title: {
-    fontSize: FontSize.xxxl,
+    fontSize: FontSize.xxl,
     color: Colors.white,
     fontFamily: 'ProductSans-Bold',
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   subtitle: {
-    fontSize: FontSize.lg,
+    fontSize: FontSize.md,
     color: Colors.dark.textSecondary,
     fontFamily: 'ProductSans-Regular',
     marginBottom: Spacing.xl,
@@ -241,30 +256,23 @@ const styles = StyleSheet.create({
     color: Colors.dark.textSecondary,
   },
   analysesList: {
-    gap: Spacing.md,
+    gap: Spacing.sm,
   },
   analysisCard: {
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.md,
     borderWidth: 1,
     borderColor: Colors.dark.border,
     overflow: 'hidden',
   },
   cardContent: {
     padding: Spacing.md,
-  },
-  cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: BorderRadius.md,
-    backgroundColor: 'rgba(176, 19, 40, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: Spacing.md,
+  cardMainContent: {
+    flex: 1,
+    marginRight: Spacing.sm,
   },
   cardInfo: {
     flex: 1,
@@ -273,41 +281,44 @@ const styles = StyleSheet.create({
     fontSize: FontSize.md,
     fontWeight: FontWeight.semibold,
     color: Colors.white,
-    marginBottom: 4,
+    marginBottom: Spacing.xs,
   },
-  cardDate: {
-    fontSize: FontSize.sm,
-    color: Colors.dark.textSecondary,
-  },
-  cardFooter: {
+  cardMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: Spacing.md,
-    paddingTop: Spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: Colors.dark.border,
+    gap: Spacing.xs,
   },
-  markersBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    borderRadius: BorderRadius.sm,
+  cardDate: {
+    fontSize: FontSize.xs,
+    color: Colors.dark.textSecondary,
+    fontFamily: 'ProductSans-Regular',
+  },
+  metaDivider: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.dark.textSecondary,
   },
   markersText: {
     fontSize: FontSize.xs,
-    color: Colors.white,
-    fontWeight: FontWeight.medium,
+    color: Colors.dark.textSecondary,
+    fontFamily: 'ProductSans-Regular',
   },
   summaryText: {
     fontSize: FontSize.sm,
-    fontWeight: FontWeight.medium,
+    fontWeight: FontWeight.regular,
+    fontFamily: 'ProductSans-Regular',
+    marginTop: Spacing.xs,
+  },
+  chevronContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   emptyState: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     alignItems: 'center',
-    paddingTop: 60,
+    paddingTop: Spacing.xl, // lift content higher on screen
     paddingHorizontal: Spacing.xl,
   },
   emptyTitle: {

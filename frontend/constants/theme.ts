@@ -1,11 +1,4 @@
 export const colors = {
-  light: {
-    background: '#FFFFFF',
-    primaryText: '#000000',
-    secondaryText: '#838383',
-    button: '#B01328',
-    buttonText: '#FFFFFF',
-  },
   dark: {
     background: '#040404',
     primaryText: '#FFFFFF',
@@ -15,5 +8,5 @@ export const colors = {
   },
 };
 
-export type Theme = 'light' | 'dark';
+export type Theme = 'dark';
 

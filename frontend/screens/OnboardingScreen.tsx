@@ -356,7 +356,7 @@ export default function OnboardingScreen({
 
   return (
     <View style={[styles.container, { backgroundColor: themeColors.background }]}>
-      <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
+      <StatusBar style="light" />
       
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -436,7 +436,7 @@ export default function OnboardingScreen({
                 }
               ]}
             >
-              Create an account and join over 100,000{'\n'}people who are already using our app.
+              Create an account and join thousands of{'\n'}people who are already using our app.
             </Animated.Text>
           </View>
 

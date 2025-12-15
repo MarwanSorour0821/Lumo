@@ -75,7 +75,7 @@ export function WheelPicker({
           style={[
             styles.itemText,
             {
-              color: isSelected ? Colors.primary : (isDark ? Colors.dark.text : Colors.light.text),
+              color: isSelected ? Colors.primary : Colors.dark.text,
               fontWeight: isSelected ? FontWeight.bold : FontWeight.regular,
               transform: [{ scale }],
             },

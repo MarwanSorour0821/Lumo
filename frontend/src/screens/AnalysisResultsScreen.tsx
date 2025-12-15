@@ -6,17 +6,24 @@ import { RouteProp } from '@react-navigation/native';
 import { Colors, FontSize, FontWeight, Spacing } from '../constants/theme';
 import { BloodTestAnalysisResponse } from '../lib/api';
 import { RootStackParamList } from '../types';
+import BackButton from '../../components/BackButton';
 
 type AnalysisResultsScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'AnalysisResults'>;
   route: RouteProp<RootStackParamList, 'AnalysisResults'>;
 };
 
-export function AnalysisResultsScreen({ route }: AnalysisResultsScreenProps) {
+export function AnalysisResultsScreen({ navigation, route }: AnalysisResultsScreenProps) {
   const { analysisData } = route.params;
 
   return (
     <SafeAreaView style={styles.container}>
+      <View style={styles.headerContainer}>
+        <BackButton
+          onPress={() => navigation.goBack()}
+          theme="dark"
+        />
+      </View>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
         {/* Header */}
         <View style={styles.header}>
@@ -102,6 +109,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.dark.background,
+  },
+  headerContainer: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.sm,
   },
   scrollView: {
     flex: 1,
