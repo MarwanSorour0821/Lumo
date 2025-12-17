@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { ActivityIndicator, View } from 'react-native';
 import OnboardingScreen from '../../screens/OnboardingScreen';
 
 import { SignUpPersonalScreen } from '../screens/SignUpPersonalScreen';
@@ -55,18 +54,8 @@ export function AppNavigator() {
   }, []);
 
   if (isLoading) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          backgroundColor: Colors.dark.background,
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}
-      >
-        <ActivityIndicator size="large" color={Colors.primary} />
-      </View>
-    );
+    // Return null - the custom splash screen in App.tsx handles the loading state
+    return null;
   }
 
   return (
