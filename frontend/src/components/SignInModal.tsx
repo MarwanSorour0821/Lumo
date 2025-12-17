@@ -151,14 +151,14 @@ export function SignInModal({ visible, onClose, onContinue, onUsePhone, onGoogle
 
   const handleTermsPress = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await WebBrowser.openBrowserAsync('https://www.lumo-blood.com/terms-of-use', {
+    await WebBrowser.openBrowserAsync('https://lumo-blood.com/terms', {
       presentationStyle: WebBrowser.WebBrowserPresentationStyle.FORM_SHEET,
     });
   };
 
   const handlePrivacyPress = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await WebBrowser.openBrowserAsync('https://www.lumo-blood.com/privacy-policy', {
+    await WebBrowser.openBrowserAsync('https://lumo-blood.com/privacy', {
       presentationStyle: WebBrowser.WebBrowserPresentationStyle.FORM_SHEET,
     });
   };
