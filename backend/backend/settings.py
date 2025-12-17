@@ -28,7 +28,9 @@ ALLOWED_HOSTS = [
     '192.168.100.153', 
     '192.168.100.187',
     'lumo-8lft.onrender.com',  # Your Render domain
-    '.onrender.com'  # Allow all Render subdomains
+    '.onrender.com',  # Allow all Render subdomains
+    'api.lumo-blood.com',  # Production API domain
+    '56.228.3.86',  # Production IP address
 ]
 
 
