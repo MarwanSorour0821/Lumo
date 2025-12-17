@@ -376,7 +376,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modalContent: {
-    backgroundColor: '#040404',
+    backgroundColor: Colors.dark.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     width: '100%',
@@ -392,7 +392,7 @@ const styles = StyleSheet.create({
   dragHandle: {
     width: 40,
     height: 4,
-    backgroundColor: '#666666',
+    backgroundColor: Colors.dark.border,
     borderRadius: 2,
     alignSelf: 'center',
     marginBottom: 20,
@@ -404,7 +404,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#1A1A1A',
+    backgroundColor: Colors.dark.surface,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10,
@@ -448,7 +448,7 @@ const styles = StyleSheet.create({
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
+    backgroundColor: Colors.dark.background,
     borderRadius: 28,
     paddingHorizontal: 16,
     minHeight: 56,
@@ -460,7 +460,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontFamily: 'ProductSans-Regular',
-    color: '#FFFFFF',
+    color: Colors.white,
     paddingVertical: 0,
   },
   continueButton: {
