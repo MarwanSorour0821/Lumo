@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert, Modal, Pressable, TouchableOpacity } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, Alert, Modal, Pressable, TouchableOpacity, Dimensions, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -8,7 +8,6 @@ import * as DocumentPicker from 'expo-document-picker';
 import Svg, { Path, G } from 'react-native-svg';
 import { Button } from '../components/Button';
 import BloodCellsLoader from '../components/BloodCellsLoader';
-import { SmoothUploadFlow } from '../components/SmoothUploadFlow';
 import BackButton from '../../components/BackButton';
 import { Colors, FontSize, FontWeight, Spacing, BorderRadius } from '../constants/theme';
 import { RootStackParamList } from '../types';
@@ -16,13 +15,47 @@ import { analyzeBloodTest, saveAnalysis } from '../lib/api';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-export function AnalyseScreen() {
+interface AnalyseScreenProps {
+  visible: boolean;
+  onClose: () => void;
+}
+
+interface SelectedFile {
+  uri: string;
+  fileName: string;
+  mimeType: string;
+  type: 'image' | 'pdf';
+}
+
+export function AnalyseScreen({ visible, onClose }: AnalyseScreenProps) {
   const navigation = useNavigation<NavigationProp>();
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
-  const [fileType, setFileType] = useState<'image' | 'pdf' | null>(null);
+  const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState<number>(0);
-  const [attachmentModalVisible, setAttachmentModalVisible] = useState(false);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(-20)).current;
+
+  // Animate file preview when selectedFile changes
+  useEffect(() => {
+    if (selectedFile) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          friction: 8,
+          tension: 40,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      fadeAnim.setValue(0);
+      slideAnim.setValue(-20);
+    }
+  }, [selectedFile, fadeAnim, slideAnim]);
 
   const requestPermissions = async () => {
     const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
@@ -49,8 +82,14 @@ export function AnalyseScreen() {
     });
 
     if (!result.canceled && result.assets[0]) {
-      setSelectedFile(result.assets[0].uri);
-      setFileType('image');
+      const asset = result.assets[0];
+      const fileName = asset.fileName || `photo_${Date.now()}.jpg`;
+      setSelectedFile({
+        uri: asset.uri,
+        fileName: fileName,
+        mimeType: asset.mimeType || 'image/jpeg',
+        type: 'image',
+      });
     }
   };
 
@@ -65,12 +104,18 @@ export function AnalyseScreen() {
     });
 
     if (!result.canceled && result.assets[0]) {
-      setSelectedFile(result.assets[0].uri);
-      setFileType('image');
+      const asset = result.assets[0];
+      const fileName = asset.fileName || `image_${Date.now()}.jpg`;
+      setSelectedFile({
+        uri: asset.uri,
+        fileName: fileName,
+        mimeType: asset.mimeType || 'image/jpeg',
+        type: 'image',
+      });
     }
   };
 
-  const handlePickDocument = async () => {
+  const handlePickFile = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: ['application/pdf', 'image/*'],
@@ -78,8 +123,14 @@ export function AnalyseScreen() {
       });
 
       if (!result.canceled && result.assets[0]) {
-        setSelectedFile(result.assets[0].uri);
-        setFileType(result.assets[0].mimeType?.includes('pdf') ? 'pdf' : 'image');
+        const asset = result.assets[0];
+        const isPdf = asset.mimeType?.includes('pdf') || false;
+        setSelectedFile({
+          uri: asset.uri,
+          fileName: asset.name,
+          mimeType: asset.mimeType || (isPdf ? 'application/pdf' : 'image/jpeg'),
+          type: isPdf ? 'pdf' : 'image',
+        });
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to pick document');
@@ -115,7 +166,7 @@ export function AnalyseScreen() {
     try {
       // Step 1: Analyze the blood test with AI
       // This includes Textract (~50% progress) and GPT-5.1 (~100% progress)
-      const result = await analyzeBloodTest(selectedFile);
+      const result = await analyzeBloodTest(selectedFile.uri);
       
       // Step 2: Save the analysis to the database
       const savedAnalysis = await saveAnalysis(
@@ -132,11 +183,11 @@ export function AnalyseScreen() {
       
       // Reset the form
       setSelectedFile(null);
-      setFileType(null);
       setLoading(false);
       setProgress(0);
       
-      // Step 3: Navigate to MyLab with the new analysis ID to auto-open it
+      // Close modal and navigate to MyLab with the new analysis ID to auto-open it
+      onClose();
       navigation.navigate('MyLab', { openAnalysisId: savedAnalysis.id });
       
     } catch (error) {
@@ -159,6 +210,20 @@ export function AnalyseScreen() {
     </Svg>
   );
 
+  // Video Camera Icon for Upload
+  const VideoCameraIcon = ({ size = 48, color = Colors.primary }: { size?: number; color?: string }) => (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+        stroke={color}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+
+  // Camera Icon
   const CameraIcon = ({ size = 32, color = '#FFFFFF' }: { size?: number; color?: string }) => (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
@@ -178,6 +243,7 @@ export function AnalyseScreen() {
     </Svg>
   );
 
+  // Image Icon
   const ImageIcon = ({ size = 32, color = '#FFFFFF' }: { size?: number; color?: string }) => (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
@@ -197,6 +263,7 @@ export function AnalyseScreen() {
     </Svg>
   );
 
+  // File Icon
   const FileIcon = ({ size = 32, color = '#FFFFFF' }: { size?: number; color?: string }) => (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
@@ -217,172 +284,141 @@ export function AnalyseScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <BackButton
-          onPress={() => navigation.goBack()}
-          theme="dark"
-        />
-      </View>
-      <View style={styles.content}>
-        {/* Document Icon */}
-        <View style={styles.iconContainer}>
-          <View style={styles.iconWrapper}>
-            <DocumentIcon />
-          </View>
+    <Modal
+      visible={visible}
+      transparent={true}
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <Pressable style={styles.modalOverlay} onPress={onClose}>
+        <View style={styles.modalContent}>
+          <Pressable onPress={(e) => e.stopPropagation()}>
+            {/* Grab Handle */}
+            <View style={styles.grabHandle} />
+            
+            {/* Header with Back Button */}
+            <View style={styles.header}>
+              <BackButton
+                onPress={onClose}
+                theme="dark"
+              />
+            </View>
+
+            {/* Upload Section */}
+            
+
+            {/* Add Post Section - Attachment Options */}
+            <View style={styles.addPostContainer}>
+              {selectedFile ? (
+                <Animated.View
+                  style={[
+                    styles.filePreviewContainer,
+                    {
+                      opacity: fadeAnim,
+                      transform: [{ translateY: slideAnim }],
+                    },
+                  ]}
+                >
+                  <View style={styles.filePreview}>
+                    {selectedFile.type === 'image' ? (
+                      <ImageIcon size={20} color={Colors.primary} />
+                    ) : (
+                      <FileIcon size={20} color={Colors.primary} />
+                    )}
+                    <Text style={styles.filePreviewName} numberOfLines={1}>
+                      {selectedFile.fileName}
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.removeFileButton}
+                      onPress={() => setSelectedFile(null)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.removeFileText}>×</Text>
+                    </TouchableOpacity>
+                  </View>
+                </Animated.View>
+              ) : (
+                <View style={styles.addPostBox}>
+                  <Text style={styles.addPostText}>Add Post</Text>
+                  <Text style={styles.addPostSubtext}>Export post to upload here</Text>
+                  <View style={styles.attachmentOptions}>
+                    <TouchableOpacity
+                      style={styles.attachmentOption}
+                      onPress={handleTakePhoto}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.attachmentOptionIcon}>
+                        <CameraIcon size={32} color={Colors.white} />
+                      </View>
+                      <Text style={styles.attachmentOptionText}>Camera</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.attachmentOption}
+                      onPress={handlePickImage}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.attachmentOptionIcon}>
+                        <ImageIcon size={32} color={Colors.white} />
+                      </View>
+                      <Text style={styles.attachmentOptionText}>Photo</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.attachmentOption}
+                      onPress={handlePickFile}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.attachmentOptionIcon}>
+                        <FileIcon size={32} color={Colors.white} />
+                      </View>
+                      <Text style={styles.attachmentOptionText}>File</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            </View>
+
+            {/* Continue Button or Loading Progress Bar */}
+            <View style={styles.buttonContainer}>
+              {loading ? (
+                <BloodCellsLoader progress={progress} />
+              ) : (
+                <TouchableOpacity
+                  style={[
+                    styles.continueButton,
+                    (!selectedFile || loading) && styles.continueButtonDisabled,
+                  ]}
+                  onPress={handleDone}
+                  disabled={!selectedFile || loading}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[
+                    styles.continueButtonText,
+                    (!selectedFile || loading) && styles.continueButtonTextDisabled,
+                  ]}>
+                    Continue
+                  </Text>
+                  <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+                    <Path
+                      d="M5 12h14M12 5l7 7-7 7"
+                      stroke={(!selectedFile || loading) ? Colors.dark.textSecondary : Colors.white}
+                      strokeWidth={2}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </Svg>
+                </TouchableOpacity>
+              )}
+            </View>
+          </Pressable>
         </View>
-
-        {/* Title */}
-        <Text style={styles.title}>Upload a photo or PDF of your blood test</Text>
-
-        {/* Subtitle */}
-        <Text style={styles.subtitle}>
-          Make sure all information is clear and visible for the most accurate results
-        </Text>
-
-        {/* Smooth Upload Flow */}
-        <SmoothUploadFlow
-          onTakePhoto={handleTakePhoto}
-          onPickImage={handlePickImage}
-          onPickDocument={handlePickDocument}
-          selectedFile={selectedFile}
-          fileType={fileType}
-          onOpenModal={() => setAttachmentModalVisible(true)}
-        />
-      </View>
-      
-      {/* Attachment Modal - reuse chat screen bottom sheet style */}
-      <Modal
-        visible={attachmentModalVisible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setAttachmentModalVisible(false)}
-      >
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setAttachmentModalVisible(false)}
-        >
-          <View style={styles.modalContent}>
-            <Pressable onPress={(e) => e.stopPropagation()}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Add Attachment</Text>
-              </View>
-              <View style={styles.modalOptions}>
-                <TouchableOpacity
-                  style={styles.modalOption}
-                  onPress={() => {
-                    setAttachmentModalVisible(false);
-                    handleTakePhoto();
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.modalOptionIcon}>
-                    <CameraIcon size={32} color={Colors.white} />
-                  </View>
-                  <Text style={styles.modalOptionText}>Camera</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.modalOption}
-                  onPress={() => {
-                    setAttachmentModalVisible(false);
-                    handlePickImage();
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.modalOptionIcon}>
-                    <ImageIcon size={32} color={Colors.white} />
-                  </View>
-                  <Text style={styles.modalOptionText}>Photo</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.modalOption}
-                  onPress={() => {
-                    setAttachmentModalVisible(false);
-                    handlePickDocument();
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.modalOptionIcon}>
-                    <FileIcon size={32} color={Colors.white} />
-                  </View>
-                  <Text style={styles.modalOptionText}>File</Text>
-                </TouchableOpacity>
-              </View>
-            </Pressable>
-          </View>
-        </Pressable>
-      </Modal>
-      
-      {/* Done Button or Loading Progress Bar */}
-      <View style={styles.buttonContainer}>
-        {loading ? (
-          <BloodCellsLoader progress={progress} />
-        ) : (
-          <Button
-            title="Analyze"
-            onPress={handleDone}
-            variant="primary"
-            disabled={!selectedFile}
-            showArrow={false}
-          />
-        )}
-      </View>
-    </SafeAreaView>
+      </Pressable>
+    </Modal>
   );
 }
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.dark.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.md,
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.xl,
-    marginTop: -Spacing.xxl * 2,
-  },
-  iconContainer: {
-    marginBottom: Spacing.xxl,
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingRight: 30,
-  },
-  iconWrapper: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
-  },
-  title: {
-    fontSize: FontSize.xl,
-    fontWeight: FontWeight.bold,
-    color: Colors.white,
-    textAlign: 'center',
-    marginTop: -Spacing.xxl * 2,
-    marginBottom: Spacing.md,
-    lineHeight: FontSize.xl * 1.3,
-  },
-  subtitle: {
-    fontSize: FontSize.sm,
-    color: Colors.dark.textSecondary,
-    textAlign: 'center',
-    marginBottom: Spacing.lg,
-    lineHeight: FontSize.sm * 1.5,
-  },
-  buttonContainer: {
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.lg,
-    alignItems: 'center',
-  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -392,42 +428,159 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.dark.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    paddingTop: Spacing.md,
+    paddingTop: Spacing.sm,
     paddingBottom: Spacing.xl,
+    maxHeight: '90%',
   },
-  modalHeader: {
+  grabHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: Colors.dark.border,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.md,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.dark.border,
   },
-  modalTitle: {
-    fontSize: FontSize.lg,
-    fontWeight: '600',
-    color: Colors.white,
-  },
-  modalOptions: {
-    flexDirection: 'row',
+  uploadSection: {
+    alignItems: 'center',
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.xl,
+  },
+  uploadTitle: {
+    fontSize: FontSize.xxl,
+    fontWeight: FontWeight.bold,
+    color: Colors.white,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.xs,
+  },
+  uploadSubtitle: {
+    fontSize: FontSize.sm,
+    color: Colors.dark.textSecondary,
+    textAlign: 'center',
+  },
+  addPostContainer: {
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.xl,
+  },
+  addPostBox: {
+    borderWidth: 2,
+    borderColor: Colors.dark.border,
+    borderStyle: 'dashed',
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.dark.background,
+    minHeight: 200,
+  },
+  addPostBoxFilled: {
+    borderStyle: 'solid',
+    borderColor: Colors.primary,
+    backgroundColor: 'rgba(199, 0, 43, 0.1)',
+  },
+  addPostText: {
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.bold,
+    color: Colors.white,
+    marginBottom: Spacing.xs,
+  },
+  addPostSubtext: {
+    fontSize: FontSize.sm,
+    color: Colors.dark.textSecondary,
+    textAlign: 'center',
+    marginBottom: Spacing.lg,
+  },
+  attachmentOptions: {
+    flexDirection: 'row',
+    width: '100%',
+    justifyContent: 'space-around',
+    marginTop: Spacing.md,
     gap: Spacing.md,
   },
-  modalOption: {
+  attachmentOption: {
     flex: 1,
     alignItems: 'center',
     padding: Spacing.sm,
   },
-  modalOptionIcon: {
+  attachmentOptionIcon: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: Colors.dark.background,
+    backgroundColor: Colors.dark.surface,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.sm,
   },
-  modalOptionText: {
-    fontSize: FontSize.md,
+  attachmentOptionText: {
+    fontSize: FontSize.sm,
+    fontFamily: 'ProductSans-Regular',
     color: Colors.white,
+  },
+  filePreviewContainer: {
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.xl,
+  },
+  filePreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.black,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  filePreviewName: {
+    flex: 1,
+    fontSize: FontSize.sm,
+    fontFamily: 'ProductSans-Regular',
+    color: Colors.white,
+  },
+  removeFileButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.dark.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  removeFileText: {
+    fontSize: FontSize.lg,
+    fontFamily: 'ProductSans-Bold',
+    color: Colors.white,
+    lineHeight: FontSize.lg,
+  },
+  buttonContainer: {
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.lg,
+    alignItems: 'center',
+  },
+  continueButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    borderRadius: BorderRadius.full,
+    gap: Spacing.sm,
+    minWidth: SCREEN_WIDTH - Spacing.lg * 2,
+  },
+  continueButtonDisabled: {
+    backgroundColor: Colors.dark.border,
+  },
+  continueButtonText: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.bold,
+    color: Colors.white,
+  },
+  continueButtonTextDisabled: {
+    color: Colors.dark.textSecondary,
   },
 });

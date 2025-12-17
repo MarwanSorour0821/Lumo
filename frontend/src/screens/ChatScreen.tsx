@@ -9,8 +9,6 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  Modal,
-  Pressable,
   Animated,
   ActivityIndicator,
   Image,
@@ -29,6 +27,7 @@ import BackButton from '../../components/BackButton';
 import { getCurrentSession, getUserProfile } from '../lib/supabase';
 import { sendChatMessage, sendChatFile, getChatHistory, ChatMessage } from '../lib/chat';
 import { MarkdownText } from '../components/MarkdownText';
+import AttachmentModal from '../components/AttachmentModal';
 
 // Plus Icon (light gray)
 const PlusIcon = ({ size = 20, color = '#808080' }: { size?: number; color?: string }) => (
@@ -94,26 +93,6 @@ const FileIcon = ({ size = 24, color = '#FFFFFF' }: { size?: number; color?: str
     />
     <Path
       d="M14 2v6h6M16 13H8M16 17H8M10 9H8"
-      stroke={color}
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </Svg>
-);
-
-// Camera Icon
-const CameraIcon = ({ size = 24, color = '#FFFFFF' }: { size?: number; color?: string }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"
-      stroke={color}
-      strokeWidth={1.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <Path
-      d="M12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"
       stroke={color}
       strokeWidth={1.5}
       strokeLinecap="round"
@@ -722,57 +701,13 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
         </KeyboardAvoidingView>
 
         {/* Attachment Modal */}
-        <Modal
+        <AttachmentModal
           visible={modalVisible}
-          transparent={true}
-          animationType="slide"
-          onRequestClose={() => setModalVisible(false)}
-        >
-          <Pressable
-            style={styles.modalOverlay}
-            onPress={() => setModalVisible(false)}
-          >
-            <View style={styles.modalContent}>
-              <Pressable onPress={(e) => e.stopPropagation()}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Add Attachment</Text>
-                </View>
-                <View style={styles.modalOptions}>
-                  <TouchableOpacity
-                    style={styles.modalOption}
-                    onPress={handleTakePhoto}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.modalOptionIcon}>
-                      <CameraIcon size={32} color={Colors.white} />
-                    </View>
-                    <Text style={styles.modalOptionText}>Camera</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.modalOption}
-                    onPress={handlePickImage}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.modalOptionIcon}>
-                      <ImageIcon size={32} color={Colors.white} />
-                    </View>
-                    <Text style={styles.modalOptionText}>Photo</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.modalOption}
-                    onPress={handlePickFile}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.modalOptionIcon}>
-                      <FileIcon size={32} color={Colors.white} />
-                    </View>
-                    <Text style={styles.modalOptionText}>File</Text>
-                  </TouchableOpacity>
-                </View>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Modal>
+          onClose={() => setModalVisible(false)}
+          onTakePhoto={handleTakePhoto}
+          onPickImage={handlePickImage}
+          onPickFile={handlePickFile}
+        />
       </SafeAreaView>
     </View>
   );
@@ -980,54 +915,6 @@ const styles = StyleSheet.create({
   },
   sendButtonDisabled: {
     opacity: 0.5,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: Colors.dark.surface,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.xl,
-  },
-  modalHeader: {
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.dark.border,
-  },
-  modalTitle: {
-    fontSize: FontSize.lg,
-    fontFamily: 'ProductSans-Bold',
-    color: Colors.white,
-  },
-  modalOptions: {
-    flexDirection: 'row',
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.lg,
-    gap: Spacing.md,
-  },
-  modalOption: {
-    flex: 1,
-    alignItems: 'center',
-    padding: Spacing.sm,
-  },
-  modalOptionIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: Colors.dark.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.sm,
-  },
-  modalOptionText: {
-    fontSize: FontSize.md,
-    fontFamily: 'ProductSans-Regular',
-    color: Colors.white,
   },
   filePreviewContainer: {
     paddingHorizontal: Spacing.md,

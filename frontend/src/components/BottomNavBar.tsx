@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -6,7 +6,7 @@ import * as Haptics from 'expo-haptics';
 import Svg, { Path, Circle, G } from 'react-native-svg';
 import { Colors, FontSize, Spacing, BorderRadius } from '../constants/theme';
 import { RootStackParamList } from '../types';
-import { CreateModal } from './CreateModal';
+import { useAnalyseModal } from '../contexts/AnalyseModalContext';
 
 type BottomNavBarProps = {
   currentRoute?: string;
@@ -92,7 +92,6 @@ export function BottomNavBar({ currentRoute }: BottomNavBarProps) {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute();
   const activeRoute = currentRoute || route.name;
-  const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
 
   const navItems = [
     {
@@ -126,10 +125,12 @@ export function BottomNavBar({ currentRoute }: BottomNavBarProps) {
     }
   };
 
+  const { showModal } = useAnalyseModal();
+
   const handlePlusPress = () => {
     // Trigger haptic feedback
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setIsCreateModalVisible(true);
+    showModal();
   };
 
   return (
@@ -170,10 +171,6 @@ export function BottomNavBar({ currentRoute }: BottomNavBarProps) {
           </TouchableOpacity>
         </View>
       </View>
-      <CreateModal
-        visible={isCreateModalVisible}
-        onClose={() => setIsCreateModalVisible(false)}
-      />
     </View>
   );
 }

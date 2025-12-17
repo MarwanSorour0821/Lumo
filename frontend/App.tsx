@@ -6,6 +6,7 @@ import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { Colors } from './src/constants/theme';
+import { AnalyseModalProvider } from './src/contexts/AnalyseModalContext';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();

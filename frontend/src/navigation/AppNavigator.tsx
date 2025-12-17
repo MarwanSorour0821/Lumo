@@ -17,11 +17,12 @@ import { ChatScreen } from '../screens/ChatScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { NotificationSettingsScreen } from '../screens/NotificationSettingsScreen';
 import { EditInformationScreen } from '../screens/EditInformationScreen';
-import { AnalyseScreen } from '../screens/AnalyseScreen';
+import { AnalyseScreenWrapper } from '../screens/AnalyseScreenWrapper';
 
 import { RootStackParamList } from '../types';
 import { Colors } from '../constants/theme';
 import { getCurrentSession } from '../lib/index';
+import { AnalyseModalProvider } from '../contexts/AnalyseModalContext';
 
 /** YOUR ANALYSIS-PAGE IMPORTS (kept) **/
 import { SignUpBiometricsScreen } from '../screens/SignUpBiometricsScreen';
@@ -60,13 +61,14 @@ export function AppNavigator() {
 
   return (
     <NavigationContainer>
-      <Stack.Navigator
-        initialRouteName={initialRoute}
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: Colors.dark.background },
-        }}
-      >
+      <AnalyseModalProvider>
+        <Stack.Navigator
+          initialRouteName={initialRoute}
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: Colors.dark.background },
+          }}
+        >
         {/* MAIN BRANCH SCREENS (untouched) */}
         <Stack.Screen name="Onboarding" component={OnboardingScreen} />
         <Stack.Screen name="Login" component={LoginScreen} />
@@ -96,7 +98,7 @@ export function AppNavigator() {
         />
         <Stack.Screen
           name="Analyse"
-          component={AnalyseScreen}
+          component={AnalyseScreenWrapper}
           options={{ animation: 'fade', animationDuration: 150 }}
         />
 
@@ -116,6 +118,7 @@ export function AppNavigator() {
         <Stack.Screen name="AnalysisResults" component={AnalysisResultsScreen} />
         <Stack.Screen name="MainApp" component={TabNavigator} />
       </Stack.Navigator>
+      </AnalyseModalProvider>
     </NavigationContainer>
   );
 }

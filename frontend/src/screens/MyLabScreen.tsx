@@ -21,6 +21,7 @@ import { Colors, Spacing, FontSize, FontWeight, BorderRadius } from '../constant
 import { RootStackParamList } from '../types';
 import { BottomNavBar } from '../components/BottomNavBar';
 import { getAnalyses, getAnalysis, AnalysisListItem } from '../lib/api';
+import { useAnalyseModal } from '../contexts/AnalyseModalContext';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -30,6 +31,7 @@ type MyLabScreenProps = {
 };
 
 export function MyLabScreen({ navigation, route }: MyLabScreenProps) {
+  const { showModal } = useAnalyseModal();
   const [analyses, setAnalyses] = useState<AnalysisListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -226,7 +228,7 @@ export function MyLabScreen({ navigation, route }: MyLabScreenProps) {
       </Text>
       <TouchableOpacity
         style={styles.startButton}
-        onPress={() => navigation.navigate('Analyse')}
+        onPress={showModal}
       >
         <Ionicons name="add" size={20} color={Colors.white} />
         <Text style={styles.startButtonText}>New Analysis</Text>

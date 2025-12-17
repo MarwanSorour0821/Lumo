@@ -2,7 +2,7 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { HomeScreen } from '../screens/HomeScreen';
-import { AnalyseScreen } from '../screens/AnalyseScreen';
+import { AnalyseScreenWrapper } from '../screens/AnalyseScreenWrapper';
 import { HistoryScreen } from '../screens/HistoryScreen';
 import { Colors } from '../constants/theme';
 import { TabParamList } from '../types';
@@ -34,7 +34,7 @@ export function TabNavigator() {
       />
       <Tab.Screen
         name="Analyse"
-        component={AnalyseScreen}
+        component={AnalyseScreenWrapper}
         options={{
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="flask" size={size} color={color} />
