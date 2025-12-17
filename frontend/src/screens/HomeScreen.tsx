@@ -107,13 +107,13 @@ const ArrowRightIcon = ({ size = 24, color = '#FFFFFF' }: { size?: number; color
 
 export function HomeScreen({ navigation }: HomeScreenProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [myTestsExpanded, setMyTestsExpanded] = useState(true);
+  const [myTestsExpanded, setMyTestsExpanded] = useState(false);
   const [analyses, setAnalyses] = useState<AnalysisListItem[]>([]);
   const [loadingTests, setLoadingTests] = useState(false);
   const [loadingAnalysisId, setLoadingAnalysisId] = useState<string | null>(null);
   
   // Animation values for smooth expand/collapse
-  const expandAnim = useRef(new Animated.Value(1)).current;
+  const expandAnim = useRef(new Animated.Value(0)).current;
   const chevronRotate = useRef(new Animated.Value(0)).current;
   
   // Initialize selectedDate to today (without time)
@@ -165,11 +165,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     loadAccountCreationDate();
   }, []);
 
-  // Initialize animation state
-  useEffect(() => {
-    expandAnim.setValue(myTestsExpanded ? 1 : 0);
-    chevronRotate.setValue(myTestsExpanded ? 1 : 0);
-  }, []);
+  // Initialize animation state (already set to collapsed by default in refs)
 
   // Fetch analyses for current month
   const fetchAnalyses = async () => {

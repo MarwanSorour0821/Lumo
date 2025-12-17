@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -6,6 +6,7 @@ import * as Haptics from 'expo-haptics';
 import Svg, { Path, Circle, G } from 'react-native-svg';
 import { Colors, FontSize, Spacing, BorderRadius } from '../constants/theme';
 import { RootStackParamList } from '../types';
+import { CreateModal } from './CreateModal';
 
 type BottomNavBarProps = {
   currentRoute?: string;
@@ -91,8 +92,9 @@ export function BottomNavBar({ currentRoute }: BottomNavBarProps) {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute();
   const activeRoute = currentRoute || route.name;
+  const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
 
-  const leftNavItems = [
+  const navItems = [
     {
       name: 'Home',
       route: 'Home' as keyof RootStackParamList,
@@ -103,9 +105,6 @@ export function BottomNavBar({ currentRoute }: BottomNavBarProps) {
       route: 'MyLab' as keyof RootStackParamList,
       icon: MyLabIcon,
     },
-  ];
-
-  const rightNavItems = [
     {
       name: 'Chat',
       route: 'Chat' as keyof RootStackParamList,
@@ -123,70 +122,58 @@ export function BottomNavBar({ currentRoute }: BottomNavBarProps) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     
     if (routeName !== activeRoute) {
-      navigation.navigate(routeName);
+      navigation.navigate(routeName as any);
     }
   };
 
   const handlePlusPress = () => {
     // Trigger haptic feedback
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (activeRoute !== 'Analyse') {
-      navigation.navigate('Analyse');
-    }
+    setIsCreateModalVisible(true);
   };
 
   return (
     <View style={styles.wrapper}>
       <View style={styles.container}>
-        {leftNavItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeRoute === item.route;
-          
-          return (
-            <TouchableOpacity
-              key={item.route}
-              style={[styles.navItem, isActive && styles.navItemActive]}
-              onPress={() => handleNavigate(item.route)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.iconContainer}>
-                <Icon size={24} color={Colors.white} />
-              </View>
-              <Text style={[styles.navText, isActive && styles.navTextActive]}>
-                {item.name}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-        {/* Plus Button in Center */}
-        <TouchableOpacity
-          style={styles.plusButton}
-          onPress={handlePlusPress}
-          activeOpacity={0.7}
-        >
-          <PlusIcon size={28} color={Colors.white} />
-        </TouchableOpacity>
-        {rightNavItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeRoute === item.route;
-          
-          return (
-            <TouchableOpacity
-              key={item.route}
-              style={[styles.navItem, isActive && styles.navItemActive]}
-              onPress={() => handleNavigate(item.route)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.iconContainer}>
-                <Icon size={24} color={Colors.white} />
-              </View>
-              <Text style={[styles.navText, isActive && styles.navTextActive]}>
-                {item.name}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
+        {/* All Nav Items on the Left - Separate Container */}
+        <View style={styles.navItemsContainer}>
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeRoute === item.route;
+            
+            return (
+              <TouchableOpacity
+                key={item.route}
+                style={[styles.navItem, isActive && styles.navItemActive]}
+                onPress={() => handleNavigate(item.route)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.iconContainer}>
+                  <Icon size={24} color={Colors.white} />
+                </View>
+                <Text style={[styles.navText, isActive && styles.navTextActive]}>
+                  {item.name}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+        
+        {/* Plus Button on the Right - Separate Container */}
+        <View style={styles.plusButtonContainer}>
+          <TouchableOpacity
+            style={styles.plusButton}
+            onPress={handlePlusPress}
+            activeOpacity={0.7}
+          >
+            <PlusIcon size={28} color={Colors.white} />
+          </TouchableOpacity>
+        </View>
       </View>
+      <CreateModal
+        visible={isCreateModalVisible}
+        onClose={() => setIsCreateModalVisible(false)}
+      />
     </View>
   );
 }
@@ -200,22 +187,27 @@ const styles = StyleSheet.create({
   },
   container: {
     flexDirection: 'row',
-    backgroundColor: '#1A1A1A', // Very dark gray background
-    borderRadius: BorderRadius.xl * 2, // Highly rounded (pill-shaped)
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  navItemsContainer: {
+    flexDirection: 'row',
+    flex: 1,
+    backgroundColor: '#1A1A1A',
+    borderRadius: BorderRadius.xl * 2,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.sm,
-    justifyContent: 'space-around',
+    justifyContent: 'space-evenly',
     alignItems: 'center',
     minHeight: 64,
   },
   navItem: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    flex: 1,
-    paddingVertical: Spacing.xs + 2,
-    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.xs,
     borderRadius: BorderRadius.full, // Pill shape
-    marginHorizontal: 2,
   },
   navItemActive: {
     backgroundColor: '#333333', // Lighter gray for active state
@@ -232,6 +224,15 @@ const styles = StyleSheet.create({
   navTextActive: {
     color: Colors.white,
   },
+  plusButtonContainer: {
+    backgroundColor: '#1A1A1A',
+    borderRadius: 36,
+    width: 72,
+    height: 72,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: Spacing.sm,
+  },
   plusButton: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -239,7 +240,6 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 24,
     backgroundColor: Colors.primary,
-    marginHorizontal: Spacing.sm,
   },
 });
 

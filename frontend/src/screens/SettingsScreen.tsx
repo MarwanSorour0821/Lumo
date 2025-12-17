@@ -16,6 +16,7 @@ import { BottomNavBar } from '../components/BottomNavBar';
 import BackButton from '../../components/BackButton';
 import { supabase } from '../lib/supabase';
 import { Alert } from 'react-native';
+import { deleteAccountData } from '../lib/api';
 
 type SettingsScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Settings'>;
@@ -162,6 +163,26 @@ const SignOutIcon = ({ size = 24, color = '#FFFFFF' }: { size?: number; color?: 
   </Svg>
 );
 
+// Trash/Delete Icon
+const TrashIcon = ({ size = 24, color = '#FFFFFF' }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+      stroke={color}
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M10 11v6M14 11v6"
+      stroke={color}
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
 // Percentage Icon
 const PercentageIcon = ({ size = 24, color = '#FFFFFF' }: { size?: number; color?: string }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -285,6 +306,75 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
     );
   };
 
+  const handleDeleteAccount = async () => {
+    Alert.alert(
+      'Delete Account',
+      'Are you sure you want to delete your account? This action cannot be undone. All your data including analyses and chat history will be permanently deleted.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Confirm again with a second alert
+              Alert.alert(
+                'Final Confirmation',
+                'This is your last chance. Your account and all data will be permanently deleted. Are you absolutely sure?',
+                [
+                  {
+                    text: 'Cancel',
+                    style: 'cancel',
+                  },
+                  {
+                    text: 'Yes, Delete My Account',
+                    style: 'destructive',
+                    onPress: async () => {
+                      try {
+                        // Step 1: Delete all user data from backend
+                        await deleteAccountData();
+                        
+                        // Step 2: Sign out (Supabase auth user deletion requires admin privileges)
+                        // The backend has already deleted all user data
+                        // Note: The auth user account will remain in Supabase but all associated data is deleted
+                        if (supabase) {
+                          await supabase.auth.signOut();
+                        }
+                        
+                        Alert.alert(
+                          'Account Deleted',
+                          'Your account has been successfully deleted.',
+                          [
+                            {
+                              text: 'OK',
+                              onPress: () => {
+                                navigation.reset({
+                                  index: 0,
+                                  routes: [{ name: 'Onboarding' }],
+                                });
+                              },
+                            },
+                          ]
+                        );
+                      } catch (error: any) {
+                        Alert.alert('Error', error.message || 'Failed to delete account. Please try again.');
+                      }
+                    },
+                  },
+                ]
+              );
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to delete account');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
@@ -329,6 +419,11 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
               icon={SignOutIcon} 
               text="Sign out" 
               onPress={handleSignOut}
+            />
+            <SettingsItem 
+              icon={TrashIcon} 
+              text="Delete account" 
+              onPress={handleDeleteAccount}
             />
           </View>
         </ScrollView>

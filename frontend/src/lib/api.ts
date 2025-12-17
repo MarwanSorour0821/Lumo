@@ -204,6 +204,30 @@ export async function saveAnalysis(
   }
 }
 
+/**
+ * Delete all user account data (analyses, chat messages)
+ * Note: This does NOT delete the Supabase auth user - that must be done separately
+ */
+export async function deleteAccountData(): Promise<{ message: string; analyses_deleted: number; chat_messages_deleted: number }> {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_BASE_URL}/api/analyses/delete-account/`, {
+      method: 'DELETE',
+      headers,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `Failed to delete account data: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to delete account data');
+  }
+}
+
 
 
 

@@ -8,6 +8,9 @@ import Svg, { Path } from 'react-native-svg';
 import { PrimaryButton } from '../components';
 import { colors, Theme } from '../constants/theme';
 import { RootStackParamList } from '../src/types';
+import { SignInModal } from '../src/components/SignInModal';
+import { signInWithGoogle, getUserProfile } from '../src/lib/supabase';
+import { Alert } from 'react-native';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -224,6 +227,74 @@ export default function OnboardingScreen({
     require('../assets/images/Group 6.png'),
     require('../assets/images/iMockup - iPhone 14.png'),
   ];
+
+  // Sign in modal state
+  const [isSignInModalVisible, setIsSignInModalVisible] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+
+  const isProfileComplete = (profile: any | null) => {
+    if (!profile) return false;
+    const hasSex = !!profile.biological_sex;
+    const hasDob = !!profile.date_of_birth;
+    const hasHeight = typeof profile.height_cm === 'number';
+    const hasWeight = typeof profile.weight_kg === 'number';
+    return hasSex && hasDob && hasHeight && hasWeight;
+  };
+
+  const continueOrStartSignup = async (
+    userId: string,
+    userEmail?: string,
+    fallbackFirstName?: string,
+    fallbackLastName?: string
+  ) => {
+    const { data: profile } = await getUserProfile(userId);
+
+    if (isProfileComplete(profile)) {
+      navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+      return;
+    }
+
+    const signUpData = {
+      userId,
+      email: profile?.email || userEmail,
+      firstName: profile?.first_name || fallbackFirstName,
+      lastName: profile?.last_name || fallbackLastName,
+      isAppleSignIn: true,
+    } as any;
+
+    navigation.navigate('SignUpSex', { signUpData });
+  };
+
+  const handleGoogleSignIn = async () => {
+    setIsGoogleLoading(true);
+    const { data, error } = await signInWithGoogle();
+
+    if (error) {
+      if (error.message !== 'Sign in cancelled') {
+        Alert.alert('Sign In Error', error.message);
+      }
+      setIsGoogleLoading(false);
+      return;
+    }
+
+    if (data.user) {
+      await continueOrStartSignup(
+        data.user.id,
+        data.user.email,
+        data.user.firstName,
+        data.user.lastName
+      );
+      setIsGoogleLoading(false);
+      setIsSignInModalVisible(false);
+    } else {
+      setIsGoogleLoading(false);
+      Alert.alert('Sign In Error', 'Failed to get user information');
+    }
+  };
+
+  const handleSignInSuccess = async (userId: string, userEmail?: string) => {
+    await continueOrStartSignup(userId, userEmail);
+  };
 
   useEffect(() => {
     // Animate main text: fade in + slide up
@@ -485,7 +556,7 @@ export default function OnboardingScreen({
           
             <TouchableOpacity
               style={styles.signInLink}
-              onPress={() => navigation.navigate('Login')}
+              onPress={() => setIsSignInModalVisible(true)}
               activeOpacity={0.8}
             >
               <Text style={[styles.signInText, { color: themeColors.secondaryText }]}>
@@ -571,6 +642,20 @@ export default function OnboardingScreen({
           </Svg>
         </Animated.View>
       </Animated.View>
+
+      {/* Sign In Modal */}
+      <SignInModal
+        visible={isSignInModalVisible}
+        onClose={() => setIsSignInModalVisible(false)}
+        onUsePhone={() => {
+          setIsSignInModalVisible(false);
+          // Handle phone sign-in navigation if needed
+          navigation.navigate('Login');
+        }}
+        onGoogleSignIn={handleGoogleSignIn}
+        isGoogleLoading={isGoogleLoading}
+        onSignInSuccess={handleSignInSuccess}
+      />
     </View>
   );
 }

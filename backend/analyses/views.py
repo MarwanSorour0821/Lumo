@@ -5,6 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from .models import Analysis
 from .serializers import AnalysisSerializer, AnalysisListSerializer, CreateAnalysisSerializer
 from .authentication import SupabaseAuthentication
+from chat.models import ChatMessage
 
 
 class AnalysisListCreateView(APIView):
@@ -84,3 +85,41 @@ class AnalysisDetailView(APIView):
         
         analysis.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class DeleteAccountView(APIView):
+    """
+    DELETE: Delete all user data (analyses, chat messages)
+    Note: This does NOT delete the Supabase auth user - that must be done from the frontend
+    """
+    authentication_classes = [SupabaseAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request):
+        """Delete all data associated with the authenticated user."""
+        user_id = request.user.user_id
+        
+        try:
+            # Delete all analyses for the user
+            analyses_count = Analysis.objects.filter(user_id=user_id).delete()[0]
+            
+            # Delete all chat messages for the user (this also deletes associated files)
+            chat_messages = ChatMessage.objects.filter(user_id=user_id)
+            # Delete files first
+            for msg in chat_messages:
+                msg.delete_file()
+            chat_count = chat_messages.delete()[0]
+            
+            return Response(
+                {
+                    'message': 'Account data deleted successfully',
+                    'analyses_deleted': analyses_count,
+                    'chat_messages_deleted': chat_count,
+                },
+                status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            return Response(
+                {'error': f'Failed to delete account data: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
