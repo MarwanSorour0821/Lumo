@@ -15,9 +15,9 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.lumoblood.app",
-      "buildNumber": "5",
+      "buildNumber": "6",
       "splash": {
-        "image": "./assets/images/in-page-logo-50x50.png",
+        "image": "./assets/images/in-page-logo.png",
         "resizeMode": "contain",
         "backgroundColor": "#040404"
       },
