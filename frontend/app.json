@@ -16,6 +16,11 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.lumoblood.app",
       "buildNumber": "5",
+      "splash": {
+        "image": "./assets/images/in-page-logo-50x50.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#040404"
+      },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
