@@ -1,7 +1,7 @@
 import 'react-native-gesture-handler';
 import React, { useEffect, useCallback } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { Text as RNText, TextInput as RNTextInput, View, ActivityIndicator } from 'react-native';
+import { Text as RNText, TextInput as RNTextInput, View, ActivityIndicator, Image } from 'react-native';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { AppNavigator } from './src/navigation/AppNavigator';
@@ -52,7 +52,11 @@ export default function App() {
   if (!fontsLoaded) {
     return (
       <View style={{ flex: 1, backgroundColor: '#040404', justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+        <Image
+          source={require('./assets/images/in-page-logo.png')}
+          style={{ width: 50, height: 50 }}
+          resizeMode="contain"
+        />
       </View>
     );
   }
