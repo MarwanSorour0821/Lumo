@@ -7,20 +7,10 @@
     "orientation": "portrait",
     "icon": "./assets/splash-icon.png",
     "userInterfaceStyle": "automatic",
-    "splash": {
-      "image": "./assets/images/in-page-logo.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#040404"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.lumoblood.app",
-      "buildNumber": "6",
-      "splash": {
-        "image": "./assets/images/in-page-logo.png",
-        "resizeMode": "contain",
-        "backgroundColor": "#040404"
-      },
+      "buildNumber": "7",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
