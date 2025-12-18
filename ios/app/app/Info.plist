@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>API_URL</key>
+	<string>http://localhost:8000</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.lumoblood.app</string>
+			</array>
+		</dict>
+	</array>
+	<key>SUPABASE_ANON_KEY</key>
+	<string>eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ0ZGpqbnZjbnRwdHF2aW94dmRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyODk4NDUsImV4cCI6MjA4MDg2NTg0NX0.jN59wdBaU6D8D35f7qpa0hw-tkRRXP8IB7bRFEmye24</string>
+	<key>SUPABASE_URL</key>
+	<string>https://rtdjjnvcntptqvioxvdl.supabase.co</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>ProductSans-Regular.ttf</string>
+		<string>ProductSans-Bold.ttf</string>
+		<string>ProductSans-Italic.ttf</string>
+		<string>ProductSans-BoldItalic.ttf</string>
+	</array>
+</dict>
+</plist>

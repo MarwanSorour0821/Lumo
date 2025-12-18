@@ -22,4 +22,5 @@ urlpatterns = [
     path('api/ai/', include('ai_analysis.urls')),
     path('api/analyses/', include('analyses.urls')),
     path('api/chat/', include('chat.urls')),
+    path('api/auth/', include('auth.urls')),
 ]
