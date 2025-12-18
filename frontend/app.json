@@ -22,6 +22,7 @@
         "foregroundImage": "./assets/splash-icon.png",
         "backgroundColor": "#000000"
       },
+      "splash": null,
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
