@@ -111,10 +111,25 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const [analyses, setAnalyses] = useState<AnalysisListItem[]>([]);
   const [loadingTests, setLoadingTests] = useState(false);
   const [loadingAnalysisId, setLoadingAnalysisId] = useState<string | null>(null);
-  
   // Animation values for smooth expand/collapse
   const expandAnim = useRef(new Animated.Value(0)).current;
   const chevronRotate = useRef(new Animated.Value(0)).current;
+  
+  // Mock subscription check - replace with actual subscription check later
+  const hasActiveSubscription = false; // TODO: Replace with actual subscription check
+  
+  // Check subscription and redirect to paywall if needed
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasActiveSubscription) {
+        // Small delay to let the screen render first
+        const timer = setTimeout(() => {
+          navigation.navigate('PaywallMain');
+        }, 500);
+        return () => clearTimeout(timer);
+      }
+    }, [hasActiveSubscription, navigation])
+  );
   
   // Initialize selectedDate to today (without time)
   const getToday = () => {

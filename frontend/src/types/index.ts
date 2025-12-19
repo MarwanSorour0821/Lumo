@@ -1,4 +1,4 @@
-export type BiologicalSex = 'male' | 'female';
+export type BiologicalSex = 'male' | 'female' | 'other' | 'prefer_not_to_say';
 
 export interface SignUpData {
   firstName: string;
@@ -44,8 +44,30 @@ export interface AnalysisRouteData {
 export type RootStackParamList = {
   Onboarding: undefined;
   Login: undefined;
-  SignUpPersonal: undefined;
-  SignUpCredentials: { firstName: string; lastName?: string };
+  SignUpPersonal: {
+    signUpData: SignUpData | AppleSignUpData;
+    sex: BiologicalSex;
+    age: string;
+    height: string;
+    heightFeet: string;
+    heightInches: string;
+    heightUnit: 'cm' | 'ft';
+    weight: string;
+    weightUnit: 'kg' | 'lbs';
+  };
+  SignUpCredentials: { 
+    signUpData: SignUpData | AppleSignUpData;
+    sex: BiologicalSex;
+    age: string;
+    height: string;
+    heightFeet: string;
+    heightInches: string;
+    heightUnit: 'cm' | 'ft';
+    weight: string;
+    weightUnit: 'kg' | 'lbs';
+    firstName: string;
+    lastName?: string;
+  };
   SignUpSex: { signUpData: SignUpData | AppleSignUpData };
   SignUpAge: { signUpData: SignUpData | AppleSignUpData; sex: BiologicalSex };
   SignUpHeight: {
@@ -75,6 +97,9 @@ export type RootStackParamList = {
   Analyse: undefined;
   NotificationSettings: undefined;
   EditInformation: undefined;
+  PaywallLearnMore: undefined;
+  PaywallMain: undefined;
+  PaywallWelcome: undefined;
 };
 
 export type TabParamList = {

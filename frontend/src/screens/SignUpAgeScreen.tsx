@@ -9,13 +9,14 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Picker } from '@react-native-picker/picker';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
-import PrimaryButton from '../../components/PrimaryButton';
-import BackButton from '../../components/BackButton';
+import * as Haptics from 'expo-haptics';
+import Svg, { Path } from 'react-native-svg';
 import { ProgressBar } from '../components/ProgressBar';
 import { Colors, FontSize, Spacing } from '../constants/theme';
 import { RootStackParamList, BiologicalSex, SignUpData } from '../types';
@@ -59,6 +60,7 @@ export function SignUpAgeScreen({ navigation, route }: SignUpAgeScreenProps) {
   }, []);
 
   const handleContinue = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (!age || age < 18 || age > 100) {
       Alert.alert('Please select a valid age between 18 and 100');
       return;
@@ -71,13 +73,9 @@ export function SignUpAgeScreen({ navigation, route }: SignUpAgeScreenProps) {
       <StatusBar barStyle="light-content" />
       
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.headerContainer}>
-          <BackButton
-            onPress={() => navigation.goBack()}
-            theme="dark"
-          />
+        <View style={styles.progressBarContainer}>
+          <ProgressBar currentStep={2} totalSteps={7} />
         </View>
-        <ProgressBar currentStep={4} totalSteps={7} />
         
         <KeyboardAvoidingView
           style={styles.keyboardView}
@@ -138,23 +136,54 @@ export function SignUpAgeScreen({ navigation, route }: SignUpAgeScreenProps) {
                 </Picker>
               </View>
             </Animated.View>
-
-            <Animated.View
-              style={[
-                styles.buttonContainer,
-                {
-                  opacity: buttonFade,
-                }
-              ]}
-            >
-              <PrimaryButton
-                text="Continue"
-                onPress={handleContinue}
-                theme="dark"
-              />
-            </Animated.View>
           </ScrollView>
         </KeyboardAvoidingView>
+
+        {/* Bottom Navigation */}
+        <View style={styles.bottomNavigation}>
+          <View style={styles.bottomNavContent}>
+            {/* Back Button */}
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                navigation.goBack();
+              }}
+              activeOpacity={0.8}
+            >
+              <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+                <Path
+                  d="M19 12H5M12 19l-7-7 7-7"
+                  stroke="#000000"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </Svg>
+            </TouchableOpacity>
+
+            {/* Next Button */}
+            <TouchableOpacity
+              style={styles.nextButton}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                handleContinue();
+              }}
+              activeOpacity={0.9}
+            >
+              <Text style={styles.nextButtonText}>Next</Text>
+              <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+                <Path
+                  d="M5 12h14M12 5l7 7-7 7"
+                  stroke="#FFFFFF"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </Svg>
+            </TouchableOpacity>
+          </View>
+        </View>
       </SafeAreaView>
     </View>
   );
@@ -168,9 +197,52 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
-  headerContainer: {
+  bottomNavigation: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     paddingHorizontal: Spacing.lg,
+    paddingBottom: 40,
+    backgroundColor: 'transparent',
+  },
+  bottomNavContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 12,
+  },
+  progressBarContainer: {
+    alignItems: 'center',
     paddingTop: Spacing.md,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  nextButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    height: 48,
+    borderRadius: 22,
+    backgroundColor: Colors.primary,
+    elevation: 16,
+    shadowColor: '#BB3E4F',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.6,
+    shadowRadius: 16,
+    gap: 8,
+  },
+  nextButtonText: {
+    fontSize: 16,
+    fontFamily: 'ProductSans-Bold',
+    color: Colors.white,
   },
   keyboardView: {
     flex: 1,

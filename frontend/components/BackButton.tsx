@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, TouchableOpacityProps } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { colors, Theme } from '../constants/theme';
 
 interface BackButtonProps extends Omit<TouchableOpacityProps, 'style'> {
@@ -15,10 +16,17 @@ export default function BackButton({
 }: BackButtonProps) {
   const themeColors = colors[theme];
 
+  const handlePress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (onPress) {
+      onPress();
+    }
+  };
+
   return (
     <TouchableOpacity 
       style={styles.container}
-      onPress={onPress}
+      onPress={handlePress}
       activeOpacity={0.7}
       {...touchableProps}
     >

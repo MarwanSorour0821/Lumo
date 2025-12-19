@@ -25,15 +25,15 @@ struct OnboardingView: View {
     
     var body: some View {
         NavigationStack {
-            ZStack {
-                backgroundView
-                mainContentView
-                bottomSectionView
-            }
-            .onAppear {
-                startAnimations()
-            }
-            .sheet(isPresented: $isSignInModalVisible) {
+        ZStack {
+            backgroundView
+            mainContentView
+            bottomSectionView
+        }
+        .onAppear {
+            startAnimations()
+        }
+        .sheet(isPresented: $isSignInModalVisible) {
                 SignInModalView(
                     isPresented: $isSignInModalVisible,
                     onGoogleSignIn: {
@@ -62,8 +62,8 @@ struct OnboardingView: View {
                     .padding(.top, 60)
                     .padding(.bottom, 32)
                 
-                Spacer()
-                    .frame(height: 250)
+                    Spacer()
+                        .frame(height: 250)
             }
             .padding(.horizontal, 24)
         }
@@ -238,12 +238,12 @@ struct OnboardingView: View {
                     // TODO: Navigate to home or check if profile is complete
                 }
             }
-        }
     }
+}
 }
 
 // MARK: - Preview
 #Preview {
-    OnboardingView()
+        OnboardingView()
         .preferredColorScheme(.dark)
 }
