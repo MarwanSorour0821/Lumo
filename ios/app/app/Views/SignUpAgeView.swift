@@ -43,14 +43,16 @@ struct SignUpAgeView: View {
                         // Heading
                         VStack(alignment: .leading, spacing: 8) {
                             Text("When's your birthday?")
-                                .font(.custom("ProductSans-Regular", size: 40))
+                                .font(.custom("ProductSans-Regular", size: 30))
                                 .foregroundColor(.white)
                                 .opacity(headingOpacity)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                             
                             Text("We only use this to calculate your age for health metrics and goals. Your birthday data is kept private and secure.")
                                 .font(.custom("ProductSans-Regular", size: 16))
                                 .foregroundColor(.white.opacity(0.7))
                                 .opacity(headingOpacity)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .padding(.horizontal, 24)
                         .padding(.top, 24)
@@ -59,8 +61,9 @@ struct SignUpAgeView: View {
                         // Birthday Input Field
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Birthday")
-                                .font(.custom("ProductSans-Regular", size: 14))
+                                .font(.custom("ProductSans-Bold", size: 14))
                                 .foregroundColor(.white.opacity(0.7))
+                                .frame(maxWidth: .infinity, alignment: .leading)
                             
                             Button(action: {
                                 let impactFeedback = UIImpactFeedbackGenerator(style: .light)
@@ -71,7 +74,7 @@ struct SignUpAgeView: View {
                                     VStack(alignment: .leading, spacing: 6) {
                                         Text(birthdayFormatter.string(from: selectedBirthday))
                                             .font(.custom("ProductSans-Bold", size: 19))
-                                            .foregroundColor(Theme.colors.button)
+                                            .foregroundColor(Theme.colors.buttonText)
                                         
                                         Text("\(calculatedAge) years old")
                                             .font(.custom("ProductSans-Regular", size: 15))
@@ -129,8 +132,12 @@ struct SignUpAgeView: View {
                         }) {
                             Image(systemName: "arrow.left")
                                 .font(.system(size: 18, weight: .medium))
-                                .foregroundColor(.white)
+                                .foregroundColor(.black)
                                 .frame(width: 44, height: 44)
+                                .background(
+                                    Circle()
+                                        .fill(.white)
+                                )
                         }
                         .buttonStyle(.glass)
                         .clipShape(Circle())

@@ -36,53 +36,75 @@ struct SignUpHeightView: View {
                     VStack(spacing: 0) {
                         // Heading
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Your Height")
-                                .font(.custom("ProductSans-Regular", size: 40))
+                            Text("What's your height?")
+                                .font(.custom("ProductSans-Regular", size: 30))
                                 .foregroundColor(.white)
                                 .opacity(headingOpacity)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                             
-                            Text("What is your height?")
+                            Text("We use this to personalize your health metrics and goals. Your height data is kept private and secure.")
                                 .font(.custom("ProductSans-Regular", size: 16))
                                 .foregroundColor(.white.opacity(0.7))
                                 .opacity(headingOpacity)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .padding(.horizontal, 24)
                         .padding(.top, 24)
-                        .padding(.bottom, 48)
+                        .padding(.bottom, 32)
                         
-                        // Height Card
-                        Button(action: {
-                            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                            impactFeedback.impactOccurred()
-                            showHeightPicker = true
-                        }) {
-                            VStack(spacing: 12) {
-                                Text("\(Int(height))")
-                                    .font(.custom("ProductSans-Bold", size: 64))
-                                    .foregroundColor(.white)
-                                
-                                Text("cm")
-                                    .font(.custom("ProductSans-Regular", size: 18))
-                                    .foregroundColor(.white.opacity(0.7))
-                                
-                                HStack(spacing: 6) {
-                                    Text("Tap to change")
-                                        .font(.custom("ProductSans-Regular", size: 14))
-                                        .foregroundColor(.white.opacity(0.6))
+                        // Height Input Field
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Height")
+                                .font(.custom("ProductSans-Bold", size: 14))
+                                .foregroundColor(.white.opacity(0.7))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            
+                            Button(action: {
+                                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                                impactFeedback.impactOccurred()
+                                showHeightPicker = true
+                            }) {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text("\(Int(height)) cm")
+                                            .font(.custom("ProductSans-Bold", size: 19))
+                                            .foregroundColor(Theme.colors.buttonText)
+                                        
+                                        let (feet, inches) = heightInFeetInches
+                                        Text("\(feet) ft \(inches) in")
+                                            .font(.custom("ProductSans-Regular", size: 15))
+                                            .foregroundColor(.white.opacity(0.6))
+                                    }
                                     
-                                    Image(systemName: "pencil")
-                                        .font(.system(size: 14, weight: .medium))
+                                    Spacer()
+                                    
+                                    Image(systemName: "ruler")
+                                        .font(.system(size: 24, weight: .medium))
+                                        .foregroundColor(.white.opacity(0.7))
+                                }
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 18)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(Color.white.opacity(0.1))
+                                )
+                            }
+                            
+                            // Privacy Statement - Centered
+                            HStack {
+                                Spacer()
+                                HStack(spacing: 6) {
+                                    Image(systemName: "lock.fill")
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundColor(Theme.colors.button)
+                                    
+                                    Text("Your data is private and secure")
+                                        .font(.custom("ProductSans-Regular", size: 12))
                                         .foregroundColor(.white.opacity(0.6))
                                 }
-                                .padding(.top, 4)
+                                Spacer()
                             }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 40)
-                            .background(
-                                RoundedRectangle(cornerRadius: 20)
-                                    .fill(Color.white.opacity(0.1))
-                                    .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 4)
-                            )
+                            .padding(.top, 8)
                         }
                         .opacity(contentOpacity)
                         .padding(.horizontal, 24)
@@ -190,6 +212,7 @@ struct HeightPickerSheet: View {
     @State private var heightUnit: String = "cm"
     @State private var selectedFeet: Int = 5
     @State private var selectedInches: Int = 9
+    @State private var tempCmHeight: Double = 170
     
     var heightInFeetInches: (feet: Int, inches: Int) {
         let totalInches = selectedHeight / 2.54
@@ -220,7 +243,9 @@ struct HeightPickerSheet: View {
                             if heightUnit != "cm" {
                                 // Convert from ft/in to cm
                                 let totalInches = Double(selectedFeet * 12 + selectedInches)
-                                selectedHeight = totalInches * 2.54
+                                let cmValue = totalInches * 2.54
+                                selectedHeight = cmValue
+                                tempCmHeight = cmValue
                             }
                             heightUnit = "cm"
                         }) {
@@ -273,8 +298,8 @@ struct HeightPickerSheet: View {
                 
                 // Picker
                 if heightUnit == "cm" {
-                    Picker("Height", selection: $selectedHeight) {
-                        ForEach(Array(stride(from: 100, through: 250, by: 1)), id: \.self) { value in
+                    Picker("Height", selection: $tempCmHeight) {
+                        ForEach(Array(stride(from: 100.0, through: 250.0, by: 1.0)), id: \.self) { value in
                             Text("\(Int(value)) cm")
                                 .tag(value)
                         }
@@ -283,6 +308,14 @@ struct HeightPickerSheet: View {
                     .colorScheme(.dark)
                     .accentColor(Theme.colors.button)
                     .padding(.horizontal, 24)
+                    .onChange(of: tempCmHeight) { oldValue, newValue in
+                        // Update the binding in real-time as user scrolls
+                        selectedHeight = newValue
+                    }
+                    .onChange(of: tempCmHeight) { oldValue, newValue in
+                        // Update the binding in real-time as user scrolls
+                        selectedHeight = newValue
+                    }
                 } else {
                     // Feet and Inches pickers
                     HStack(spacing: 0) {
@@ -323,6 +356,14 @@ struct HeightPickerSheet: View {
                 Button(action: {
                     let impactFeedback = UIImpactFeedbackGenerator(style: .light)
                     impactFeedback.impactOccurred()
+                    // Explicitly update the height based on current mode
+                    if heightUnit == "ft/in" {
+                        updateHeightFromFeetInches()
+                    } else {
+                        // Ensure the binding is updated (should already be updated via onChange, but ensure it)
+                        selectedHeight = tempCmHeight
+                    }
+                    // Close the modal
                     isPresented = false
                 }) {
                     HStack {
@@ -344,7 +385,8 @@ struct HeightPickerSheet: View {
         }
         .preferredColorScheme(.dark)
         .onAppear {
-            // Initialize feet/inches from current height
+            // Initialize tempCmHeight and feet/inches from current height
+            tempCmHeight = selectedHeight
             let (feet, inches) = heightInFeetInches
             selectedFeet = feet
             selectedInches = inches

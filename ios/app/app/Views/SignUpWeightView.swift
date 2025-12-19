@@ -44,55 +44,81 @@ struct SignUpWeightView: View {
                     VStack(spacing: 0) {
                         // Heading
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("What is Your Weight?")
-                                .font(.custom("ProductSans-Bold", size: 40))
+                            Text("What's your weight?")
+                                .font(.custom("ProductSans-Regular", size: 30))
                                 .foregroundColor(.white)
                                 .opacity(headingOpacity)
-                                .multilineTextAlignment(.center)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                             
-                            Text("Vestibulum sed sagittis nisi, a euismod mauris.")
-                                .font(.custom("ProductSans-Regular", size: 14))
+                            Text("We use this to personalize your health metrics and goals. Your weight data is kept private and secure.")
+                                .font(.custom("ProductSans-Regular", size: 16))
                                 .foregroundColor(.white.opacity(0.7))
                                 .opacity(headingOpacity)
-                                .multilineTextAlignment(.center)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         .padding(.horizontal, 24)
                         .padding(.top, 24)
-                        .padding(.bottom, 48)
+                        .padding(.bottom, 32)
                         
-                        // Weight Card
-                        Button(action: {
-                            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                            impactFeedback.impactOccurred()
-                            showWeightPicker = true
-                        }) {
-                            VStack(spacing: 12) {
-                                Text("\(Int(weight))")
-                                    .font(.custom("ProductSans-Bold", size: 64))
-                                    .foregroundColor(.white)
-                                
-                                Text(weightUnit)
-                                    .font(.custom("ProductSans-Regular", size: 18))
-                                    .foregroundColor(.white.opacity(0.7))
-                                
-                                HStack(spacing: 6) {
-                                    Text("Tap to change")
-                                        .font(.custom("ProductSans-Regular", size: 14))
-                                        .foregroundColor(.white.opacity(0.6))
+                        // Weight Input Field
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Weight")
+                                .font(.custom("ProductSans-Bold", size: 14))
+                                .foregroundColor(.white.opacity(0.7))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            
+                            Button(action: {
+                                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                                impactFeedback.impactOccurred()
+                                showWeightPicker = true
+                            }) {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text("\(Int(weight)) \(weightUnit)")
+                                            .font(.custom("ProductSans-Bold", size: 19))
+                                            .foregroundColor(Theme.colors.buttonText)
+                                        
+                                        if weightUnit == "lbs" {
+                                            Text("\(Int(weightInKg)) kg")
+                                                .font(.custom("ProductSans-Regular", size: 15))
+                                                .foregroundColor(.white.opacity(0.6))
+                                        } else {
+                                            let weightInLbs = weight * 2.20462
+                                            Text("\(Int(weightInLbs)) lbs")
+                                                .font(.custom("ProductSans-Regular", size: 15))
+                                                .foregroundColor(.white.opacity(0.6))
+                                        }
+                                    }
                                     
-                                    Image(systemName: "pencil")
-                                        .font(.system(size: 14, weight: .medium))
+                                    Spacer()
+                                    
+                                    Image(systemName: "scalemass")
+                                        .font(.system(size: 24, weight: .medium))
+                                        .foregroundColor(.white.opacity(0.7))
+                                }
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 18)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(Color.white.opacity(0.1))
+                                )
+                            }
+                            
+                            // Privacy Statement - Centered
+                            HStack {
+                                Spacer()
+                                HStack(spacing: 6) {
+                                    Image(systemName: "lock.fill")
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundColor(Theme.colors.button)
+                                    
+                                    Text("Your data is private and secure")
+                                        .font(.custom("ProductSans-Regular", size: 12))
                                         .foregroundColor(.white.opacity(0.6))
                                 }
-                                .padding(.top, 4)
+                                Spacer()
                             }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 40)
-                            .background(
-                                RoundedRectangle(cornerRadius: 20)
-                                    .fill(Color.white.opacity(0.1))
-                                    .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 4)
-                            )
+                            .padding(.top, 8)
                         }
                         .opacity(contentOpacity)
                         .padding(.horizontal, 24)
@@ -115,8 +141,12 @@ struct SignUpWeightView: View {
                         }) {
                             Image(systemName: "arrow.left")
                                 .font(.system(size: 18, weight: .medium))
-                                .foregroundColor(.white)
+                                .foregroundColor(.black)
                                 .frame(width: 44, height: 44)
+                                .background(
+                                    Circle()
+                                        .fill(.white)
+                                )
                         }
                         .buttonStyle(.glass)
                         .clipShape(Circle())

@@ -72,6 +72,15 @@ class AuthService {
         var errorDescription: String? { message }
     }
     
+    struct SignUpResponse {
+        let user: User?
+        let error: AuthError?
+    }
+    
+    struct ProfileResponse {
+        let error: AuthError?
+    }
+    
     // Sign in with email and password using Supabase client
     func signInWithEmail(email: String, password: String) async -> SignInResponse {
         guard let client = SupabaseManager.shared.getClient() else {
@@ -92,6 +101,112 @@ class AuthService {
         } catch {
             return SignInResponse(
                 user: nil,
+                error: AuthError(message: error.localizedDescription)
+            )
+        }
+    }
+    
+    // Sign up with email and password using Supabase client
+    func signUpWithEmail(email: String, password: String) async -> SignUpResponse {
+        guard let client = SupabaseManager.shared.getClient() else {
+            print("❌ Supabase client not configured")
+            return SignUpResponse(
+                user: nil,
+                error: AuthError(message: "Supabase is not configured. Please set SUPABASE_URL and SUPABASE_ANON_KEY in Info.plist.")
+            )
+        }
+        
+        do {
+            print("🔵 Attempting to sign up user with email: \(email)")
+            let response = try await client.auth.signUp(email: email, password: password)
+            
+            // Wait a bit for the user to be created
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+            
+            let user = response.user
+            print("✅ User created successfully. User ID: \(user.id.uuidString), Email: \(user.email ?? "N/A")")
+            return SignUpResponse(
+                user: User(id: user.id.uuidString, email: user.email, firstName: nil, lastName: nil),
+                error: nil
+            )
+        } catch {
+            print("❌ Sign up error: \(error.localizedDescription)")
+            if let nsError = error as NSError? {
+                print("❌ Error domain: \(nsError.domain), code: \(nsError.code), userInfo: \(nsError.userInfo)")
+            }
+            return SignUpResponse(
+                user: nil,
+                error: AuthError(message: error.localizedDescription)
+            )
+        }
+    }
+    
+    // Create user profile in the public.users table
+    func createUserProfile(
+        userId: String,
+        biologicalSex: String,
+        dateOfBirth: Date,
+        heightCm: Double,
+        weightKg: Double,
+        firstName: String? = nil,
+        lastName: String? = nil,
+        email: String? = nil
+    ) async -> ProfileResponse {
+        guard let client = SupabaseManager.shared.getClient() else {
+            return ProfileResponse(
+                error: AuthError(message: "Supabase is not configured. Please set SUPABASE_URL and SUPABASE_ANON_KEY in Info.plist.")
+            )
+        }
+        
+        do {
+            // Wait a bit before creating profile
+            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+            
+            let isoFormatter = ISO8601DateFormatter()
+            isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            
+            // Define the profile structure
+            struct UserProfile: Codable {
+                let id: String
+                let biological_sex: String
+                let date_of_birth: String
+                let height_cm: Double
+                let weight_kg: Double
+                let created_at: String
+                let updated_at: String
+                let first_name: String?
+                let last_name: String?
+                let email: String?
+            }
+            
+            let profile = UserProfile(
+                id: userId,
+                biological_sex: biologicalSex,
+                date_of_birth: isoFormatter.string(from: dateOfBirth),
+                height_cm: heightCm,
+                weight_kg: weightKg,
+                created_at: isoFormatter.string(from: Date()),
+                updated_at: isoFormatter.string(from: Date()),
+                first_name: firstName?.trimmingCharacters(in: .whitespaces).isEmpty == false ? firstName?.trimmingCharacters(in: .whitespaces) : nil,
+                last_name: lastName?.trimmingCharacters(in: .whitespaces).isEmpty == false ? lastName?.trimmingCharacters(in: .whitespaces) : nil,
+                email: email?.trimmingCharacters(in: .whitespaces).isEmpty == false ? email?.trimmingCharacters(in: .whitespaces) : nil
+            )
+            
+            // Use upsert to insert or update the profile
+            print("🔵 Creating user profile with data: userId=\(userId), sex=\(biologicalSex), height=\(heightCm)cm, weight=\(weightKg)kg")
+            try await client.database
+                .from("users")
+                .upsert(profile, onConflict: "id")
+                .execute()
+            
+            print("✅ User profile created successfully")
+            return ProfileResponse(error: nil)
+        } catch {
+            print("❌ Profile creation error: \(error.localizedDescription)")
+            if let nsError = error as NSError? {
+                print("❌ Error domain: \(nsError.domain), code: \(nsError.code), userInfo: \(nsError.userInfo)")
+            }
+            return ProfileResponse(
                 error: AuthError(message: error.localizedDescription)
             )
         }

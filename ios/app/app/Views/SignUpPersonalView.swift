@@ -63,21 +63,38 @@ struct SignUpPersonalView: View {
                                     .font(.custom("ProductSans-Regular", size: 14))
                                     .foregroundColor(.white.opacity(0.7))
                                 
-                                TextField("John", text: $firstName)
-                                    .font(.custom("ProductSans-Regular", size: 17))
-                                    .foregroundColor(.white)
-                                    .autocapitalization(.words)
-                                    .autocorrectionDisabled()
-                                    .textContentType(.givenName)
-                                    .padding()
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .fill(Color.white.opacity(0.1))
-                                    )
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(firstNameError != nil ? Color.red : Color.clear, lineWidth: 1)
-                                    )
+                                ZStack(alignment: .leading) {
+                                    TextField("", text: $firstName)
+                                        .font(.custom("ProductSans-Regular", size: 17))
+                                        .foregroundColor(.white)
+                                        .autocapitalization(.words)
+                                        .autocorrectionDisabled()
+                                        .textContentType(.givenName)
+                                        .padding()
+                                        .overlay(
+                                            Group {
+                                                if firstName.isEmpty {
+                                                    HStack {
+                                                        Text("John")
+                                                            .font(.custom("ProductSans-Regular", size: 17))
+                                                            .foregroundColor(.white.opacity(0.4))
+                                                        Spacer()
+                                                    }
+                                                    .padding(.horizontal, 16)
+                                                    .allowsHitTesting(false)
+                                                }
+                                            },
+                                            alignment: .leading
+                                        )
+                                }
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(Color.white.opacity(0.1))
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(firstNameError != nil ? Color.red : Color.clear, lineWidth: 1)
+                                )
                                 
                                 if let error = firstNameError {
                                     Text(error)
@@ -93,17 +110,34 @@ struct SignUpPersonalView: View {
                                     .font(.custom("ProductSans-Regular", size: 14))
                                     .foregroundColor(.white.opacity(0.7))
                                 
-                                TextField("Doe", text: $lastName)
-                                    .font(.custom("ProductSans-Regular", size: 17))
-                                    .foregroundColor(.white)
-                                    .autocapitalization(.words)
-                                    .autocorrectionDisabled()
-                                    .textContentType(.familyName)
-                                    .padding()
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .fill(Color.white.opacity(0.1))
-                                    )
+                                ZStack(alignment: .leading) {
+                                    TextField("", text: $lastName)
+                                        .font(.custom("ProductSans-Regular", size: 17))
+                                        .foregroundColor(.white)
+                                        .autocapitalization(.words)
+                                        .autocorrectionDisabled()
+                                        .textContentType(.familyName)
+                                        .padding()
+                                        .overlay(
+                                            Group {
+                                                if lastName.isEmpty {
+                                                    HStack {
+                                                        Text("Doe")
+                                                            .font(.custom("ProductSans-Regular", size: 17))
+                                                            .foregroundColor(.white.opacity(0.4))
+                                                        Spacer()
+                                                    }
+                                                    .padding(.horizontal, 16)
+                                                    .allowsHitTesting(false)
+                                                }
+                                            },
+                                            alignment: .leading
+                                        )
+                                }
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(Color.white.opacity(0.1))
+                                )
                             }
                         }
                         .opacity(inputsOpacity)
@@ -138,8 +172,12 @@ struct SignUpPersonalView: View {
                         }) {
                             Image(systemName: "arrow.left")
                                 .font(.system(size: 18, weight: .medium))
-                                .foregroundColor(.white)
+                                .foregroundColor(.black)
                                 .frame(width: 44, height: 44)
+                                .background(
+                                    Circle()
+                                        .fill(.white)
+                                )
                         }
                         .buttonStyle(.glass)
                         .clipShape(Circle())
