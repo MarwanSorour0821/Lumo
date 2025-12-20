@@ -49,3 +49,4 @@ class SupabaseAuthentication(BaseAuthentication):
         except Exception as e:
             raise AuthenticationFailed(f'Authentication failed: {str(e)}')
 
+

@@ -8,3 +8,4 @@ urlpatterns = [
     path('google/callback/', views.google_oauth_callback, name='google_oauth_callback'),
 ]
 
+

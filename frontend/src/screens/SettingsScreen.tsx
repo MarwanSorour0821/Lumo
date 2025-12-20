@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   StatusBar,
   ScrollView,
   TouchableOpacity,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -288,13 +289,27 @@ const SettingsItem = ({ icon: Icon, text, rightContent, hasLock, onPress }: Sett
 
 export function SettingsScreen({ navigation }: SettingsScreenProps) {
   const { hasActiveSubscription, refreshSubscriptionStatus } = usePaywall();
+  const [refreshing, setRefreshing] = useState(false);
 
   // Refresh subscription status when screen comes into focus
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       refreshSubscriptionStatus();
     }, [refreshSubscriptionStatus])
   );
+
+  // Pull-to-refresh handler
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      await refreshSubscriptionStatus();
+    } catch (error) {
+      console.error('Error refreshing settings:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshSubscriptionStatus]);
 
   const handleUpgradeToPro = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -450,6 +465,15 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={Colors.primary}
+              colors={[Colors.primary]}
+              progressBackgroundColor={Colors.dark.surface}
+            />
+          }
         >
           {/* Title with Gear Icon */}
           <View style={styles.titleContainer}>
