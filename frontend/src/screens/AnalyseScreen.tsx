@@ -12,6 +12,7 @@ import BackButton from '../../components/BackButton';
 import { Colors, FontSize, FontWeight, Spacing, BorderRadius } from '../constants/theme';
 import { RootStackParamList } from '../types';
 import { analyzeBloodTest, saveAnalysis } from '../lib/api';
+import { usePaywall } from '../contexts/PaywallContext';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -188,6 +189,20 @@ export function AnalyseScreen({ visible, onClose }: AnalyseScreenProps) {
       
       // Close modal and navigate to MyLab with the new analysis ID to auto-open it
       onClose();
+      
+      // Check if this is the first analysis and show paywall
+      const isFirst = await isFirstAnalysisComplete();
+      if (!isFirst) {
+        // This is the first analysis - show paywall after they see the results
+        // Small delay to let them see the value first
+        setTimeout(() => {
+          checkAndShowPaywall('first_analysis_complete', navigation);
+        }, 2000);
+      } else {
+        // Second or more analysis - show paywall immediately
+        checkAndShowPaywall('second_upload_attempt', navigation);
+      }
+      
       navigation.navigate('MyLab', { openAnalysisId: savedAnalysis.id });
       
     } catch (error) {

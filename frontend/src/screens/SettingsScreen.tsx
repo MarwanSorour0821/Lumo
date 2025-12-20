@@ -17,6 +17,8 @@ import BackButton from '../../components/BackButton';
 import { supabase } from '../lib/supabase';
 import { Alert } from 'react-native';
 import { deleteAccountData } from '../lib/api';
+import { usePaywall } from '../contexts/PaywallContext';
+import * as Haptics from 'expo-haptics';
 
 type SettingsScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Settings'>;
@@ -230,6 +232,19 @@ const LockIcon = ({ size = 16, color = '#808080' }: { size?: number; color?: str
   </Svg>
 );
 
+// Lightning/Pro Icon
+const LightningIcon = ({ size = 24, color = '#FFFFFF' }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M13 2v8h7l-9 12v-8H4Z"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
 // Chevron Right Icon
 const ChevronRightIcon = ({ size = 16, color = '#FFFFFF' }: { size?: number; color?: string }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -269,6 +284,13 @@ const SettingsItem = ({ icon: Icon, text, rightContent, hasLock, onPress }: Sett
 );
 
 export function SettingsScreen({ navigation }: SettingsScreenProps) {
+  const { hasActiveSubscription } = usePaywall();
+
+  const handleUpgradeToPro = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    navigation.navigate('PaywallMain');
+  };
+
   const handleSignOut = async () => {
     Alert.alert(
       'Sign Out',
@@ -415,6 +437,18 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
               text="Edit information" 
               onPress={() => navigation.navigate('EditInformation')}
             />
+            {!hasActiveSubscription && (
+              <SettingsItem
+                icon={LightningIcon}
+                text="Upgrade to Pro"
+                onPress={handleUpgradeToPro}
+                rightContent={
+                  <View style={styles.proBadge}>
+                    <Text style={styles.proBadgeText}>PRO</Text>
+                  </View>
+                }
+              />
+            )}
             <SettingsItem 
               icon={SignOutIcon} 
               text="Sign out" 
@@ -500,6 +534,19 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     fontFamily: 'ProductSans-Regular',
     color: Colors.dark.textSecondary,
+  },
+  proBadge: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+    marginRight: Spacing.xs,
+  },
+  proBadgeText: {
+    fontSize: FontSize.xs,
+    fontFamily: 'ProductSans-Bold',
+    color: Colors.white,
+    letterSpacing: 0.5,
   },
 });
 

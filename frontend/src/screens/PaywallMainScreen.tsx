@@ -5,79 +5,52 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, G } from 'react-native-svg';
+import LottieView from 'lottie-react-native';
 import * as Haptics from 'expo-haptics';
+import * as WebBrowser from 'expo-web-browser';
 import { Colors, Spacing, FontSize, BorderRadius } from '../constants/theme';
+import { usePaywall } from '../contexts/PaywallContext';
+import { createCheckoutSession, getSubscriptionStatus } from '../lib/subscriptions';
 
 interface PaywallMainScreenProps {
   navigation: any;
 }
 
-// Cat reaching for crown illustration
-const CatCrownIllustration = () => (
+// Lottie Animation Component
+const AmbulanceAnimation = () => (
   <View style={styles.illustrationContainer}>
-    <Svg width={200} height={200} viewBox="0 0 200 200">
-      {/* Background decorative shapes */}
-      <Circle cx="50" cy="50" r="3" fill={Colors.primary} opacity={0.3} />
-      <Circle cx="150" cy="80" r="4" fill={Colors.primary} opacity={0.3} />
+    <LottieView
+      source={require('../../assets/Ambulance.json')}
+      autoPlay
+      loop
+      style={styles.lottieAnimation}
+    />
+  </View>
+);
+
+// Feature Icons
+const AIIcon = () => (
+  <View style={styles.featureIcon}>
+    <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
       <Path
-        d="M30 120 Q40 110 50 120 T70 120"
-        stroke={Colors.primary}
-        strokeWidth="2"
-        fill="none"
-        opacity={0.3}
+        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"
+        fill={Colors.white}
       />
-      
-      {/* Cat body */}
+      <Circle cx="9" cy="9" r="1.5" fill={Colors.white} />
+      <Circle cx="15" cy="9" r="1.5" fill={Colors.white} />
       <Path
-        d="M80 140 Q70 120 60 130 Q50 140 60 150 Q70 160 80 150 Q90 160 100 150 Q110 140 100 130 Q90 120 80 140"
-        fill="#FFFFFF"
-        stroke={Colors.primary}
-        strokeWidth="2"
-      />
-      
-      {/* Cat head */}
-      <Circle cx="80" cy="120" r="25" fill="#FFFFFF" stroke={Colors.primary} strokeWidth="2" />
-      
-      {/* Cat eye */}
-      <Circle cx="75" cy="118" r="2" fill="#000000" />
-      
-      {/* Cat paw reaching up */}
-      <Path
-        d="M95 110 Q100 100 105 110"
-        stroke={Colors.primary}
-        strokeWidth="3"
-        strokeLinecap="round"
-      />
-      
-      {/* Crown */}
-      <G transform="translate(120, 60)">
-        <Path
-          d="M0 20 L10 0 L20 20 L15 20 L15 30 L5 30 L5 20 Z"
-          fill={Colors.primary}
-        />
-        <Circle cx="5" cy="5" r="2" fill="#FFD700" />
-        <Circle cx="15" cy="5" r="2" fill="#FFD700" />
-      </G>
-      
-      {/* Stars around crown */}
-      <Path
-        d="M110 50 L112 45 L114 50 L119 52 L114 54 L112 59 L110 54 L105 52 Z"
-        fill={Colors.primary}
-        opacity={0.7}
-      />
-      <Path
-        d="M130 70 L131 67 L132 70 L135 71 L132 72 L131 75 L130 72 L127 71 Z"
-        fill={Colors.primary}
-        opacity={0.7}
+        d="M12 14c-1.5 0-2.8.8-3.5 2h7c-.7-1.2-2-2-3.5-2z"
+        fill={Colors.white}
       />
     </Svg>
   </View>
 );
 
-// Feature Icons
 const MagnifyingGlassIcon = () => (
   <View style={styles.featureIcon}>
     <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
@@ -87,87 +60,142 @@ const MagnifyingGlassIcon = () => (
   </View>
 );
 
-const HeartIcon = () => (
+const ChartIcon = () => (
   <View style={styles.featureIcon}>
     <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
       <Path
-        d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
-        fill={Colors.white}
-      />
-    </Svg>
-  </View>
-);
-
-const SmartphoneIcon = () => (
-  <View style={styles.featureIcon}>
-    <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
-      <Path
-        d="M17 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"
+        d="M3 3v18h18"
         stroke={Colors.white}
         strokeWidth="2"
-        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
-      <Path d="M12 18h.01" stroke={Colors.white} strokeWidth="2" strokeLinecap="round" />
+      <Path
+        d="M7 16l4-4 4 4 6-6"
+        stroke={Colors.white}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </Svg>
   </View>
 );
 
-const LightningIcon = () => (
+const LightbulbIcon = () => (
   <View style={styles.featureIcon}>
     <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
       <Path
-        d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"
-        fill={Colors.white}
+        d="M9 21h6M12 3a6 6 0 0 1 6 6c0 2.22-1.21 4.15-3 5.19V17a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-2.81C6.21 13.15 5 11.22 5 9a6 6 0 0 1 6-6z"
+        stroke={Colors.white}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
-    </Svg>
-  </View>
-);
-
-const TargetIcon = () => (
-  <View style={styles.featureIcon}>
-    <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
-      <Circle cx="12" cy="12" r="10" stroke={Colors.white} strokeWidth="2" fill="none" />
-      <Circle cx="12" cy="12" r="6" stroke={Colors.white} strokeWidth="2" fill="none" />
-      <Circle cx="12" cy="12" r="2" fill={Colors.white} />
-    </Svg>
-  </View>
-);
-
-const AlarmIcon = () => (
-  <View style={styles.featureIcon}>
-    <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
-      <Circle cx="12" cy="12" r="10" stroke={Colors.white} strokeWidth="2" fill="none" />
-      <Path d="M12 6v6l4 2" stroke={Colors.white} strokeWidth="2" strokeLinecap="round" />
     </Svg>
   </View>
 );
 
 const features = [
+  { icon: <AIIcon />, text: 'AI medical assistant' },
   { icon: <MagnifyingGlassIcon />, text: 'Unlimited blood test analyses' },
-  { icon: <HeartIcon />, text: 'Apple Health integration' },
-  { icon: <SmartphoneIcon />, text: 'Home and lock screen widgets' },
-  { icon: <LightningIcon />, text: 'Quick save analyses' },
-  { icon: <TargetIcon />, text: 'Accountability features' },
-  { icon: <AlarmIcon />, text: 'Reminders' },
+  { icon: <ChartIcon />, text: 'Historic comparisons' },
+  { icon: <LightbulbIcon />, text: 'Actionable insights on your blood tests' },
 ];
 
 export function PaywallMainScreen({ navigation }: PaywallMainScreenProps) {
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('yearly');
+  const [isLoading, setIsLoading] = useState(false);
+  const { dismissPaywall, refreshSubscriptionStatus } = usePaywall();
 
   const handlePlanSelect = (plan: 'monthly' | 'yearly') => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedPlan(plan);
   };
 
-  const handleSubscribe = () => {
+  const handleSubscribe = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // TODO: Implement subscription logic
-    console.log('Subscribe to plan:', selectedPlan);
-    // Reset navigation stack to prevent going back to paywall
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'Home' }],
-    });
+    setIsLoading(true);
+
+    try {
+      // Create Stripe checkout session
+      const result = await createCheckoutSession(selectedPlan);
+
+      if (result.error || !result.checkout_url) {
+        Alert.alert(
+          'Error',
+          result.error || 'Failed to create checkout session. Please try again.'
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      // Open Stripe checkout in web browser
+      const browserResult = await WebBrowser.openBrowserAsync(result.checkout_url, {
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FORM_SHEET,
+        controlsColor: Colors.primary,
+      });
+
+      // Handle different browser result types
+      if (browserResult.type === 'cancel') {
+        // User explicitly cancelled the checkout
+        setIsLoading(false);
+        // No alert needed - user intentionally cancelled
+        return;
+      } else if (browserResult.type === 'dismiss') {
+        // Browser was dismissed - could be success or user closed it
+        setIsLoading(true);
+        // Poll for subscription status with retries
+        let attempts = 0;
+        const maxAttempts = 10;
+        const pollInterval = 1000; // 1 second
+        
+        const checkSubscription = async () => {
+          attempts++;
+          const statusResponse = await getSubscriptionStatus();
+          
+          if (statusResponse.has_active_subscription) {
+            setIsLoading(false);
+            await refreshSubscriptionStatus();
+            Alert.alert('Success', 'Your subscription is now active!', [
+              { text: 'OK', onPress: () => navigation.goBack() }
+            ]);
+            return;
+          }
+          
+          if (attempts < maxAttempts) {
+            setTimeout(checkSubscription, pollInterval);
+          } else {
+            // If after max attempts still no subscription, payment may have failed
+            setIsLoading(false);
+            Alert.alert(
+              'Payment Processing',
+              'We couldn\'t confirm your subscription status. Please check your email or try again. If you were charged, contact support.',
+              [{ text: 'OK', onPress: () => navigation.goBack() }]
+            );
+          }
+        };
+        
+        // Start polling after a short delay to allow webhook to process
+        setTimeout(checkSubscription, 1500);
+      } else {
+        // Unknown result type
+        setIsLoading(false);
+      }
+    } catch (error: any) {
+      setIsLoading(false);
+      Alert.alert(
+        'Error',
+        error.message || 'Failed to open checkout. Please try again.'
+      );
+    }
+  };
+
+  const handleClose = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    // Dismiss paywall (sets cooldown)
+    await dismissPaywall();
+    // Navigate back to previous screen
+    navigation.goBack();
   };
 
   return (
@@ -181,30 +209,8 @@ export function PaywallMainScreen({ navigation }: PaywallMainScreenProps) {
           {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                navigation.navigate('PaywallLearnMore');
-              }}
-              activeOpacity={0.7}
-            >
-              <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
-                <Path
-                  d="M19 12H5M12 19l-7-7 7-7"
-                  stroke={Colors.white}
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </Svg>
-              <Text style={styles.backText}>Back</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
               style={styles.closeButton}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                navigation.navigate('PaywallWelcome');
-              }}
+              onPress={handleClose}
               activeOpacity={0.7}
             >
               <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
@@ -220,7 +226,7 @@ export function PaywallMainScreen({ navigation }: PaywallMainScreenProps) {
           </View>
 
           {/* Illustration */}
-          <CatCrownIllustration />
+          <AmbulanceAnimation />
 
           {/* Title */}
           <Text style={styles.title}>Access all of Lumo</Text>
@@ -326,20 +332,19 @@ export function PaywallMainScreen({ navigation }: PaywallMainScreenProps) {
               </TouchableOpacity>
             </View>
 
-            {/* Nothing due today */}
-            <Text style={styles.nothingDueText}>Nothing due today</Text>
-
             {/* Continue Button */}
             <TouchableOpacity
-              style={styles.continueButton}
+              style={[styles.continueButton, isLoading && styles.continueButtonDisabled]}
               onPress={handleSubscribe}
+              disabled={isLoading}
               activeOpacity={0.9}
             >
-              <Text style={styles.continueButtonText}>Continue</Text>
+              {isLoading ? (
+                <ActivityIndicator size="small" color={Colors.white} />
+              ) : (
+                <Text style={styles.continueButtonText}>Continue</Text>
+              )}
             </TouchableOpacity>
-
-            {/* Trial Text */}
-            <Text style={styles.trialText}>3-day free trial, then £99.99/year</Text>
           </View>
         </View>
       </SafeAreaView>
@@ -374,20 +379,10 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     alignItems: 'center',
     paddingTop: Spacing.md,
     paddingBottom: Spacing.sm,
-  },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-  },
-  backText: {
-    fontSize: FontSize.md,
-    fontFamily: 'ProductSans-Regular',
-    color: Colors.white,
   },
   closeButton: {
     width: 44,
@@ -402,6 +397,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: Spacing.lg,
     marginBottom: Spacing.xl,
+  },
+  lottieAnimation: {
+    width: 200,
+    height: 200,
   },
   title: {
     fontSize: 32,
@@ -505,21 +504,6 @@ const styles = StyleSheet.create({
     fontFamily: 'ProductSans-Regular',
     color: Colors.dark.textSecondary,
   },
-  nothingDueText: {
-    fontSize: FontSize.md,
-    fontFamily: 'ProductSans-Regular',
-    color: Colors.success,
-    textAlign: 'center',
-    marginTop: Spacing.md,
-    marginBottom: Spacing.md,
-  },
-  trialText: {
-    fontSize: FontSize.sm,
-    fontFamily: 'ProductSans-Regular',
-    color: Colors.dark.textSecondary,
-    textAlign: 'center',
-    marginTop: Spacing.md,
-  },
   continueButton: {
     backgroundColor: Colors.primary,
     borderRadius: BorderRadius.full,
@@ -534,6 +518,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.6,
     shadowRadius: 16,
     elevation: 10,
+  },
+  continueButtonDisabled: {
+    opacity: 0.6,
   },
   continueButtonText: {
     fontSize: FontSize.lg,

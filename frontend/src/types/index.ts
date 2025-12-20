@@ -97,9 +97,7 @@ export type RootStackParamList = {
   Analyse: undefined;
   NotificationSettings: undefined;
   EditInformation: undefined;
-  PaywallLearnMore: undefined;
   PaywallMain: undefined;
-  PaywallWelcome: undefined;
 };
 
 export type TabParamList = {

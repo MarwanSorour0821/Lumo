@@ -160,16 +160,14 @@ export function BottomNavBar({ currentRoute }: BottomNavBarProps) {
           })}
         </View>
         
-        {/* Plus Button on the Right - Separate Container */}
-        <View style={styles.plusButtonContainer}>
-          <TouchableOpacity
-            style={styles.plusButton}
-            onPress={handlePlusPress}
-            activeOpacity={0.7}
-          >
-            <PlusIcon size={28} color={Colors.white} />
-          </TouchableOpacity>
-        </View>
+        {/* Plus Button on the Right */}
+        <TouchableOpacity
+          style={styles.plusButton}
+          onPress={handlePlusPress}
+          activeOpacity={0.7}
+        >
+          <PlusIcon size={28} color={Colors.white} />
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -221,22 +219,19 @@ const styles = StyleSheet.create({
   navTextActive: {
     color: Colors.white,
   },
-  plusButtonContainer: {
-    backgroundColor: '#1A1A1A',
-    borderRadius: 36,
-    width: 72,
-    height: 72,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: Spacing.sm,
-  },
   plusButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     backgroundColor: Colors.primary,
+    marginLeft: Spacing.sm,
+    shadowColor: '#BB3E4F',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.6,
+    shadowRadius: 16,
+    elevation: 10,
   },
 });
 

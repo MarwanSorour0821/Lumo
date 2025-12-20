@@ -218,11 +218,11 @@ export function SignUpCredentialsScreen({ navigation, route }: SignUpCredentials
         return;
       }
 
-      // Success - navigate to Paywall Learn More (first screen)
+      // Success - navigate to Home (paywall will show automatically if needed)
       setIsCreatingAccount(false);
       navigation.reset({
         index: 0,
-        routes: [{ name: 'PaywallLearnMore' }],
+        routes: [{ name: 'Home' }],
       });
     } catch (error: any) {
       Alert.alert('Error', error.message || 'An unexpected error occurred');

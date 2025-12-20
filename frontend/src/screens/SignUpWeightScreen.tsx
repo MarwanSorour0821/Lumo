@@ -304,11 +304,11 @@ export function SignUpWeightScreen({ navigation, route }: SignUpWeightScreenProp
         return;
       }
 
-      // Success - hide loading and navigate to Paywall Learn More (first screen)
+      // Success - hide loading and navigate to Home (paywall will show automatically if needed)
       setLoading(false);
       navigation.reset({
         index: 0,
-        routes: [{ name: 'PaywallLearnMore' }],
+        routes: [{ name: 'Home' }],
       });
     } catch (error: any) {
       Alert.alert('Error', error.message || 'An unexpected error occurred');
