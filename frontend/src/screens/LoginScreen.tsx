@@ -21,14 +21,12 @@ import AppleSignInButton from '../components/AppleSignInButton';
 import { Colors, Spacing, FontSize } from '../constants/theme';
 import { RootStackParamList } from '../types';
 import { signInWithEmail, signInWithGoogle, signInWithApple, getUserProfile } from '../lib/supabase';
-import { usePaywall } from '../contexts/PaywallContext';
 
 type LoginScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Login'>;
 };
 
 export function LoginScreen({ navigation }: LoginScreenProps) {
-  const { showPaywallForOnboarding } = usePaywall();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -92,10 +90,7 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
     const { data: profile } = await getUserProfile(userId);
 
     if (isProfileComplete(profile)) {
-      // Returning user with complete profile - go to Home and show paywall if not shown before
       navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
-      // Show paywall for returning users too (will only show once per user)
-      await showPaywallForOnboarding(navigation);
       return;
     }
 

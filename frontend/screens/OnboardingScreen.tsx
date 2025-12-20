@@ -10,7 +10,6 @@ import { RootStackParamList } from '../src/types';
 import { SignInModal } from '../src/components/SignInModal';
 import { signInWithGoogle, getUserProfile } from '../src/lib/supabase';
 import { Alert } from 'react-native';
-import { usePaywall } from '../src/contexts/PaywallContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -185,8 +184,6 @@ export default function OnboardingScreen({
   const subTextFade = useRef(new Animated.Value(0)).current;
   const buttonFade = useRef(new Animated.Value(0)).current;
   
-  // Paywall context
-  const { showPaywallForOnboarding } = usePaywall();
   
   // Image slider state
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -218,10 +215,7 @@ export default function OnboardingScreen({
     const { data: profile } = await getUserProfile(userId);
 
     if (isProfileComplete(profile)) {
-      // Returning user with complete profile - go to Home and show paywall if not shown before
       navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
-      // Show paywall for returning users too (will only show once per user)
-      await showPaywallForOnboarding(navigation);
       return;
     }
 

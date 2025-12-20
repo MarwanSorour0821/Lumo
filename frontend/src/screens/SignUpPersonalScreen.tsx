@@ -24,7 +24,6 @@ import * as Haptics from 'expo-haptics';
 import { Colors, FontSize, FontWeight, Spacing, BorderRadius } from '../constants/theme';
 import { RootStackParamList, AppleSignUpData, BiologicalSex } from '../types';
 import { signInWithGoogle, signInWithApple, createUserProfile } from '../lib/supabase';
-import { usePaywall } from '../contexts/PaywallContext';
 
 // Helper functions for conversions
 const feetInchesToCm = (feet: number, inches: number): number => {
@@ -41,7 +40,6 @@ const lbsToKg = (lbs: number): number => {
 };
 
 export function SignUpPersonalScreen({ navigation, route }: SignUpPersonalScreenProps) {
-  const { showPaywallForOnboarding } = usePaywall();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -215,13 +213,14 @@ export function SignUpPersonalScreen({ navigation, route }: SignUpPersonalScreen
           setIsGoogleLoading(false);
           
           if (success) {
-            // Navigate to Home, then show paywall for new users
+            // Navigate to Home, then show paywall
             navigation.reset({
               index: 0,
               routes: [{ name: 'Home' }],
             });
-            // Show paywall for onboarding completion (handles user-specific tracking)
-            await showPaywallForOnboarding(navigation);
+            setTimeout(() => {
+              navigation.navigate('PaywallMain');
+            }, 500);
           }
         } else {
           // Missing data, continue to sex page
@@ -283,13 +282,14 @@ export function SignUpPersonalScreen({ navigation, route }: SignUpPersonalScreen
           setIsAppleLoading(false);
           
           if (success) {
-            // Navigate to Home, then show paywall for new users
+            // Navigate to Home, then show paywall
             navigation.reset({
               index: 0,
               routes: [{ name: 'Home' }],
             });
-            // Show paywall for onboarding completion (handles user-specific tracking)
-            await showPaywallForOnboarding(navigation);
+            setTimeout(() => {
+              navigation.navigate('PaywallMain');
+            }, 500);
           }
         } else {
           // Missing data, continue to sex page

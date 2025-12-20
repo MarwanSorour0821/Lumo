@@ -189,38 +189,51 @@ class StripeWebhookView(APIView):
             
             # Only activate subscription if payment was successful
             if payment_status == 'paid' and subscription_id:
-                # Cancel any existing active or trialing subscriptions for this user
-                # This ensures each user can only have one subscription (active or trialing)
-                existing_active = supabase.table('subscriptions').select('stripe_subscription_id').eq('user_id', user_id).in_('status', ['active', 'trialing']).execute()
+                # Delete any existing cancelled subscriptions for this user (cleanup old records)
+                # Also cancel any existing active or trialing subscriptions
+                existing_subs = supabase.table('subscriptions').select('stripe_subscription_id, status').eq('user_id', user_id).execute()
                 
-                if existing_active.data:
-                    for existing_sub in existing_active.data:
+                if existing_subs.data:
+                    for existing_sub in existing_subs.data:
                         existing_subscription_id = existing_sub.get('stripe_subscription_id')
+                        existing_status = existing_sub.get('status')
+                        
                         if existing_subscription_id and existing_subscription_id != subscription_id:
-                            try:
-                                # Cancel the existing subscription in Stripe
-                                stripe.Subscription.delete(existing_subscription_id)
-                                # Update status in database
-                                supabase.table('subscriptions').update({
-                                    'status': 'cancelled',
-                                }).eq('stripe_subscription_id', existing_subscription_id).execute()
-                            except Exception as cancel_error:
-                                # If cancellation fails, still try to update database status
-                                print(f'Warning: Failed to cancel existing subscription {existing_subscription_id}: {str(cancel_error)}')
-                                supabase.table('subscriptions').update({
-                                    'status': 'cancelled',
-                                }).eq('stripe_subscription_id', existing_subscription_id).execute()
+                            # If it's already cancelled/past_due/unpaid, just delete the record
+                            if existing_status in ['cancelled', 'past_due', 'unpaid']:
+                                try:
+                                    supabase.table('subscriptions').delete().eq('stripe_subscription_id', existing_subscription_id).execute()
+                                except Exception as delete_error:
+                                    print(f'Warning: Failed to delete old subscription {existing_subscription_id}: {str(delete_error)}')
+                            # If it's active or trialing, cancel it in Stripe first, then delete
+                            elif existing_status in ['active', 'trialing']:
+                                try:
+                                    # Cancel the existing subscription in Stripe
+                                    stripe.Subscription.delete(existing_subscription_id)
+                                    # Delete the record from database
+                                    supabase.table('subscriptions').delete().eq('stripe_subscription_id', existing_subscription_id).execute()
+                                except Exception as cancel_error:
+                                    print(f'Warning: Failed to cancel/delete existing subscription {existing_subscription_id}: {str(cancel_error)}')
+                                    # Try to just delete the record anyway
+                                    try:
+                                        supabase.table('subscriptions').delete().eq('stripe_subscription_id', existing_subscription_id).execute()
+                                    except:
+                                        pass
                 
                 # Get the subscription object to check its status (trial vs active)
                 subscription_obj = stripe.Subscription.retrieve(subscription_id)
                 subscription_status_from_stripe = subscription_obj.status
                 
                 # Map Stripe subscription status to our status
+                # Note: 'canceled' status should not happen here (new subscription), but if it does, skip creating it
+                if subscription_status_from_stripe == 'canceled':
+                    # Don't create a cancelled subscription
+                    return Response({'status': 'success'}, status=status.HTTP_200_OK)
+                
                 status_map = {
                     'active': 'active',
                     'trialing': 'trialing',
                     'past_due': 'past_due',
-                    'canceled': 'cancelled',
                     'unpaid': 'unpaid',
                 }
                 mapped_status = status_map.get(subscription_status_from_stripe, 'active')
@@ -243,31 +256,32 @@ class StripeWebhookView(APIView):
             subscription_status = subscription.get('status')
             customer_id = subscription.get('customer')
             
-            # Map Stripe subscription status to our status
-            status_map = {
-                'active': 'active',
-                'past_due': 'past_due',
-                'canceled': 'cancelled',
-                'unpaid': 'unpaid',
-                'trialing': 'trialing',
-            }
-            
-            mapped_status = status_map.get(subscription_status, 'active')
-            
-            # Update subscription status in Supabase
-            supabase.table('subscriptions').update({
-                'status': mapped_status,
-            }).eq('stripe_subscription_id', subscription_id).execute()
+            # If subscription is canceled, delete the record
+            if subscription_status == 'canceled':
+                supabase.table('subscriptions').delete().eq('stripe_subscription_id', subscription_id).execute()
+            else:
+                # Map Stripe subscription status to our status
+                status_map = {
+                    'active': 'active',
+                    'past_due': 'past_due',
+                    'unpaid': 'unpaid',
+                    'trialing': 'trialing',
+                }
+                
+                mapped_status = status_map.get(subscription_status, 'active')
+                
+                # Update subscription status in Supabase
+                supabase.table('subscriptions').update({
+                    'status': mapped_status,
+                }).eq('stripe_subscription_id', subscription_id).execute()
             
         elif event['type'] == 'customer.subscription.deleted':
             subscription = event['data']['object']
             subscription_id = subscription.get('id')
             customer_id = subscription.get('customer')
             
-            # Update subscription status in Supabase
-            supabase.table('subscriptions').update({
-                'status': 'cancelled',
-            }).eq('stripe_subscription_id', subscription_id).execute()
+            # Delete subscription record from Supabase
+            supabase.table('subscriptions').delete().eq('stripe_subscription_id', subscription_id).execute()
             
         elif event['type'] == 'invoice.payment_failed':
             invoice = event['data']['object']

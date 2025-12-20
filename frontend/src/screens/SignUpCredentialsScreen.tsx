@@ -22,7 +22,6 @@ import { Alert, ActivityIndicator } from 'react-native';
 import { Colors, FontSize, FontWeight, Spacing } from '../constants/theme';
 import { RootStackParamList, BiologicalSex, SignUpData, AppleSignUpData } from '../types';
 import { signUpWithEmail, createUserProfile } from '../lib/supabase';
-import { usePaywall } from '../contexts/PaywallContext';
 
 type SignUpCredentialsScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'SignUpCredentials'>;
@@ -48,8 +47,6 @@ export function SignUpCredentialsScreen({ navigation, route }: SignUpCredentials
     weight, 
     weightUnit 
   } = route.params;
-  
-  const { showPaywallForOnboarding } = usePaywall();
   
   // Pre-fill email if available (e.g., from Apple Sign In)
   const initialEmail = isAppleSignIn(signUpData) ? (signUpData.email || '') : '';
@@ -221,14 +218,16 @@ export function SignUpCredentialsScreen({ navigation, route }: SignUpCredentials
         return;
       }
 
-      // Success - navigate to Home, then show paywall for new users
+      // Success - navigate to Home, then show paywall (new users should see paywall)
       setIsCreatingAccount(false);
       navigation.reset({
         index: 0,
         routes: [{ name: 'Home' }],
       });
-      // Show paywall for onboarding completion (handles user-specific tracking)
-      await showPaywallForOnboarding(navigation);
+      // Navigate to paywall after a short delay to ensure Home is mounted
+      setTimeout(() => {
+        navigation.navigate('PaywallMain');
+      }, 500);
     } catch (error: any) {
       Alert.alert('Error', error.message || 'An unexpected error occurred');
       setIsCreatingAccount(false);

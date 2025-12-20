@@ -106,7 +106,7 @@ const features = [
 export function PaywallMainScreen({ navigation }: PaywallMainScreenProps) {
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('yearly');
   const [isLoading, setIsLoading] = useState(false);
-  const { dismissPaywall, refreshSubscriptionStatus, hasActiveSubscription } = usePaywall();
+  const { refreshSubscriptionStatus, hasActiveSubscription } = usePaywall();
 
   // If user already has an active subscription, redirect to Settings
   React.useEffect(() => {
@@ -209,11 +209,9 @@ export function PaywallMainScreen({ navigation }: PaywallMainScreenProps) {
     }
   };
 
-  const handleClose = async () => {
+  const handleClose = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // Dismiss paywall (sets cooldown)
-    await dismissPaywall();
-    // Navigate back to previous screen
+    // Simply go back - no dismiss tracking needed
     navigation.goBack();
   };
 

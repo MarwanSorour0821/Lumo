@@ -117,45 +117,11 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const chevronRotate = useRef(new Animated.Value(0)).current;
   
   // Paywall context
-  const { hasActiveSubscription, canShowPaywall, trackUsageEvent } = usePaywall();
+  const { hasActiveSubscription } = usePaywall();
   
   // Track session start time to enforce 3-minute minimum
   const MIN_SESSION_TIME_MS = 3 * 60 * 1000; // 3 minutes
   const sessionStartTime = useRef(Date.now());
-  
-  // Check subscription and redirect to paywall if needed (only after first analysis)
-  useFocusEffect(
-    useCallback(() => {
-      const checkPaywall = async () => {
-        // Don't show paywall if user has active subscription
-        if (hasActiveSubscription) {
-          return;
-        }
-
-        // Track usage event
-        await trackUsageEvent();
-
-        // Check if we can show paywall (respects cooldown)
-        const canShow = await canShowPaywall();
-        
-        if (canShow) {
-          // Enforce 3-minute minimum session time
-          const sessionTime = Date.now() - sessionStartTime.current;
-          if (sessionTime < MIN_SESSION_TIME_MS) {
-            return;
-          }
-
-          // Small delay to let the screen render first
-          const timer = setTimeout(() => {
-            navigation.navigate('PaywallMain');
-          }, 500);
-          return () => clearTimeout(timer);
-        }
-      };
-
-      checkPaywall();
-    }, [hasActiveSubscription, canShowPaywall, trackUsageEvent, navigation])
-  );
   
   // Initialize selectedDate to today (without time)
   const getToday = () => {
