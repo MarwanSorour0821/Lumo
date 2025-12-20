@@ -30,6 +30,7 @@ interface SelectedFile {
 
 export function AnalyseScreen({ visible, onClose }: AnalyseScreenProps) {
   const navigation = useNavigation<NavigationProp>();
+  const { hasActiveSubscription, checkAndShowPaywall, isFirstAnalysisComplete } = usePaywall();
   const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState<number>(0);
@@ -126,6 +127,13 @@ export function AnalyseScreen({ visible, onClose }: AnalyseScreenProps) {
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
         const isPdf = asset.mimeType?.includes('pdf') || false;
+        
+        // Check subscription status for PDF uploads only
+        if (isPdf && !hasActiveSubscription) {
+          navigation.navigate('PaywallMain');
+          return;
+        }
+        
         setSelectedFile({
           uri: asset.uri,
           fileName: asset.name,

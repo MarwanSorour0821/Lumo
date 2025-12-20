@@ -360,6 +360,9 @@ export function PaywallMainScreen({ navigation }: PaywallMainScreenProps) {
               </TouchableOpacity>
             </View>
 
+            {/* Trial Text */}
+            <Text style={styles.trialText}>3 day free trial, nothing due today</Text>
+
             {/* Continue Button */}
             <TouchableOpacity
               style={[styles.continueButton, isLoading && styles.continueButtonDisabled]}
@@ -531,6 +534,14 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     fontFamily: 'ProductSans-Regular',
     color: Colors.dark.textSecondary,
+  },
+  trialText: {
+    fontSize: FontSize.sm,
+    fontFamily: 'ProductSans-Regular',
+    color: Colors.dark.textSecondary,
+    textAlign: 'center',
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.sm,
   },
   continueButton: {
     backgroundColor: Colors.primary,

@@ -8,7 +8,7 @@
     "icon": "./assets/splash-icon.png",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "com.lumoblood.app",
       "buildNumber": "7",
       "infoPlist": {

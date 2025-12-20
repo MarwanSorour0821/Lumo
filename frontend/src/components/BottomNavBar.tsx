@@ -7,6 +7,7 @@ import Svg, { Path, Circle, G } from 'react-native-svg';
 import { Colors, FontSize, Spacing, BorderRadius } from '../constants/theme';
 import { RootStackParamList } from '../types';
 import { useAnalyseModal } from '../contexts/AnalyseModalContext';
+import { usePaywall } from '../contexts/PaywallContext';
 
 type BottomNavBarProps = {
   currentRoute?: string;
@@ -129,10 +130,18 @@ export function BottomNavBar({ currentRoute }: BottomNavBarProps) {
   };
 
   const { showModal } = useAnalyseModal();
+  const { hasActiveSubscription } = usePaywall();
 
   const handlePlusPress = () => {
     // Trigger haptic feedback
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    // Check subscription status - block if user doesn't have active or trialing subscription
+    if (!hasActiveSubscription) {
+      navigation.navigate('PaywallMain');
+      return;
+    }
+    
     showModal();
   };
 

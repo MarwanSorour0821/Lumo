@@ -22,6 +22,7 @@ import { RootStackParamList } from '../types';
 import { BottomNavBar } from '../components/BottomNavBar';
 import { getAnalyses, getAnalysis, AnalysisListItem } from '../lib/api';
 import { useAnalyseModal } from '../contexts/AnalyseModalContext';
+import { usePaywall } from '../contexts/PaywallContext';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -32,6 +33,7 @@ type MyLabScreenProps = {
 
 export function MyLabScreen({ navigation, route }: MyLabScreenProps) {
   const { showModal } = useAnalyseModal();
+  const { hasActiveSubscription } = usePaywall();
   const [analyses, setAnalyses] = useState<AnalysisListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -228,7 +230,14 @@ export function MyLabScreen({ navigation, route }: MyLabScreenProps) {
       </Text>
       <TouchableOpacity
         style={styles.startButton}
-        onPress={showModal}
+        onPress={() => {
+          // Check subscription status - block if user doesn't have active or trialing subscription
+          if (!hasActiveSubscription) {
+            navigation.navigate('PaywallMain');
+            return;
+          }
+          showModal();
+        }}
       >
         <Ionicons name="add" size={20} color={Colors.white} />
         <Text style={styles.startButtonText}>New Analysis</Text>
