@@ -198,6 +198,20 @@ export function PaywallMainScreen({ navigation }: PaywallMainScreenProps) {
     navigation.goBack();
   };
 
+  const handleTermsPress = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await WebBrowser.openBrowserAsync('https://lumo-blood.com/terms', {
+      presentationStyle: WebBrowser.WebBrowserPresentationStyle.FORM_SHEET,
+    });
+  };
+
+  const handlePrivacyPress = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await WebBrowser.openBrowserAsync('https://lumo-blood.com/privacy', {
+      presentationStyle: WebBrowser.WebBrowserPresentationStyle.FORM_SHEET,
+    });
+  };
+
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -240,24 +254,23 @@ export function PaywallMainScreen({ navigation }: PaywallMainScreenProps) {
               </View>
             ))}
           </View>
-
-          {/* Footer */}
-          <View style={styles.footer}>
-            <View style={styles.footerLinks}>
-              <TouchableOpacity>
-                <Text style={styles.footerLink}>Privacy Policy</Text>
-              </TouchableOpacity>
-              <Text style={styles.footerSeparator}> • </Text>
-              <TouchableOpacity>
-                <Text style={styles.footerLink}>Terms of Service</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
         </ScrollView>
 
         {/* Fixed Floating Pricing Rectangle */}
         <View style={styles.fixedPricingContainer}>
           <View style={styles.pricingContainer}>
+            {/* Terms Disclaimer */}
+            <Text style={styles.disclaimer}>
+              By continuing, you agree to the{'\n'}
+              <Text style={styles.linkText} onPress={handleTermsPress}>
+                Terms of Use
+              </Text>
+              {' and '}
+              <Text style={styles.linkText} onPress={handlePrivacyPress}>
+                Privacy Policy
+              </Text>
+            </Text>
+
             <View style={styles.plansContainer}>
               {/* Yearly Plan */}
               <TouchableOpacity
@@ -293,8 +306,8 @@ export function PaywallMainScreen({ navigation }: PaywallMainScreenProps) {
                       </Svg>
                     )}
                   </View>
-                  <Text style={styles.planPrice}>£99.99<Text style={styles.planPeriod}>/year</Text></Text>
-                  <Text style={styles.planMonthly}>£8.33/mo</Text>
+                  <Text style={styles.planPrice}>$85<Text style={styles.planPeriod}>/year</Text></Text>
+                  <Text style={styles.planMonthly}>$7.08/mo</Text>
                 </View>
               </TouchableOpacity>
 
@@ -327,7 +340,7 @@ export function PaywallMainScreen({ navigation }: PaywallMainScreenProps) {
                       </Svg>
                     )}
                   </View>
-                  <Text style={styles.planPrice}>£9.99<Text style={styles.planPeriod}>/mo</Text></Text>
+                  <Text style={styles.planPrice}>$6.99<Text style={styles.planPeriod}>/mo</Text></Text>
                 </View>
               </TouchableOpacity>
             </View>
@@ -518,6 +531,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.6,
     shadowRadius: 16,
     elevation: 10,
+    marginTop: Spacing.md,
   },
   continueButtonDisabled: {
     opacity: 0.6,
@@ -527,22 +541,18 @@ const styles = StyleSheet.create({
     fontFamily: 'ProductSans-Bold',
     color: Colors.white,
   },
-  footer: {
-    alignItems: 'center',
-    marginTop: Spacing.lg,
-  },
-  footerLinks: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  footerLink: {
-    fontSize: FontSize.sm,
+  disclaimer: {
+    fontSize: 14,
     fontFamily: 'ProductSans-Regular',
-    color: Colors.primary,
+    color: '#808080',
+    textAlign: 'center',
+    lineHeight: 16,
+    marginBottom: Spacing.md,
   },
-  footerSeparator: {
-    fontSize: FontSize.sm,
-    color: Colors.dark.textSecondary,
+  linkText: {
+    fontFamily: 'ProductSans-Bold',
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });
 

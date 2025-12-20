@@ -263,7 +263,6 @@ export function SignInModal({ visible, onClose, onContinue, onUsePhone, onGoogle
                   autoCapitalize="none"
                   autoCorrect={false}
                   textContentType="emailAddress"
-                  editable={!showPassword}
                 />
               </View>
             </View>
