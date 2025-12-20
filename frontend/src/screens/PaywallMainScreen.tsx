@@ -153,10 +153,11 @@ export function PaywallMainScreen({ navigation }: PaywallMainScreenProps) {
         // Browser was dismissed/opened - could be success (redirected to app) or user closed it
         // For 'opened', it means a deep link was opened (success case)
         setIsLoading(true);
-        // Poll for subscription status with retries
+        // Poll for subscription status with retries - start immediately to catch webhook confirmation
         let attempts = 0;
-        const maxAttempts = 15; // Increased attempts to account for webhook processing time
-        const pollInterval = 1000; // 1 second
+        const maxAttempts = 20; // Increased attempts to account for webhook processing time
+        const initialPollInterval = 500; // Poll every 500ms for first few checks (faster response)
+        const normalPollInterval = 1000; // Then poll every 1 second
         
         const checkSubscription = async () => {
           attempts++;
@@ -165,7 +166,7 @@ export function PaywallMainScreen({ navigation }: PaywallMainScreenProps) {
           if (statusResponse.has_active_subscription) {
             setIsLoading(false);
             await refreshSubscriptionStatus();
-            // Close paywall and navigate to Settings
+            // Close paywall and navigate to Settings immediately when webhook confirms subscription
             // Use InteractionManager to wait for navigation animations
             InteractionManager.runAfterInteractions(() => {
               navigation.goBack(); // Close the paywall modal
@@ -178,6 +179,9 @@ export function PaywallMainScreen({ navigation }: PaywallMainScreenProps) {
           }
           
           if (attempts < maxAttempts) {
+            // Poll more frequently for first 8 attempts (4 seconds), then every 1 second
+            // This ensures we catch the webhook quickly when it processes
+            const pollInterval = attempts <= 8 ? initialPollInterval : normalPollInterval;
             setTimeout(checkSubscription, pollInterval);
           } else {
             // If after max attempts still no subscription, payment may have failed or still processing
@@ -190,8 +194,8 @@ export function PaywallMainScreen({ navigation }: PaywallMainScreenProps) {
           }
         };
         
-        // Start polling after a short delay to allow webhook to process
-        setTimeout(checkSubscription, 2000);
+        // Start polling immediately - no delay, webhook should process quickly
+        checkSubscription();
       } else {
         // Unknown result type
         setIsLoading(false);
