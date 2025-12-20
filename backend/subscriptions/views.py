@@ -185,7 +185,29 @@ class StripeWebhookView(APIView):
             
             # Only activate subscription if payment was successful
             if payment_status == 'paid' and subscription_id:
-                # Update user subscription in Supabase
+                # Cancel any existing active subscriptions for this user
+                # This ensures each user can only have one active subscription
+                existing_active = supabase.table('subscriptions').select('stripe_subscription_id').eq('user_id', user_id).eq('status', 'active').execute()
+                
+                if existing_active.data:
+                    for existing_sub in existing_active.data:
+                        existing_subscription_id = existing_sub.get('stripe_subscription_id')
+                        if existing_subscription_id and existing_subscription_id != subscription_id:
+                            try:
+                                # Cancel the existing subscription in Stripe
+                                stripe.Subscription.delete(existing_subscription_id)
+                                # Update status in database
+                                supabase.table('subscriptions').update({
+                                    'status': 'cancelled',
+                                }).eq('stripe_subscription_id', existing_subscription_id).execute()
+                            except Exception as cancel_error:
+                                # If cancellation fails, still try to update database status
+                                print(f'Warning: Failed to cancel existing subscription {existing_subscription_id}: {str(cancel_error)}')
+                                supabase.table('subscriptions').update({
+                                    'status': 'cancelled',
+                                }).eq('stripe_subscription_id', existing_subscription_id).execute()
+                
+                # Now create/update the new subscription
                 # Use stripe_subscription_id for conflict resolution since it's unique
                 supabase.table('subscriptions').upsert({
                     'user_id': user_id,
