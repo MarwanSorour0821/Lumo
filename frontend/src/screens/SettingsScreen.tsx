@@ -288,7 +288,7 @@ const SettingsItem = ({ icon: Icon, text, rightContent, hasLock, onPress }: Sett
 );
 
 export function SettingsScreen({ navigation }: SettingsScreenProps) {
-  const { hasActiveSubscription, refreshSubscriptionStatus } = usePaywall();
+  const { hasActiveSubscription, refreshSubscriptionStatus, clearUserPaywallData } = usePaywall();
   const [refreshing, setRefreshing] = useState(false);
 
   // Refresh subscription status when screen comes into focus
@@ -411,7 +411,10 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
                         // Step 1: Delete all user data from backend
                         await deleteAccountData();
                         
-                        // Step 2: Sign out (Supabase auth user deletion requires admin privileges)
+                        // Step 2: Clear local paywall data
+                        await clearUserPaywallData();
+                        
+                        // Step 3: Sign out (Supabase auth user deletion requires admin privileges)
                         // The backend has already deleted all user data
                         // Note: The auth user account will remain in Supabase but all associated data is deleted
                         if (supabase) {
