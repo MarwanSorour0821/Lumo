@@ -67,7 +67,7 @@ class CreateCheckoutSessionView(APIView):
             success_url = request.data.get('success_url', 'lumo://subscription-success')
             cancel_url = request.data.get('cancel_url', 'lumo://subscription-cancel')
             
-            # Create Stripe Checkout Session
+            # Create Stripe Checkout Session with 3-day free trial
             checkout_session = stripe.checkout.Session.create(
                 customer_email=request.data.get('email'),  # Optional: pre-fill email
                 payment_method_types=['card'],
@@ -78,6 +78,9 @@ class CreateCheckoutSessionView(APIView):
                     },
                 ],
                 mode='subscription',
+                subscription_data={
+                    'trial_period_days': 3,  # 3-day free trial
+                },
                 success_url=success_url + '?session_id={CHECKOUT_SESSION_ID}',
                 cancel_url=cancel_url,
                 client_reference_id=user_id,  # Store user ID for webhook processing
@@ -120,10 +123,10 @@ class GetSubscriptionStatusView(APIView):
             supabase = get_supabase_client()
             
             # Check if user has active subscription in your database
-            # Only count subscriptions with status = 'active'
-            response = supabase.table('subscriptions').select('id').eq('user_id', user_id).eq('status', 'active').execute()
+            # Count subscriptions with status = 'active' or 'trialing' (trial users should have access)
+            response = supabase.table('subscriptions').select('id').eq('user_id', user_id).in_('status', ['active', 'trialing']).execute()
             
-            # Explicitly check for active subscriptions - only return true if we find at least one
+            # Explicitly check for active/trialing subscriptions - only return true if we find at least one
             has_active_subscription = bool(response.data and len(response.data) > 0)
             
             return Response({
@@ -186,9 +189,9 @@ class StripeWebhookView(APIView):
             
             # Only activate subscription if payment was successful
             if payment_status == 'paid' and subscription_id:
-                # Cancel any existing active subscriptions for this user
-                # This ensures each user can only have one active subscription
-                existing_active = supabase.table('subscriptions').select('stripe_subscription_id').eq('user_id', user_id).eq('status', 'active').execute()
+                # Cancel any existing active or trialing subscriptions for this user
+                # This ensures each user can only have one subscription (active or trialing)
+                existing_active = supabase.table('subscriptions').select('stripe_subscription_id').eq('user_id', user_id).in_('status', ['active', 'trialing']).execute()
                 
                 if existing_active.data:
                     for existing_sub in existing_active.data:
@@ -208,13 +211,27 @@ class StripeWebhookView(APIView):
                                     'status': 'cancelled',
                                 }).eq('stripe_subscription_id', existing_subscription_id).execute()
                 
+                # Get the subscription object to check its status (trial vs active)
+                subscription_obj = stripe.Subscription.retrieve(subscription_id)
+                subscription_status_from_stripe = subscription_obj.status
+                
+                # Map Stripe subscription status to our status
+                status_map = {
+                    'active': 'active',
+                    'trialing': 'trialing',
+                    'past_due': 'past_due',
+                    'canceled': 'cancelled',
+                    'unpaid': 'unpaid',
+                }
+                mapped_status = status_map.get(subscription_status_from_stripe, 'active')
+                
                 # Now create/update the new subscription
                 # Use stripe_subscription_id for conflict resolution since it's unique
                 supabase.table('subscriptions').upsert({
                     'user_id': user_id,
                     'stripe_customer_id': customer_id,
                     'stripe_subscription_id': subscription_id,
-                    'status': 'active',
+                    'status': mapped_status,  # Will be 'trialing' if in trial, 'active' otherwise
                     'plan': session.get('metadata', {}).get('plan', 'yearly'),
                 }, on_conflict='stripe_subscription_id').execute()
             # If payment failed, we don't create/update subscription
