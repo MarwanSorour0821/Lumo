@@ -199,7 +199,7 @@ class StripeWebhookView(APIView):
         elif event['type'] == 'customer.subscription.updated':
             subscription = event['data']['object']
             subscription_id = subscription.get('id')
-            status = subscription.get('status')
+            subscription_status = subscription.get('status')
             customer_id = subscription.get('customer')
             
             # Map Stripe subscription status to our status
@@ -211,7 +211,7 @@ class StripeWebhookView(APIView):
                 'trialing': 'trialing',
             }
             
-            mapped_status = status_map.get(status, 'active')
+            mapped_status = status_map.get(subscription_status, 'active')
             
             # Update subscription status in Supabase
             supabase.table('subscriptions').update({
