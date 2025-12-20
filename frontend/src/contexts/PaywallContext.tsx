@@ -53,11 +53,17 @@ export function PaywallProvider({ children }: { children: React.ReactNode }) {
         
         // Load subscription status from backend
         const statusResponse = await getSubscriptionStatus();
-        if (!statusResponse.error) {
-          setHasActiveSubscription(statusResponse.has_active_subscription);
+        // Explicitly set to false if there's an error or if the value is falsy
+        if (statusResponse.error) {
+          console.log('Error fetching subscription status:', statusResponse.error);
+          setHasActiveSubscription(false);
+        } else {
+          // Explicitly ensure boolean value
+          setHasActiveSubscription(statusResponse.has_active_subscription === true);
         }
       } catch (error) {
         console.error('Error loading paywall state:', error);
+        setHasActiveSubscription(false);
       }
     };
     loadState();
@@ -67,11 +73,17 @@ export function PaywallProvider({ children }: { children: React.ReactNode }) {
   const refreshSubscriptionStatus = useCallback(async () => {
     try {
       const statusResponse = await getSubscriptionStatus();
-      if (!statusResponse.error) {
-        setHasActiveSubscription(statusResponse.has_active_subscription);
+      // Explicitly set to false if there's an error or if the value is falsy
+      if (statusResponse.error) {
+        console.log('Error refreshing subscription status:', statusResponse.error);
+        setHasActiveSubscription(false);
+      } else {
+        // Explicitly ensure boolean value
+        setHasActiveSubscription(statusResponse.has_active_subscription === true);
       }
     } catch (error) {
       console.error('Error refreshing subscription status:', error);
+      setHasActiveSubscription(false);
     }
   }, []);
 

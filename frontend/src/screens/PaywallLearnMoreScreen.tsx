@@ -10,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, G } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import { Colors, Spacing, FontSize, BorderRadius } from '../constants/theme';
+import { usePaywall } from '../contexts/PaywallContext';
 
 interface PaywallLearnMoreScreenProps {
   navigation: any;
@@ -148,9 +149,14 @@ const features = [
 ];
 
 export function PaywallLearnMoreScreen({ navigation }: PaywallLearnMoreScreenProps) {
+  const { hasActiveSubscription } = usePaywall();
+
   const handleLearnMore = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    navigation.navigate('PaywallMain');
+    // Don't show paywall if user already has subscription
+    if (!hasActiveSubscription) {
+      navigation.navigate('PaywallMain');
+    }
   };
 
   return (

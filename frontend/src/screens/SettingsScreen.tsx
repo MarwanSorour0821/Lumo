@@ -21,6 +21,7 @@ import { usePaywall } from '../contexts/PaywallContext';
 import { createPortalSession } from '../lib/subscriptions';
 import * as Haptics from 'expo-haptics';
 import * as WebBrowser from 'expo-web-browser';
+import { useFocusEffect } from '@react-navigation/native';
 
 type SettingsScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Settings'>;
@@ -286,7 +287,14 @@ const SettingsItem = ({ icon: Icon, text, rightContent, hasLock, onPress }: Sett
 );
 
 export function SettingsScreen({ navigation }: SettingsScreenProps) {
-  const { hasActiveSubscription } = usePaywall();
+  const { hasActiveSubscription, refreshSubscriptionStatus } = usePaywall();
+
+  // Refresh subscription status when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      refreshSubscriptionStatus();
+    }, [refreshSubscriptionStatus])
+  );
 
   const handleUpgradeToPro = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

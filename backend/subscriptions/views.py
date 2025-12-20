@@ -120,10 +120,11 @@ class GetSubscriptionStatusView(APIView):
             supabase = get_supabase_client()
             
             # Check if user has active subscription in your database
-            # This assumes you have a subscriptions table in Supabase
-            response = supabase.table('subscriptions').select('*').eq('user_id', user_id).eq('status', 'active').execute()
+            # Only count subscriptions with status = 'active'
+            response = supabase.table('subscriptions').select('id').eq('user_id', user_id).eq('status', 'active').execute()
             
-            has_active_subscription = len(response.data) > 0
+            # Explicitly check for active subscriptions - only return true if we find at least one
+            has_active_subscription = bool(response.data and len(response.data) > 0)
             
             return Response({
                 'has_active_subscription': has_active_subscription,

@@ -7,6 +7,7 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  InteractionManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, G } from 'react-native-svg';
@@ -105,7 +106,14 @@ const features = [
 export function PaywallMainScreen({ navigation }: PaywallMainScreenProps) {
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('yearly');
   const [isLoading, setIsLoading] = useState(false);
-  const { dismissPaywall, refreshSubscriptionStatus } = usePaywall();
+  const { dismissPaywall, refreshSubscriptionStatus, hasActiveSubscription } = usePaywall();
+
+  // If user already has an active subscription, redirect to Settings
+  React.useEffect(() => {
+    if (hasActiveSubscription) {
+      navigation.goBack();
+    }
+  }, [hasActiveSubscription, navigation]);
 
   const handlePlanSelect = (plan: 'monthly' | 'yearly') => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -157,8 +165,15 @@ export function PaywallMainScreen({ navigation }: PaywallMainScreenProps) {
           if (statusResponse.has_active_subscription) {
             setIsLoading(false);
             await refreshSubscriptionStatus();
-            // Automatically navigate back on success (no alert needed)
-            navigation.goBack();
+            // Close paywall and navigate to Settings
+            // Use InteractionManager to wait for navigation animations
+            InteractionManager.runAfterInteractions(() => {
+              navigation.goBack(); // Close the paywall modal
+              // Navigate to Settings after a brief delay to ensure paywall closes first
+              setTimeout(() => {
+                navigation.navigate('Settings');
+              }, 300);
+            });
             return;
           }
           
