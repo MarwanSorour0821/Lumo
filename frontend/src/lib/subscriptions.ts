@@ -2,9 +2,6 @@
  * Subscription API functions for Stripe checkout
  */
 
-import { makeRedirectUri } from 'expo-auth-session';
-import * as Linking from 'expo-linking';
-import Constants from 'expo-constants';
 import { supabase } from './supabase';
 
 // API base URL - adjust based on your environment
@@ -25,28 +22,14 @@ export interface SubscriptionStatusResponse {
 }
 
 /**
- * Get the appropriate redirect URL for the current environment
- * - In Expo Go: exp://192.168.x.x:8081/--/path
- * - In standalone app: Lumo://path
+ * Get the redirect URL for Stripe callbacks
+ * Uses the production app scheme: Lumo://path
  */
 function getSubscriptionRedirectUrl(path: string): string {
-  // Check if running in Expo Go
-  const isExpoGo = Constants.appOwnership === 'expo';
-  
-  if (isExpoGo) {
-    // Use Linking.createURL which handles Expo Go correctly
-    const url = Linking.createURL(path);
-    console.log(`Subscription redirect URL (Expo Go): ${url}`);
-    return url;
-  }
-  
-  // For standalone builds, use the custom scheme
-  // Note: scheme is 'Lumo' (capital L) in app.json
-  const url = makeRedirectUri({
-    scheme: 'Lumo',
-    path: path,
-  });
-  console.log(`Subscription redirect URL (Standalone): ${url}`);
+  // Always use the production app scheme for Stripe redirects
+  // Scheme is 'Lumo' (capital L) as defined in app.json
+  const url = `Lumo://${path}`;
+  console.log(`Subscription redirect URL: ${url}`);
   return url;
 }
 

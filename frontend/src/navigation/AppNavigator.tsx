@@ -36,17 +36,16 @@ import { PaywallMainScreen } from '../screens/PaywallMainScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-// Deep linking configuration
-const prefix = Linking.createURL('/');
-
+// Deep linking configuration for production app
+// Scheme is 'Lumo' as defined in app.json
 const linking = {
-  prefixes: [prefix, 'Lumo://', 'lumo://'],
+  prefixes: ['Lumo://', 'lumo://'],
   config: {
     screens: {
       Settings: 'settings',
       Home: 'home',
-      // These are handled specially for Stripe callbacks
-      // We don't map them to screens directly - they're handled via the URL listener
+      // Stripe callbacks (subscription-success, subscription-cancel) are handled 
+      // via the URL listener in AppNavigatorContent, not mapped to screens
     },
   },
 };
