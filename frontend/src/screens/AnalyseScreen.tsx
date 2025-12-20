@@ -12,6 +12,7 @@ import BackButton from '../../components/BackButton';
 import { Colors, FontSize, FontWeight, Spacing, BorderRadius } from '../constants/theme';
 import { RootStackParamList } from '../types';
 import { analyzeBloodTest, saveAnalysis } from '../lib/api';
+import { usePaywall } from '../contexts/PaywallContext';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -29,6 +30,7 @@ interface SelectedFile {
 
 export function AnalyseScreen({ visible, onClose }: AnalyseScreenProps) {
   const navigation = useNavigation<NavigationProp>();
+  const { hasActiveSubscription, checkAndShowPaywall, isFirstAnalysisComplete } = usePaywall();
   const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState<number>(0);
@@ -125,6 +127,13 @@ export function AnalyseScreen({ visible, onClose }: AnalyseScreenProps) {
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
         const isPdf = asset.mimeType?.includes('pdf') || false;
+        
+        // Check subscription status for PDF uploads only
+        if (isPdf && !hasActiveSubscription) {
+          navigation.navigate('PaywallMain');
+          return;
+        }
+        
         setSelectedFile({
           uri: asset.uri,
           fileName: asset.name,
@@ -188,6 +197,20 @@ export function AnalyseScreen({ visible, onClose }: AnalyseScreenProps) {
       
       // Close modal and navigate to MyLab with the new analysis ID to auto-open it
       onClose();
+      
+      // Check if this is the first analysis and show paywall
+      const isFirst = await isFirstAnalysisComplete();
+      if (!isFirst) {
+        // This is the first analysis - show paywall after they see the results
+        // Small delay to let them see the value first
+        setTimeout(() => {
+          checkAndShowPaywall('first_analysis_complete', navigation);
+        }, 2000);
+      } else {
+        // Second or more analysis - show paywall immediately
+        checkAndShowPaywall('second_upload_attempt', navigation);
+      }
+      
       navigation.navigate('MyLab', { openAnalysisId: savedAnalysis.id });
       
     } catch (error) {

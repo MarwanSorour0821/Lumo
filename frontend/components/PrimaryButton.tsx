@@ -82,6 +82,11 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 24,
     borderRadius: 9999,
+    elevation: 16,
+    shadowColor: '#BB3E4F',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.6,
+    shadowRadius: 16,
   },
   buttonText: {
     fontSize: 18,

@@ -8,11 +8,13 @@
     "icon": "./assets/splash-icon.png",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "com.lumoblood.app",
-      "buildNumber": "7",
+      "buildNumber": "8",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "We use the camera to capture lab test images so our AI can analyze your blood results for health insights.",
+        "NSPhotoLibraryUsageDescription": "We access photos so you can import lab reports for analysis and tracking."
       }
     },
     "android": {
@@ -30,7 +32,13 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-apple-authentication",
+        {
+          "appleTeamId": "C7RJ365M46"
+        }
+      ]
     ],
     "extra": {
       "eas": {

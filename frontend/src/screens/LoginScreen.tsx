@@ -17,9 +17,10 @@ import BackButton from '../../components/BackButton';
 import PrimaryButton from '../../components/PrimaryButton';
 import { Input } from '../components/Input';
 import GoogleSignInButton from '../components/GoogleSignInButton';
+import AppleSignInButton from '../components/AppleSignInButton';
 import { Colors, Spacing, FontSize } from '../constants/theme';
 import { RootStackParamList } from '../types';
-import { signInWithEmail, signInWithGoogle, getUserProfile } from '../lib/supabase';
+import { signInWithEmail, signInWithGoogle, signInWithApple, getUserProfile } from '../lib/supabase';
 
 type LoginScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Login'>;
@@ -31,6 +32,7 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isAppleLoading, setIsAppleLoading] = useState(false);
 
   const headingFade = useRef(new Animated.Value(0)).current;
   const inputsFade = useRef(new Animated.Value(0)).current;
@@ -92,6 +94,7 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
       return;
     }
 
+    // For social auth, we have name/email, so skip Personal screen and go to Sex screen
     const signUpData = {
       userId,
       email: profile?.email || userEmail,
@@ -149,6 +152,32 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
     }
   };
 
+  const handleAppleSignIn = async () => {
+    setIsAppleLoading(true);
+    const { data, error } = await signInWithApple();
+
+    if (error) {
+      if (error.message !== 'Sign in cancelled') {
+        Alert.alert('Sign In Error', error.message);
+      }
+      setIsAppleLoading(false);
+      return;
+    }
+
+    if (data.user) {
+      await continueOrStartSignup(
+        data.user.id,
+        data.user.email,
+        data.user.firstName,
+        data.user.lastName
+      );
+      setIsAppleLoading(false);
+    } else {
+      setIsAppleLoading(false);
+      Alert.alert('Sign In Error', 'Failed to get user information');
+    }
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
@@ -197,6 +226,11 @@ export function LoginScreen({ navigation }: LoginScreenProps) {
             </Animated.View>
 
             <Animated.View style={[styles.buttonContainer, { opacity: buttonFade }]}>
+              <AppleSignInButton
+                onPress={handleAppleSignIn}
+                loading={isAppleLoading}
+              />
+
               <GoogleSignInButton
                 onPress={handleGoogleSignIn}
                 loading={isGoogleLoading}

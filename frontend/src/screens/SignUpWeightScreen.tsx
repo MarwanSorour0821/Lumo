@@ -20,7 +20,7 @@ import { RouteProp } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { RulerPicker } from 'react-native-ruler-picker';
-import PrimaryButton from '../../components/PrimaryButton';
+import Svg, { Path } from 'react-native-svg';
 import BackButton from '../../components/BackButton';
 import { ProgressBar } from '../components/ProgressBar';
 import { Colors, FontSize, Spacing, BorderRadius } from '../constants/theme';
@@ -108,7 +108,42 @@ export function SignUpWeightScreen({ navigation, route }: SignUpWeightScreenProp
     return Math.round(lbs * 0.453592);
   };
 
-  const handleContinue = async () => {
+  const handleContinue = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const weightNum = weight;
+    if (!weightNum || isNaN(weightNum)) {
+      Alert.alert('Please select a valid weight');
+      return;
+    }
+    if (weightUnit === 'kg') {
+      if (weightNum < 30 || weightNum > 300) {
+        Alert.alert('Please select a valid weight between 30 and 300 kg');
+        return;
+      }
+    } else {
+      if (weightNum < 66 || weightNum > 660) {
+        Alert.alert('Please select a valid weight between 66 and 660 lbs');
+        return;
+      }
+    }
+
+    // Convert weight to kg for storage
+    const weightInKg = weightUnit === 'kg' ? weight : lbsToKg(weight);
+    
+    navigation.navigate('SignUpPersonal', {
+      signUpData,
+      sex,
+      age,
+      height,
+      heightFeet,
+      heightInches,
+      heightUnit,
+      weight: weightInKg.toString(),
+      weightUnit: 'kg',
+    });
+  };
+
+  const handleContinueOld = async () => {
     const weightNum = weight;
     if (!weightNum || isNaN(weightNum)) {
       Alert.alert('Please select a valid weight');
@@ -269,12 +304,16 @@ export function SignUpWeightScreen({ navigation, route }: SignUpWeightScreenProp
         return;
       }
 
-      // Success - hide loading and navigate to Home
+      // Success - hide loading and navigate to Home, then show paywall (new users should see paywall)
       setLoading(false);
       navigation.reset({
         index: 0,
         routes: [{ name: 'Home' }],
       });
+      // Navigate to paywall after a short delay to ensure Home is mounted
+      setTimeout(() => {
+        navigation.navigate('PaywallMain');
+      }, 500);
     } catch (error: any) {
       Alert.alert('Error', error.message || 'An unexpected error occurred');
       setLoading(false);
@@ -294,13 +333,9 @@ export function SignUpWeightScreen({ navigation, route }: SignUpWeightScreenProp
       <StatusBar barStyle="light-content" />
       
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.headerContainer}>
-          <BackButton
-            onPress={() => navigation.goBack()}
-            theme="dark"
-          />
+        <View style={styles.progressBarContainer}>
+          <ProgressBar currentStep={4} totalSteps={7} />
         </View>
-        <ProgressBar currentStep={6} totalSteps={7} />
         
         <KeyboardAvoidingView
           style={styles.keyboardView}
@@ -322,7 +357,7 @@ export function SignUpWeightScreen({ navigation, route }: SignUpWeightScreenProp
                   }
                 ]}
               >
-                What is Your Weight?
+                Your Weight
               </Animated.Text>
               
               <Animated.Text 
@@ -333,7 +368,7 @@ export function SignUpWeightScreen({ navigation, route }: SignUpWeightScreenProp
                   }
                 ]}
               >
-                Vestibulum sed sagittis nisi, a euismod mauris.
+                What is your weight?
               </Animated.Text>
             </View>
 
@@ -463,23 +498,61 @@ export function SignUpWeightScreen({ navigation, route }: SignUpWeightScreenProp
               </View>
             </Animated.View>
 
-            <Animated.View
-              style={[
-                styles.buttonContainer,
-                {
-                  opacity: buttonFade,
-                }
-              ]}
-            >
-              <PrimaryButton
-                text="Continue"
-                onPress={handleContinue}
-                disabled={loading}
-                theme="dark"
-              />
-            </Animated.View>
           </ScrollView>
         </KeyboardAvoidingView>
+
+        {/* Bottom Navigation */}
+        <View style={styles.bottomNavigation}>
+          <View style={styles.bottomNavContent}>
+            {/* Back Button */}
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                navigation.goBack();
+              }}
+              activeOpacity={0.8}
+            >
+              <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+                <Path
+                  d="M19 12H5M12 19l-7-7 7-7"
+                  stroke="#000000"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </Svg>
+            </TouchableOpacity>
+
+            {/* Next Button */}
+            <TouchableOpacity
+              style={[styles.nextButton, loading && styles.nextButtonDisabled]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                handleContinue();
+              }}
+              disabled={loading}
+              activeOpacity={0.9}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color={Colors.white} />
+              ) : (
+                <>
+                  <Text style={styles.nextButtonText}>Next</Text>
+                  <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+                    <Path
+                      d="M5 12h14M12 5l7 7-7 7"
+                      stroke="#FFFFFF"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </Svg>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
       </SafeAreaView>
 
       {/* Loading Overlay */}
@@ -511,6 +584,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
   },
+  progressBarContainer: {
+    alignItems: 'center',
+    paddingTop: Spacing.md,
+  },
   keyboardView: {
     flex: 1,
   },
@@ -526,18 +603,16 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xxl,
   },
   heading: {
-    fontSize: FontSize.xxl,
-    fontFamily: 'ProductSans-Bold',
+    fontSize: 40,
+    fontFamily: 'ProductSans-Regular',
     color: Colors.white,
     marginBottom: Spacing.sm,
-    textAlign: 'center',
   },
   subtitle: {
-    fontSize: FontSize.sm,
+    fontSize: FontSize.md,
     fontFamily: 'ProductSans-Regular',
     color: Colors.dark.textSecondary,
     marginTop: Spacing.xs,
-    textAlign: 'center',
   },
   content: {
     flex: 1,
@@ -635,8 +710,51 @@ const styles = StyleSheet.create({
     width: 60,
     zIndex: 1,
   },
-  buttonContainer: {
-    paddingBottom: Spacing.lg,
+  bottomNavigation: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: 40,
+    backgroundColor: 'transparent',
+  },
+  bottomNavContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 12,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  nextButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    height: 48,
+    borderRadius: 22,
+    backgroundColor: Colors.primary,
+    elevation: 16,
+    shadowColor: '#BB3E4F',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.6,
+    shadowRadius: 16,
+    gap: 8,
+  },
+  nextButtonDisabled: {
+    opacity: 0.5,
+  },
+  nextButtonText: {
+    fontSize: 16,
+    fontFamily: 'ProductSans-Bold',
+    color: Colors.white,
   },
   loadingOverlay: {
     flex: 1,

@@ -23,11 +23,15 @@ import { RootStackParamList } from '../types';
 import { Colors } from '../constants/theme';
 import { getCurrentSession } from '../lib/index';
 import { AnalyseModalProvider } from '../contexts/AnalyseModalContext';
+import { PaywallProvider } from '../contexts/PaywallContext';
 
 /** YOUR ANALYSIS-PAGE IMPORTS (kept) **/
 import { SignUpBiometricsScreen } from '../screens/SignUpBiometricsScreen';
 import { AnalysisResultsScreen } from '../screens/AnalysisResultsScreen';
 import { TabNavigator } from './TabNavigator';
+
+/** PAYWALL SCREENS **/
+import { PaywallMainScreen } from '../screens/PaywallMainScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -61,8 +65,9 @@ export function AppNavigator() {
 
   return (
     <NavigationContainer>
-      <AnalyseModalProvider>
-        <Stack.Navigator
+      <PaywallProvider>
+        <AnalyseModalProvider>
+          <Stack.Navigator
           initialRouteName={initialRoute}
           screenOptions={{
             headerShown: false,
@@ -117,8 +122,19 @@ export function AppNavigator() {
         <Stack.Screen name="SignUpBiometrics" component={SignUpBiometricsScreen} />
         <Stack.Screen name="AnalysisResults" component={AnalysisResultsScreen} />
         <Stack.Screen name="MainApp" component={TabNavigator} />
+
+        {/* PAYWALL SCREENS */}
+        <Stack.Screen 
+          name="PaywallMain" 
+          component={PaywallMainScreen}
+          options={{ 
+            presentation: 'card',
+            animation: 'slide_from_bottom'
+          }}
+        />
       </Stack.Navigator>
       </AnalyseModalProvider>
+      </PaywallProvider>
     </NavigationContainer>
   );
 }

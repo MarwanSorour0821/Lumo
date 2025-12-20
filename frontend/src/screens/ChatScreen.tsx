@@ -28,6 +28,7 @@ import { getCurrentSession, getUserProfile } from '../lib/supabase';
 import { sendChatMessage, sendChatFile, getChatHistory, ChatMessage } from '../lib/chat';
 import { MarkdownText } from '../components/MarkdownText';
 import AttachmentModal from '../components/AttachmentModal';
+import { usePaywall } from '../contexts/PaywallContext';
 
 // Plus Icon (light gray)
 const PlusIcon = ({ size = 20, color = '#808080' }: { size?: number; color?: string }) => (
@@ -294,6 +295,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null);
   const nameFade = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef<ScrollView>(null);
+  const { hasActiveSubscription } = usePaywall();
 
   // Load user info and chat history on mount
   useEffect(() => {
@@ -356,6 +358,12 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
   const handleSendMessage = useCallback(async () => {
     // Need either a message or a file to send
     if ((!message.trim() && !selectedFile) || !userId || isLoading || isUploading) return;
+
+    // Check subscription status - block if user doesn't have active or trialing subscription
+    if (!hasActiveSubscription) {
+      navigation.navigate('PaywallMain');
+      return;
+    }
 
     const userMessage = message.trim();
     const fileToSend = selectedFile;
@@ -467,7 +475,7 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
         setIsTyping(false);
       }
     }
-  }, [message, selectedFile, userId, isLoading, isUploading]);
+  }, [message, selectedFile, userId, isLoading, isUploading, hasActiveSubscription, navigation]);
 
 
   const handlePickImage = async () => {
@@ -545,6 +553,13 @@ export function ChatScreen({ navigation }: ChatScreenProps) {
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
         const isPdf = asset.mimeType === 'application/pdf';
+        
+        // Check subscription status for PDF uploads only
+        if (isPdf && !hasActiveSubscription) {
+          navigation.navigate('PaywallMain');
+          return;
+        }
+        
         const fileType = isPdf ? 'pdf' : 'image';
         
         setSelectedFile({

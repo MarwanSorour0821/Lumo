@@ -7,6 +7,7 @@ import Svg, { Path, Circle, G } from 'react-native-svg';
 import { Colors, FontSize, Spacing, BorderRadius } from '../constants/theme';
 import { RootStackParamList } from '../types';
 import { useAnalyseModal } from '../contexts/AnalyseModalContext';
+import { usePaywall } from '../contexts/PaywallContext';
 
 type BottomNavBarProps = {
   currentRoute?: string;
@@ -32,12 +33,15 @@ const HomeIcon = ({ size = 24, color = '#FFFFFF' }: { size?: number; color?: str
   </Svg>
 );
 
-// My Lab Icon
+// My Lab Icon (History Icon)
 const MyLabIcon = ({ size = 24, color = '#FFFFFF' }: { size?: number; color?: string }) => (
-  <Svg width={size} height={size} viewBox="0 0 2048 2048" fill="none">
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
     <Path
-      d="M1152 640H512V512h640v128zM256 1664h681l-64 128H128V128h1408v640h-128V256H256v1408zm256-384h617l-64 128H512v-128zm512-384v128H512V896h512zm939 967q14 28 14 57q0 26-10 49t-27 41t-41 28t-50 10h-754q-26 0-49-10t-41-27t-28-41t-10-50q0-29 14-57l299-598v-241h-128V896h640v128h-128v241l299 598zm-242-199l-185-369v-271h-128v271l-185 369h498z"
-      fill={color}
+      d="M2 21.5h20m-4-6h.009m-.009 3h.009M6 18.5h.009M6 15.5h.009M6 12.5h.009M6 9.5h.009M7.79 5.392l8.428 4.198M8 4.5a2 2 0 1 1-4 0a2 2 0 0 1 4 0m12 6a2 2 0 1 1-4 0a2 2 0 0 1 4 0"
+      stroke={color}
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
     />
   </Svg>
 );
@@ -126,10 +130,18 @@ export function BottomNavBar({ currentRoute }: BottomNavBarProps) {
   };
 
   const { showModal } = useAnalyseModal();
+  const { hasActiveSubscription } = usePaywall();
 
   const handlePlusPress = () => {
     // Trigger haptic feedback
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    // Check subscription status - block if user doesn't have active or trialing subscription
+    if (!hasActiveSubscription) {
+      navigation.navigate('PaywallMain');
+      return;
+    }
+    
     showModal();
   };
 
@@ -160,16 +172,14 @@ export function BottomNavBar({ currentRoute }: BottomNavBarProps) {
           })}
         </View>
         
-        {/* Plus Button on the Right - Separate Container */}
-        <View style={styles.plusButtonContainer}>
-          <TouchableOpacity
-            style={styles.plusButton}
-            onPress={handlePlusPress}
-            activeOpacity={0.7}
-          >
-            <PlusIcon size={28} color={Colors.white} />
-          </TouchableOpacity>
-        </View>
+        {/* Plus Button on the Right */}
+        <TouchableOpacity
+          style={styles.plusButton}
+          onPress={handlePlusPress}
+          activeOpacity={0.7}
+        >
+          <PlusIcon size={28} color={Colors.white} />
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -221,22 +231,19 @@ const styles = StyleSheet.create({
   navTextActive: {
     color: Colors.white,
   },
-  plusButtonContainer: {
-    backgroundColor: '#1A1A1A',
-    borderRadius: 36,
-    width: 72,
-    height: 72,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: Spacing.sm,
-  },
   plusButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     backgroundColor: Colors.primary,
+    marginLeft: Spacing.sm,
+    shadowColor: '#BB3E4F',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.6,
+    shadowRadius: 16,
+    elevation: 10,
   },
 });
 

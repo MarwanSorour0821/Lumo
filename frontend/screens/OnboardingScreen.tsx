@@ -4,7 +4,6 @@ import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import Svg, { Path } from 'react-native-svg';
 import { PrimaryButton } from '../components';
 import { colors, Theme } from '../constants/theme';
 import { RootStackParamList } from '../src/types';
@@ -12,7 +11,7 @@ import { SignInModal } from '../src/components/SignInModal';
 import { signInWithGoogle, getUserProfile } from '../src/lib/supabase';
 import { Alert } from 'react-native';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface OnboardingScreenProps {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Onboarding'>;
@@ -25,21 +24,6 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     flex: 1,
     paddingHorizontal: 24,
     position: 'relative',
-  },
-  pageFill: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#B01328',
-    zIndex: 2, // Above slider (1), below bottomSection (3)
-    overflow: 'visible',
-  },
-  waveContainer: {
-    position: 'absolute',
-    top: -29,
-    left: 0,
-    width: SCREEN_WIDTH * 40, // Much longer pattern (40x) for seamless looping
   },
   scrollViewContainer: {
     position: 'relative',
@@ -159,35 +143,25 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   interactiveButtonContainer: {
     width: '100%',
     marginBottom: 16,
+    borderRadius: 28,
+    // Shadow properties - must be on container View, not TouchableOpacity
+    elevation: 16,
+    shadowColor: '#BB3E4F',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.6,
+    shadowRadius: 16,
   },
   interactiveButton: {
     width: '100%',
     height: 56,
     borderRadius: 28,
-    overflow: 'hidden',
     backgroundColor: '#B01328',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
   },
   buttonContent: {
     width: '100%',
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    position: 'relative',
-    overflow: 'hidden',
-    borderRadius: 28,
-  },
-  progressFill: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
     borderRadius: 28,
   },
   buttonText: {
@@ -210,15 +184,6 @@ export default function OnboardingScreen({
   const subTextFade = useRef(new Animated.Value(0)).current;
   const buttonFade = useRef(new Animated.Value(0)).current;
   
-  // Interactive button state
-  const [isHolding, setIsHolding] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const progressAnim = useRef(new Animated.Value(0)).current;
-  const buttonScale = useRef(new Animated.Value(1)).current;
-  const currentProgressRef = useRef(0);
-  
-  // Wave animation
-  const waveAnim = useRef(new Animated.Value(0)).current;
   
   // Image slider state
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -328,94 +293,15 @@ export default function OnboardingScreen({
     }).start();
   }, []);
 
-  // Continuous wave animation - faster and infinite loop with much longer pattern
-  useEffect(() => {
-    waveAnim.setValue(0);
-    const waveAnimationDistance = SCREEN_WIDTH * 20; // Move 20x screen width before looping (half of 40x pattern)
-    Animated.loop(
-      Animated.timing(waveAnim, {
-        toValue: waveAnimationDistance, // Move 20x screen width before looping
-        duration: 30000, // 30 seconds for one full cycle (much longer)
-        useNativeDriver: true, // Using translateX transform
-      }),
-      { iterations: -1 } // Infinite loop
-    ).start();
-  }, []);
-
-  // Handle button press start
-  const handlePressIn = () => {
-    setIsHolding(true);
-    setProgress(0);
-    progressAnim.setValue(0);
-    currentProgressRef.current = 0;
-    
-    // Initial haptic feedback
+  // Handle Get Started button press
+  const handleGetStarted = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    
-    // Animate button scale down slightly
-    Animated.spring(buttonScale, {
-      toValue: 0.98,
-      useNativeDriver: true,
-    }).start();
-    
-    // Track previous progress for haptic feedback
-    let previousProgress = 0;
-    
-    // Add listener for progress updates
-    const progressListener = progressAnim.addListener(({ value }) => {
-      const currentProgress = Math.round(value * 100);
-      currentProgressRef.current = currentProgress;
-      setProgress(currentProgress);
-      
-      // Trigger haptic feedback every time percentage increases
-      if (currentProgress > previousProgress) {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        previousProgress = currentProgress;
-      }
-    });
-    
-    // Start progress animation with easing for acceleration
-    Animated.timing(progressAnim, {
-      toValue: 1,
-      duration: 800, // 0.8 seconds to fill (even faster)
-      easing: (t) => t * t, // Quadratic easing - accelerates over time
-      useNativeDriver: false,
-    }).start(({ finished }) => {
-      progressAnim.removeListener(progressListener);
-      if (finished) {
-        // Progress complete - navigate
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        if (onGetStarted) {
-          onGetStarted();
-        } else {
-          navigation.navigate('SignUpPersonal');
-        }
-        handlePressOut();
-      }
-    });
-  };
-
-  // Handle button press release
-  const handlePressOut = () => {
-    setIsHolding(false);
-    
-    // Animate button scale back
-    Animated.spring(buttonScale, {
-      toValue: 1,
-      useNativeDriver: true,
-    }).start();
-    
-    // Reset progress if not complete - smooth unfill animation
-    if (progress < 100) {
-      progressAnim.stopAnimation();
-      Animated.timing(progressAnim, {
-        toValue: 0,
-        duration: 400,
-        easing: (t) => 1 - Math.pow(1 - t, 3), // Ease out cubic for smooth liquid-like unfill
-        useNativeDriver: false,
-      }).start();
-      setProgress(0);
-      currentProgressRef.current = 0;
+    if (onGetStarted) {
+      onGetStarted();
+    } else {
+      navigation.navigate('SignUpSex', {
+        signUpData: {} as any,
+      });
     }
   };
 
@@ -520,37 +406,15 @@ export default function OnboardingScreen({
           >
           <View style={styles.interactiveButtonContainer}>
             <TouchableOpacity
-              activeOpacity={1}
-              onPressIn={handlePressIn}
-              onPressOut={handlePressOut}
+              activeOpacity={0.9}
+              onPress={handleGetStarted}
               style={styles.interactiveButton}
             >
-              <Animated.View
-                style={[
-                  styles.buttonContent,
-                  {
-                    transform: [{ scale: buttonScale }],
-                  },
-                ]}
-              >
-                {/* Progress fill background */}
-                <Animated.View
-                  style={[
-                    styles.progressFill,
-                    {
-                      width: progressAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0, SCREEN_WIDTH - 48],
-                      }),
-                    },
-                  ]}
-                />
-                
-                {/* Button text */}
+              <View style={styles.buttonContent}>
                 <Text style={[styles.buttonText, { color: themeColors.buttonText || '#FFFFFF' }]}>
-                  {isHolding ? `Hold to continue... ${Math.round(progress)}%` : 'Hold to Get Started'}
+                  Get Started
                 </Text>
-              </Animated.View>
+              </View>
             </TouchableOpacity>
           </View>
           
@@ -566,82 +430,6 @@ export default function OnboardingScreen({
             </TouchableOpacity>
           </Animated.View>
         </View>
-      
-      {/* Red fill effect - fills from bottom to top with wavy top - only visible when holding */}
-      <Animated.View
-        style={[
-          styles.pageFill,
-          {
-            height: progressAnim.interpolate({
-              inputRange: [0, 1],
-              outputRange: [0, SCREEN_HEIGHT],
-            }),
-            opacity: progressAnim.interpolate({
-              inputRange: [0, 0.01, 1],
-              outputRange: [0, 1, 1], // Fade in immediately when progress starts
-            }),
-          },
-        ]}
-        pointerEvents="none"
-      >
-        {/* Wavy top edge - animated horizontally with much longer seamless pattern (40x) */}
-        <Animated.View
-          style={[
-            styles.waveContainer,
-            {
-              transform: [
-                {
-                  translateX: waveAnim.interpolate({
-                    inputRange: [0, SCREEN_WIDTH * 20],
-                    outputRange: [0, -(SCREEN_WIDTH * 20)],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <Svg
-            width={SCREEN_WIDTH * 40}
-            height={30}
-            viewBox={`0 0 ${SCREEN_WIDTH * 40} 30`}
-          >
-            {/* Generate seamless repeating wave pattern (40x screen width) */}
-            <Path
-              d={(() => {
-                // Base pattern that repeats every 2x screen width
-                const basePattern = `M0 30 
-                 Q ${SCREEN_WIDTH * 0.125} 0, ${SCREEN_WIDTH * 0.25} 15 
-                 T ${SCREEN_WIDTH * 0.5} 15 
-                 T ${SCREEN_WIDTH * 0.75} 15 
-                 T ${SCREEN_WIDTH} 15 
-                 Q ${SCREEN_WIDTH * 1.125} 0, ${SCREEN_WIDTH * 1.25} 15 
-                 T ${SCREEN_WIDTH * 1.5} 15 
-                 T ${SCREEN_WIDTH * 1.75} 15 
-                 T ${SCREEN_WIDTH * 2} 15 `;
-                
-                // Repeat the pattern 20 times to get 40x screen width
-                let path = 'M0 30 ';
-                for (let i = 0; i < 20; i++) {
-                  const offset = i * SCREEN_WIDTH * 2;
-                  path += `Q ${offset + SCREEN_WIDTH * 0.125} 0, ${offset + SCREEN_WIDTH * 0.25} 15 
-                 T ${offset + SCREEN_WIDTH * 0.5} 15 
-                 T ${offset + SCREEN_WIDTH * 0.75} 15 
-                 T ${offset + SCREEN_WIDTH} 15 
-                 Q ${offset + SCREEN_WIDTH * 1.125} 0, ${offset + SCREEN_WIDTH * 1.25} 15 
-                 T ${offset + SCREEN_WIDTH * 1.5} 15 
-                 T ${offset + SCREEN_WIDTH * 1.75} 15 
-                 T ${offset + SCREEN_WIDTH * 2} 15 `;
-                }
-                
-                // Close the path
-                path += `L ${SCREEN_WIDTH * 40} 30 L 0 30 Z`;
-                return path;
-              })()}
-              fill="#B01328"
-            />
-          </Svg>
-        </Animated.View>
-      </Animated.View>
 
       {/* Sign In Modal */}
       <SignInModal

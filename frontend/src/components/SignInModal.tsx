@@ -19,7 +19,8 @@ import * as Haptics from 'expo-haptics';
 import * as WebBrowser from 'expo-web-browser';
 import { Alert } from 'react-native';
 import GoogleSignInButton from './GoogleSignInButton';
-import { signInWithEmail } from '../lib/supabase';
+import AppleSignInButton from './AppleSignInButton';
+import { signInWithEmail, signInWithApple } from '../lib/supabase';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -38,6 +39,7 @@ export function SignInModal({ visible, onClose, onContinue, onUsePhone, onGoogle
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isAppleLoading, setIsAppleLoading] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const heightAnim = useRef(new Animated.Value(SCREEN_HEIGHT * 0.65)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
@@ -147,6 +149,31 @@ export function SignInModal({ visible, onClose, onContinue, onUsePhone, onGoogle
   const handleClose = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onClose();
+  };
+
+  const handleAppleSignIn = async () => {
+    setIsAppleLoading(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    const { data, error } = await signInWithApple();
+    setIsAppleLoading(false);
+
+    if (error) {
+      if (error.message !== 'Sign in cancelled') {
+        Alert.alert('Sign In Error', error.message);
+      }
+      return;
+    }
+
+    if (data.user) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (onSignInSuccess) {
+        onSignInSuccess(data.user.id, data.user.email);
+      }
+      onClose();
+    } else {
+      Alert.alert('Sign In Error', 'Failed to sign in with Apple');
+    }
   };
 
   const handleTermsPress = async () => {
@@ -263,7 +290,6 @@ export function SignInModal({ visible, onClose, onContinue, onUsePhone, onGoogle
                   autoCapitalize="none"
                   autoCorrect={false}
                   textContentType="emailAddress"
-                  editable={!showPassword}
                 />
               </View>
             </View>
@@ -304,6 +330,15 @@ export function SignInModal({ visible, onClose, onContinue, onUsePhone, onGoogle
                 </View>
               </View>
             )}
+
+            {/* Apple Sign In Button */}
+            <View style={styles.appleButtonContainer}>
+              <AppleSignInButton
+                onPress={handleAppleSignIn}
+                loading={isAppleLoading}
+                style={styles.appleButton}
+              />
+            </View>
 
             {/* Google Sign In Button */}
             {onGoogleSignIn && (
@@ -434,6 +469,13 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     textAlign: 'center',
     marginBottom: 32,
+  },
+  appleButtonContainer: {
+    marginBottom: 10,
+    width: '100%',
+  },
+  appleButton: {
+    paddingVertical: 14,
   },
   googleButtonContainer: {
     marginBottom: 10,

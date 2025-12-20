@@ -1,6 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, View, Text, StyleSheet, ActivityIndicator, ViewStyle } from 'react-native';
 import Svg, { G, Path } from 'react-native-svg';
+import * as Haptics from 'expo-haptics';
 import { Colors, Spacing, FontSize, BorderRadius } from '../constants/theme';
 
 interface GoogleSignInButtonProps {
@@ -47,10 +48,17 @@ export default function GoogleSignInButton({
 }: GoogleSignInButtonProps) {
   const isDisabled = disabled || loading;
 
+  const handlePress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (onPress) {
+      onPress();
+    }
+  };
+
   return (
     <TouchableOpacity
       style={[styles.button, style]}
-      onPress={onPress}
+      onPress={handlePress}
       disabled={isDisabled}
       activeOpacity={0.8}
     >
