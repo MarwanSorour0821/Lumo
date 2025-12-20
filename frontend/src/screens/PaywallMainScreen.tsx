@@ -298,7 +298,7 @@ export function PaywallMainScreen({ navigation }: PaywallMainScreenProps) {
               >
                 {selectedPlan === 'yearly' && (
                   <View style={styles.saveBadge}>
-                    <Text style={styles.saveBadgeText}>Save 20%</Text>
+                    <Text style={styles.saveBadgeText}>Save 23%</Text>
                   </View>
                 )}
                 <View style={styles.planContent}>
@@ -321,8 +321,8 @@ export function PaywallMainScreen({ navigation }: PaywallMainScreenProps) {
                       </Svg>
                     )}
                   </View>
-                  <Text style={styles.planPrice}>$85<Text style={styles.planPeriod}>/year</Text></Text>
-                  <Text style={styles.planMonthly}>$7.08/mo</Text>
+                  <Text style={styles.planPrice}>$65<Text style={styles.planPeriod}>/year</Text></Text>
+                  <Text style={styles.planMonthly}>$5.42/mo</Text>
                 </View>
               </TouchableOpacity>
 

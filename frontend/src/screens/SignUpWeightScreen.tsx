@@ -304,12 +304,16 @@ export function SignUpWeightScreen({ navigation, route }: SignUpWeightScreenProp
         return;
       }
 
-      // Success - hide loading and navigate to Home (paywall will show automatically if needed)
+      // Success - hide loading and navigate to Home, then show paywall (new users should see paywall)
       setLoading(false);
       navigation.reset({
         index: 0,
         routes: [{ name: 'Home' }],
       });
+      // Navigate to paywall after a short delay to ensure Home is mounted
+      setTimeout(() => {
+        navigation.navigate('PaywallMain');
+      }, 500);
     } catch (error: any) {
       Alert.alert('Error', error.message || 'An unexpected error occurred');
       setLoading(false);

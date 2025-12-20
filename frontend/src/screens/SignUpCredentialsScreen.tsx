@@ -218,12 +218,16 @@ export function SignUpCredentialsScreen({ navigation, route }: SignUpCredentials
         return;
       }
 
-      // Success - navigate to Home (paywall will show automatically if needed)
+      // Success - navigate to Home, then show paywall (new users should see paywall)
       setIsCreatingAccount(false);
       navigation.reset({
         index: 0,
         routes: [{ name: 'Home' }],
       });
+      // Navigate to paywall after a short delay to ensure Home is mounted
+      setTimeout(() => {
+        navigation.navigate('PaywallMain');
+      }, 500);
     } catch (error: any) {
       Alert.alert('Error', error.message || 'An unexpected error occurred');
       setIsCreatingAccount(false);

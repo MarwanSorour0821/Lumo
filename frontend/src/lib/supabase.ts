@@ -196,8 +196,9 @@ async function signInWithOAuthProvider(
   }
 }
 
-/** Sign in with Apple using Supabase OAuth */
+/** Sign in with Apple using Supabase OAuth (same approach as Google) */
 export async function signInWithApple(): Promise<AppleSignInResponse> {
+  // Use OAuth flow which handles audience validation automatically
   return signInWithOAuthProvider('apple');
 }
 

@@ -18,11 +18,21 @@ import { RouteProp } from '@react-navigation/native';
 import BackButton from '../../components/BackButton';
 import { ProgressBar } from '../components/ProgressBar';
 import GoogleSignInButton from '../components/GoogleSignInButton';
+import AppleSignInButton from '../components/AppleSignInButton';
 import Svg, { Path } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import { Colors, FontSize, FontWeight, Spacing, BorderRadius } from '../constants/theme';
-import { RootStackParamList, AppleSignUpData } from '../types';
-import { signInWithGoogle } from '../lib/supabase';
+import { RootStackParamList, AppleSignUpData, BiologicalSex } from '../types';
+import { signInWithGoogle, signInWithApple, createUserProfile } from '../lib/supabase';
+
+// Helper functions for conversions
+const feetInchesToCm = (feet: number, inches: number): number => {
+  return Math.round((feet * 30.48) + (inches * 2.54));
+};
+
+const lbsToKg = (lbs: number): number => {
+  return Math.round(lbs * 0.453592);
+};
 
  type SignUpPersonalScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'SignUpPersonal'>;
@@ -34,6 +44,7 @@ export function SignUpPersonalScreen({ navigation, route }: SignUpPersonalScreen
   const [lastName, setLastName] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isAppleLoading, setIsAppleLoading] = useState(false);
   const headingFade = useRef(new Animated.Value(0)).current;
   const inputsFade = useRef(new Animated.Value(0)).current;
   const buttonFade = useRef(new Animated.Value(0)).current;
@@ -72,6 +83,69 @@ export function SignUpPersonalScreen({ navigation, route }: SignUpPersonalScreen
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const createAccountWithAllData = async (
+    signUpData: AppleSignUpData,
+    sex: BiologicalSex,
+    age: string,
+    height: string,
+    heightFeet: string,
+    heightInches: string,
+    heightUnit: 'cm' | 'ft',
+    weight: string,
+    weightUnit: 'kg' | 'lbs'
+  ) => {
+    try {
+      // Calculate date of birth from age
+      const ageNum = parseInt(age, 10);
+      const today = new Date();
+      const birthYear = today.getFullYear() - ageNum;
+      const dateOfBirth = new Date(birthYear, today.getMonth(), today.getDate());
+      
+      // Convert height to cm
+      let heightInCm: number;
+      if (heightUnit === 'cm') {
+        heightInCm = parseInt(height, 10);
+      } else {
+        const feetNum = parseInt(heightFeet || '0', 10);
+        const inchesNum = parseInt(heightInches || '0', 10);
+        heightInCm = feetInchesToCm(feetNum, inchesNum);
+      }
+
+      // Convert weight to kg
+      let weightInKg: number;
+      if (weightUnit === 'kg') {
+        weightInKg = parseFloat(weight);
+      } else {
+        weightInKg = lbsToKg(parseFloat(weight));
+      }
+
+      // Create user profile
+      const result = await createUserProfile(
+        signUpData.userId,
+        sex,
+        dateOfBirth,
+        heightInCm,
+        weightInKg,
+        signUpData.firstName,
+        signUpData.lastName,
+        signUpData.email
+      );
+
+      if (result.error) {
+        Alert.alert(
+          'Profile Error', 
+          result.error.message + '\n\nIf this persists, please check your Supabase database configuration.'
+        );
+        return false;
+      }
+
+      return true;
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'An unexpected error occurred');
+      return false;
+    }
   };
 
   const handleContinue = () => {
@@ -119,8 +193,40 @@ export function SignUpPersonalScreen({ navigation, route }: SignUpPersonalScreen
           isAppleSignIn: true,
         };
 
-        setIsGoogleLoading(false);
-        navigation.navigate('SignUpSex', { signUpData: googleSignUpData });
+        // Check if we have all the data already (sex, age, height, weight)
+        const { sex, age, height, heightFeet, heightInches, heightUnit, weight, weightUnit } = route.params || {};
+        
+        if (sex && age && height && weight) {
+          // We have all data, create account directly
+          const success = await createAccountWithAllData(
+            googleSignUpData,
+            sex,
+            age,
+            height,
+            heightFeet || '',
+            heightInches || '',
+            heightUnit || 'cm',
+            weight,
+            weightUnit || 'kg'
+          );
+          
+          setIsGoogleLoading(false);
+          
+          if (success) {
+            // Navigate to Home, then show paywall
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Home' }],
+            });
+            setTimeout(() => {
+              navigation.navigate('PaywallMain');
+            }, 500);
+          }
+        } else {
+          // Missing data, continue to sex page
+          setIsGoogleLoading(false);
+          navigation.navigate('SignUpSex', { signUpData: googleSignUpData });
+        }
       } else {
         Alert.alert('Sign In Error', 'Failed to get user information');
         setIsGoogleLoading(false);
@@ -128,6 +234,75 @@ export function SignUpPersonalScreen({ navigation, route }: SignUpPersonalScreen
     } catch (error: any) {
       Alert.alert('Sign In Error', error.message || 'An unexpected error occurred');
       setIsGoogleLoading(false);
+    }
+  };
+
+  const handleAppleSignIn = async () => {
+    setIsAppleLoading(true);
+    try {
+      const { data, error } = await signInWithApple();
+
+      if (error) {
+        if (error.message !== 'Sign in cancelled') {
+          Alert.alert('Sign In Error', error.message);
+        }
+        setIsAppleLoading(false);
+        return;
+      }
+
+      if (data.user) {
+        const providerFirst = data.user.firstName || firstName || undefined;
+        const providerLast = data.user.lastName || lastName || undefined;
+
+        const appleSignUpData: AppleSignUpData = {
+          userId: data.user.id,
+          email: data.user.email,
+          firstName: providerFirst,
+          lastName: providerLast,
+          isAppleSignIn: true,
+        };
+
+        // Check if we have all the data already (sex, age, height, weight)
+        const { sex, age, height, heightFeet, heightInches, heightUnit, weight, weightUnit } = route.params || {};
+        
+        if (sex && age && height && weight) {
+          // We have all data, create account directly
+          const success = await createAccountWithAllData(
+            appleSignUpData,
+            sex,
+            age,
+            height,
+            heightFeet || '',
+            heightInches || '',
+            heightUnit || 'cm',
+            weight,
+            weightUnit || 'kg'
+          );
+          
+          setIsAppleLoading(false);
+          
+          if (success) {
+            // Navigate to Home, then show paywall
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Home' }],
+            });
+            setTimeout(() => {
+              navigation.navigate('PaywallMain');
+            }, 500);
+          }
+        } else {
+          // Missing data, continue to sex page
+          setIsAppleLoading(false);
+          navigation.navigate('SignUpSex', { signUpData: appleSignUpData });
+        }
+      } else {
+        Alert.alert('Sign In Error', 'Failed to get user information');
+        setIsAppleLoading(false);
+      }
+    } catch (error: any) {
+      Alert.alert('Sign In Error', error.message || 'An unexpected error occurred');
+      setIsAppleLoading(false);
     }
   };
 
@@ -206,6 +381,19 @@ export function SignUpPersonalScreen({ navigation, route }: SignUpPersonalScreen
                 </View>
               </Animated.View>
             </View>
+
+            {/* Apple Sign In Button */}
+            <Animated.View
+              style={[
+                styles.socialButtonContainer,
+                { opacity: buttonFade },
+              ]}
+            >
+              <AppleSignInButton
+                onPress={handleAppleSignIn}
+                loading={isAppleLoading}
+              />
+            </Animated.View>
 
             {/* Google Sign In Button */}
             <Animated.View
