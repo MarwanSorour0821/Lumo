@@ -1,3 +1,5 @@
+import os
+import stripe
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -6,6 +8,11 @@ from .models import Analysis
 from .serializers import AnalysisSerializer, AnalysisListSerializer, CreateAnalysisSerializer
 from .authentication import SupabaseAuthentication
 from chat.models import ChatMessage
+from supabase import create_client
+
+# Initialize Stripe (only if key is available, don't fail if not set)
+if os.environ.get('STRIPE_SECRET_KEY'):
+    stripe.api_key = os.environ.get('STRIPE_SECRET_KEY')
 
 
 class AnalysisListCreateView(APIView):
@@ -89,7 +96,7 @@ class AnalysisDetailView(APIView):
 
 class DeleteAccountView(APIView):
     """
-    DELETE: Delete all user data (analyses, chat messages)
+    DELETE: Delete all user data (analyses, chat messages, subscription)
     Note: This does NOT delete the Supabase auth user - that must be done from the frontend
     """
     authentication_classes = [SupabaseAuthentication]
@@ -100,6 +107,32 @@ class DeleteAccountView(APIView):
         user_id = request.user.user_id
         
         try:
+            # Cancel Stripe subscription if exists
+            subscription_cancelled = False
+            supabase_url = os.environ.get("SUPABASE_URL") or os.environ.get("SUPABASE_PROJECT_URL")
+            supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_ANON_KEY")
+            
+            if supabase_url and supabase_key and stripe.api_key:
+                try:
+                    supabase = create_client(supabase_url, supabase_key)
+                    # Get user's subscription
+                    subscription_response = supabase.table('subscriptions').select('stripe_subscription_id').eq('user_id', user_id).eq('status', 'active').execute()
+                    
+                    if subscription_response.data and len(subscription_response.data) > 0:
+                        stripe_subscription_id = subscription_response.data[0].get('stripe_subscription_id')
+                        if stripe_subscription_id:
+                            # Cancel the subscription in Stripe
+                            stripe.Subscription.delete(stripe_subscription_id)
+                            subscription_cancelled = True
+                            
+                            # Update subscription status in Supabase
+                            supabase.table('subscriptions').update({
+                                'status': 'cancelled',
+                            }).eq('stripe_subscription_id', stripe_subscription_id).execute()
+                except Exception as sub_error:
+                    # Log error but don't fail the entire deletion if subscription cancellation fails
+                    print(f'Warning: Failed to cancel subscription during account deletion: {str(sub_error)}')
+            
             # Delete all analyses for the user
             analyses_count = Analysis.objects.filter(user_id=user_id).delete()[0]
             
@@ -115,6 +148,7 @@ class DeleteAccountView(APIView):
                     'message': 'Account data deleted successfully',
                     'analyses_deleted': analyses_count,
                     'chat_messages_deleted': chat_count,
+                    'subscription_cancelled': subscription_cancelled,
                 },
                 status=status.HTTP_200_OK
             )
