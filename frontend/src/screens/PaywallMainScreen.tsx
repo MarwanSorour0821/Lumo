@@ -141,12 +141,13 @@ export function PaywallMainScreen({ navigation }: PaywallMainScreenProps) {
         setIsLoading(false);
         // No alert needed - user intentionally cancelled
         return;
-      } else if (browserResult.type === 'dismiss') {
-        // Browser was dismissed - could be success or user closed it
+      } else if (browserResult.type === 'dismiss' || browserResult.type === 'opened') {
+        // Browser was dismissed/opened - could be success (redirected to app) or user closed it
+        // For 'opened', it means a deep link was opened (success case)
         setIsLoading(true);
         // Poll for subscription status with retries
         let attempts = 0;
-        const maxAttempts = 10;
+        const maxAttempts = 15; // Increased attempts to account for webhook processing time
         const pollInterval = 1000; // 1 second
         
         const checkSubscription = async () => {
@@ -156,16 +157,15 @@ export function PaywallMainScreen({ navigation }: PaywallMainScreenProps) {
           if (statusResponse.has_active_subscription) {
             setIsLoading(false);
             await refreshSubscriptionStatus();
-            Alert.alert('Success', 'Your subscription is now active!', [
-              { text: 'OK', onPress: () => navigation.goBack() }
-            ]);
+            // Automatically navigate back on success (no alert needed)
+            navigation.goBack();
             return;
           }
           
           if (attempts < maxAttempts) {
             setTimeout(checkSubscription, pollInterval);
           } else {
-            // If after max attempts still no subscription, payment may have failed
+            // If after max attempts still no subscription, payment may have failed or still processing
             setIsLoading(false);
             Alert.alert(
               'Payment Processing',
@@ -176,7 +176,7 @@ export function PaywallMainScreen({ navigation }: PaywallMainScreenProps) {
         };
         
         // Start polling after a short delay to allow webhook to process
-        setTimeout(checkSubscription, 1500);
+        setTimeout(checkSubscription, 2000);
       } else {
         // Unknown result type
         setIsLoading(false);

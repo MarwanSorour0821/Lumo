@@ -2,6 +2,7 @@
  * Subscription API functions for Stripe checkout
  */
 
+import { makeRedirectUri } from 'expo-auth-session';
 import { supabase } from './supabase';
 
 // API base URL - adjust based on your environment
@@ -45,8 +46,18 @@ export async function createCheckoutSession(
     const userEmail = sessionData.session.user.email;
 
     // Default URLs for deep linking
-    const defaultSuccessUrl = 'lumo://subscription-success';
-    const defaultCancelUrl = 'lumo://subscription-cancel';
+    // Use makeRedirectUri to get the correct format for Expo Go (exp://) or custom scheme (lumo://)
+    const defaultSuccessUrl = makeRedirectUri({
+      scheme: 'lumo',
+      path: 'subscription-success',
+    });
+    const defaultCancelUrl = makeRedirectUri({
+      scheme: 'lumo',
+      path: 'subscription-cancel',
+    });
+    
+    // Log the URLs for debugging (can be removed in production)
+    console.log('Subscription callback URLs:', { defaultSuccessUrl, defaultCancelUrl });
 
     const response = await fetch(`${API_BASE_URL}/api/subscriptions/checkout/`, {
       method: 'POST',
@@ -125,6 +136,60 @@ export async function getSubscriptionStatus(): Promise<SubscriptionStatusRespons
   } catch (error: any) {
     return {
       has_active_subscription: false,
+      error: error.message || 'Network error',
+    };
+  }
+}
+
+/**
+ * Create a Stripe Customer Portal Session for managing subscription
+ */
+export async function createPortalSession(
+  returnUrl?: string
+): Promise<{ url: string; error?: string }> {
+  try {
+    // Get current session to get auth token
+    const { data: sessionData, error: sessionError } = await supabase?.auth.getSession();
+    
+    if (sessionError || !sessionData?.session) {
+      return {
+        url: '',
+        error: 'Not authenticated. Please sign in first.',
+      };
+    }
+
+    const token = sessionData.session.access_token;
+    const defaultReturnUrl = makeRedirectUri({
+      scheme: 'lumo',
+      path: 'settings',
+    });
+
+    const response = await fetch(`${API_BASE_URL}/api/subscriptions/portal/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        return_url: returnUrl || defaultReturnUrl,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return {
+        url: '',
+        error: data.error || 'Failed to create portal session',
+      };
+    }
+
+    return {
+      url: data.url,
+    };
+  } catch (error: any) {
+    return {
+      url: '',
       error: error.message || 'Network error',
     };
   }

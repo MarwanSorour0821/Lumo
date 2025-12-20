@@ -18,7 +18,9 @@ import { supabase } from '../lib/supabase';
 import { Alert } from 'react-native';
 import { deleteAccountData } from '../lib/api';
 import { usePaywall } from '../contexts/PaywallContext';
+import { createPortalSession } from '../lib/subscriptions';
 import * as Haptics from 'expo-haptics';
+import * as WebBrowser from 'expo-web-browser';
 
 type SettingsScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Settings'>;
@@ -291,6 +293,33 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
     navigation.navigate('PaywallMain');
   };
 
+  const handleManageSubscription = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    try {
+      const result = await createPortalSession();
+      
+      if (result.error || !result.url) {
+        Alert.alert(
+          'Error',
+          result.error || 'Failed to open subscription management. Please try again.'
+        );
+        return;
+      }
+
+      // Open Stripe Customer Portal in web browser
+      await WebBrowser.openBrowserAsync(result.url, {
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FORM_SHEET,
+        controlsColor: Colors.primary,
+      });
+    } catch (error: any) {
+      Alert.alert(
+        'Error',
+        error.message || 'Failed to open subscription management. Please try again.'
+      );
+    }
+  };
+
   const handleSignOut = async () => {
     Alert.alert(
       'Sign Out',
@@ -437,11 +466,22 @@ export function SettingsScreen({ navigation }: SettingsScreenProps) {
               text="Edit information" 
               onPress={() => navigation.navigate('EditInformation')}
             />
-            {!hasActiveSubscription && (
+            {!hasActiveSubscription ? (
               <SettingsItem
                 icon={LightningIcon}
                 text="Upgrade to Pro"
                 onPress={handleUpgradeToPro}
+                rightContent={
+                  <View style={styles.proBadge}>
+                    <Text style={styles.proBadgeText}>PRO</Text>
+                  </View>
+                }
+              />
+            ) : (
+              <SettingsItem
+                icon={LightningIcon}
+                text="Manage Subscription"
+                onPress={handleManageSubscription}
                 rightContent={
                   <View style={styles.proBadge}>
                     <Text style={styles.proBadgeText}>PRO</Text>

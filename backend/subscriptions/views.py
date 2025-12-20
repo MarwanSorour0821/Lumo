@@ -251,3 +251,54 @@ class StripeWebhookView(APIView):
                 }).eq('stripe_subscription_id', subscription_id).execute()
         
         return Response({'status': 'success'}, status=status.HTTP_200_OK)
+
+
+class CreatePortalSessionView(APIView):
+    """
+    Create a Stripe Customer Portal Session for managing subscription.
+    POST /api/subscriptions/portal/
+    
+    This allows users to manage their subscription, update payment methods, view invoices, etc.
+    """
+    authentication_classes = [SupabaseAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        try:
+            user_id = request.user.user_id
+            
+            # Get the user's Stripe customer ID from Supabase
+            supabase = get_supabase_client()
+            subscription_response = supabase.table('subscriptions').select('stripe_customer_id').eq('user_id', user_id).execute()
+            
+            if not subscription_response.data or not subscription_response.data[0].get('stripe_customer_id'):
+                return Response(
+                    {'error': 'No active subscription found'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            customer_id = subscription_response.data[0]['stripe_customer_id']
+            
+            # Get return URL from request or use default
+            return_url = request.data.get('return_url', 'lumo://settings')
+            
+            # Create Stripe Customer Portal Session
+            portal_session = stripe.billing_portal.Session.create(
+                customer=customer_id,
+                return_url=return_url,
+            )
+            
+            return Response({
+                'url': portal_session.url,
+            }, status=status.HTTP_200_OK)
+            
+        except stripe.error.StripeError as e:
+            return Response(
+                {'error': f'Stripe error: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            return Response(
+                {'error': f'Error creating portal session: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
