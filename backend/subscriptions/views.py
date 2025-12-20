@@ -186,13 +186,14 @@ class StripeWebhookView(APIView):
             # Only activate subscription if payment was successful
             if payment_status == 'paid' and subscription_id:
                 # Update user subscription in Supabase
+                # Use stripe_subscription_id for conflict resolution since it's unique
                 supabase.table('subscriptions').upsert({
                     'user_id': user_id,
                     'stripe_customer_id': customer_id,
                     'stripe_subscription_id': subscription_id,
                     'status': 'active',
                     'plan': session.get('metadata', {}).get('plan', 'yearly'),
-                }, on_conflict='user_id').execute()
+                }, on_conflict='stripe_subscription_id').execute()
             # If payment failed, we don't create/update subscription
             # The user will need to retry checkout
             
