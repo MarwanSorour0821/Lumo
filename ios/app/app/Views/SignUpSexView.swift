@@ -9,6 +9,7 @@ import SwiftUI
 
 struct SignUpSexView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var themeManager: ThemeManager
     @ObservedObject var coordinator: SignUpFlowCoordinator
     @State private var selectedSex: BiologicalSex?
     @State private var navigateToAge = false
@@ -19,7 +20,7 @@ struct SignUpSexView: View {
     
     var body: some View {
         ZStack {
-            Theme.colors.background
+            AppColors.background(themeManager.colorScheme)
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
@@ -30,7 +31,7 @@ struct SignUpSexView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("What's your gender?")
                                 .font(.custom("ProductSans-Regular", size: 40))
-                                .foregroundColor(.white)
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
                                 .opacity(headingOpacity)
                             
                             Text("This helps us personalize your blood analytics.")

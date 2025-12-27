@@ -25,7 +25,7 @@
 //    
 //    var body: some View {
 //        ZStack {
-//            Theme.colors.background
+//            AppColors.background(themeManager.colorScheme)
 //                .ignoresSafeArea()
 //            
 //            VStack(spacing: 0) {
@@ -430,6 +430,7 @@ import SwiftUI
 
 struct SignUpCredentialsView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var themeManager: ThemeManager
     @ObservedObject var coordinator: SignUpFlowCoordinator
     @State private var email: String = ""
     @State private var password: String = ""
@@ -446,7 +447,7 @@ struct SignUpCredentialsView: View {
     
     var body: some View {
         ZStack {
-            Theme.colors.background
+            AppColors.background(themeManager.colorScheme)
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
@@ -456,7 +457,7 @@ struct SignUpCredentialsView: View {
                         // Heading
                         Text("Save your progress")
                             .font(.custom("ProductSans-Regular", size: 40))
-                            .foregroundColor(.white)
+                            .foregroundColor(AppColors.text(themeManager.colorScheme))
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .opacity(headingOpacity)
                             .padding(.top, 32)

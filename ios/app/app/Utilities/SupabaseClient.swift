@@ -81,6 +81,26 @@ class AuthService {
         let error: AuthError?
     }
     
+    // Get current user ID
+    func getCurrentUserId() async throws -> String {
+        guard let client = SupabaseManager.shared.getClient() else {
+            throw NSError(domain: "AuthService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Supabase client not configured"])
+        }
+        
+        let session = try await client.auth.session
+        return session.user.id.uuidString
+    }
+    
+    // Get access token
+    func getAccessToken() async throws -> String {
+        guard let client = SupabaseManager.shared.getClient() else {
+            throw NSError(domain: "AuthService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Supabase client not configured"])
+        }
+        
+        let session = try await client.auth.session
+        return session.accessToken
+    }
+    
     // Sign in with email and password using Supabase client
     func signInWithEmail(email: String, password: String) async -> SignInResponse {
         guard let client = SupabaseManager.shared.getClient() else {

@@ -9,6 +9,7 @@ import SwiftUI
 
 struct SignUpWeightView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var themeManager: ThemeManager
     @ObservedObject var coordinator: SignUpFlowCoordinator
     @State private var weight: Double = 154 // lbs
     @State private var weightUnit: String = "lbs"
@@ -35,7 +36,7 @@ struct SignUpWeightView: View {
     
     var body: some View {
         ZStack {
-            Theme.colors.background
+            AppColors.background(themeManager.colorScheme)
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
@@ -46,13 +47,13 @@ struct SignUpWeightView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("What's your weight?")
                                 .font(.custom("ProductSans-Regular", size: 30))
-                                .foregroundColor(.white)
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
                                 .opacity(headingOpacity)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             
                             Text("We use this to personalize your health metrics and goals. Your weight data is kept private and secure.")
                                 .font(.custom("ProductSans-Regular", size: 16))
-                                .foregroundColor(.white.opacity(0.7))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                                 .opacity(headingOpacity)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
@@ -64,7 +65,7 @@ struct SignUpWeightView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Weight")
                                 .font(.custom("ProductSans-Bold", size: 14))
-                                .foregroundColor(.white.opacity(0.7))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             
                             Button(action: {
@@ -76,7 +77,7 @@ struct SignUpWeightView: View {
                                     VStack(alignment: .leading, spacing: 6) {
                                         Text("\(Int(weight)) \(weightUnit)")
                                             .font(.custom("ProductSans-Bold", size: 19))
-                                            .foregroundColor(Theme.colors.buttonText)
+                                            .foregroundColor(AppColors.text(themeManager.colorScheme))
                                         
                                         if weightUnit == "lbs" {
                                             Text("\(Int(weightInKg)) kg")
@@ -94,7 +95,7 @@ struct SignUpWeightView: View {
                                     
                                     Image(systemName: "scalemass")
                                         .font(.system(size: 24, weight: .medium))
-                                        .foregroundColor(.white.opacity(0.7))
+                                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                                 }
                                 .padding(.horizontal, 20)
                                 .padding(.vertical, 18)
@@ -110,7 +111,7 @@ struct SignUpWeightView: View {
                                 HStack(spacing: 6) {
                                     Image(systemName: "lock.fill")
                                         .font(.system(size: 12, weight: .medium))
-                                        .foregroundColor(Theme.colors.button)
+                                        .foregroundColor(AppColors.primary)
                                     
                                     Text("Your data is private and secure")
                                         .font(.custom("ProductSans-Regular", size: 12))
@@ -276,6 +277,7 @@ struct UnitToggleButton: View {
 
 // MARK: - Weight Picker Sheet
 struct WeightPickerSheet: View {
+    @EnvironmentObject var themeManager: ThemeManager
     @Binding var selectedWeight: Double
     @Binding var weightUnit: String
     @Binding var isPresented: Bool
@@ -287,7 +289,7 @@ struct WeightPickerSheet: View {
     
     var body: some View {
         ZStack {
-            Theme.colors.background
+            AppColors.background(themeManager.colorScheme)
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
@@ -295,7 +297,7 @@ struct WeightPickerSheet: View {
                 HStack {
                     Text("Your weight")
                         .font(.custom("ProductSans-Bold", size: 17))
-                        .foregroundColor(.white)
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
                     
                     Spacer()
                     
@@ -363,8 +365,7 @@ struct WeightPickerSheet: View {
                     }
                 }
                 .pickerStyle(.wheel)
-                .colorScheme(.dark)
-                .accentColor(Theme.colors.button)
+                .accentColor(AppColors.primary)
                 .padding(.horizontal, 24)
                 
                 Spacer()
@@ -387,7 +388,7 @@ struct WeightPickerSheet: View {
                     .padding(.vertical, 16)
                     .background(
                         RoundedRectangle(cornerRadius: 28)
-                            .fill(Theme.colors.button)
+                            .fill(AppColors.primary)
                     )
                 }
                 .padding(.horizontal, 24)

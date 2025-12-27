@@ -9,6 +9,7 @@ import SwiftUI
 
 struct SignUpAgeView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var themeManager: ThemeManager
     @ObservedObject var coordinator: SignUpFlowCoordinator
     @State private var selectedBirthday: Date = Calendar.current.date(byAdding: .year, value: -24, to: Date()) ?? Date()
     @State private var navigateToHeight = false
@@ -33,7 +34,7 @@ struct SignUpAgeView: View {
     
     var body: some View {
         ZStack {
-            Theme.colors.background
+            AppColors.background(themeManager.colorScheme)
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
@@ -44,13 +45,13 @@ struct SignUpAgeView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("When's your birthday?")
                                 .font(.custom("ProductSans-Regular", size: 30))
-                                .foregroundColor(.white)
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
                                 .opacity(headingOpacity)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             
                             Text("We only use this to calculate your age for health metrics and goals. Your birthday data is kept private and secure.")
                                 .font(.custom("ProductSans-Regular", size: 16))
-                                .foregroundColor(.white.opacity(0.7))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                                 .opacity(headingOpacity)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
@@ -62,7 +63,7 @@ struct SignUpAgeView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Birthday")
                                 .font(.custom("ProductSans-Bold", size: 14))
-                                .foregroundColor(.white.opacity(0.7))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             
                             Button(action: {
@@ -74,7 +75,7 @@ struct SignUpAgeView: View {
                                     VStack(alignment: .leading, spacing: 6) {
                                         Text(birthdayFormatter.string(from: selectedBirthday))
                                             .font(.custom("ProductSans-Bold", size: 19))
-                                            .foregroundColor(Theme.colors.buttonText)
+                                            .foregroundColor(.white)
                                         
                                         Text("\(calculatedAge) years old")
                                             .font(.custom("ProductSans-Regular", size: 15))
@@ -85,7 +86,7 @@ struct SignUpAgeView: View {
                                     
                                     Image(systemName: "calendar")
                                         .font(.system(size: 24, weight: .medium))
-                                        .foregroundColor(.white.opacity(0.7))
+                                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                                 }
                                 .padding(.horizontal, 20)
                                 .padding(.vertical, 18)
@@ -101,7 +102,7 @@ struct SignUpAgeView: View {
                                 HStack(spacing: 6) {
                                     Image(systemName: "lock.fill")
                                         .font(.system(size: 12, weight: .medium))
-                                        .foregroundColor(Theme.colors.button)
+                                        .foregroundColor(AppColors.primary)
                                     
                                     Text("Your data is private and secure")
                                         .font(.custom("ProductSans-Regular", size: 12))
@@ -213,12 +214,13 @@ struct SignUpAgeView: View {
 
 // MARK: - Date Picker Sheet
 struct DatePickerSheet: View {
+    @EnvironmentObject var themeManager: ThemeManager
     @Binding var selectedDate: Date
     @Binding var isPresented: Bool
     
     var body: some View {
         ZStack {
-            Theme.colors.background
+            AppColors.background(themeManager.colorScheme)
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
@@ -228,13 +230,13 @@ struct DatePickerSheet: View {
                         isPresented = false
                     }
                     .font(.custom("ProductSans-Regular", size: 17))
-                    .foregroundColor(.white)
+                    .foregroundColor(AppColors.text(themeManager.colorScheme))
                     
                     Spacer()
                     
                     Text("Select Birthday")
                         .font(.custom("ProductSans-Bold", size: 17))
-                        .foregroundColor(.white)
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
                     
                     Spacer()
                     
@@ -242,7 +244,7 @@ struct DatePickerSheet: View {
                         isPresented = false
                     }
                     .font(.custom("ProductSans-Bold", size: 17))
-                    .foregroundColor(Theme.colors.button)
+                    .foregroundColor(AppColors.primary)
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 16)
@@ -257,7 +259,7 @@ struct DatePickerSheet: View {
                 .datePickerStyle(.wheel)
                 .labelsHidden()
                 .colorScheme(.dark)
-                .accentColor(Theme.colors.button)
+                .accentColor(AppColors.primary)
                 .padding(.horizontal, 24)
             }
         }
