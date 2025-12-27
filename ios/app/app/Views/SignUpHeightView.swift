@@ -69,12 +69,12 @@ struct SignUpHeightView: View {
                                     VStack(alignment: .leading, spacing: 6) {
                                         Text("\(Int(height)) cm")
                                             .font(.custom("ProductSans-Bold", size: 19))
-                                            .foregroundColor(.white)
+                                            .foregroundColor(AppColors.text(themeManager.colorScheme))
                                         
                                         let (feet, inches) = heightInFeetInches
                                         Text("\(feet) ft \(inches) in")
                                             .font(.custom("ProductSans-Regular", size: 15))
-                                            .foregroundColor(.white.opacity(0.6))
+                                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                                     }
                                     
                                     Spacer()
@@ -180,6 +180,7 @@ struct SignUpHeightView: View {
                 selectedHeight: $height,
                 isPresented: $showHeightPicker
             )
+            .environmentObject(themeManager)
             .presentationDetents([.fraction(0.4), .medium])
         }
     }

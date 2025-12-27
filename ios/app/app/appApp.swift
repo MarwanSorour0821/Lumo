@@ -94,6 +94,7 @@ struct RootView: View {
         ZStack {
             if showSplash {
                 SplashScreenView()
+                    .environmentObject(ThemeManager.shared)
                     .transition(.opacity)
             } else {
                 if appState.isLoading {

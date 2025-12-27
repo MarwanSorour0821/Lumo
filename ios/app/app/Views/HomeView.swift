@@ -142,10 +142,10 @@ struct HomeTabView: View {
                                 .frame(width: 280, height: 280)
                                 .rotationEffect(.degrees(90)) // Rotate so gap is at bottom
                             
-                            // Progress fill (white, partial - cut off at bottom) - animated
+                            // Progress fill (adaptive color, partial - cut off at bottom) - animated
                             Circle()
                                 .trim(from: 0.125, to: 0.125 + (animatedProgress * 0.75)) // Fill based on animated progress
-                                .stroke(Color.white, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                                .stroke(themeManager.colorScheme == .light ? Color.black : Color.white, style: StrokeStyle(lineWidth: 8, lineCap: .round))
                                 .frame(width: 280, height: 280)
                                 .rotationEffect(.degrees(90)) // Rotate so gap is at bottom
                                 .animation(.easeInOut(duration: 1.5), value: animatedProgress)
@@ -199,10 +199,10 @@ struct HomeTabView: View {
                             }) {
                                 Text("Your trends")
                                     .font(.custom("ProductSans-Bold", size: 16))
-                                    .foregroundColor(themeManager.colorScheme == .light ? .black : .white)
+                                    .foregroundColor(themeManager.colorScheme == .light ? .white : .black)
                                     .padding(.horizontal, 32)
                                     .padding(.vertical, 12)
-                                    .background(Color.white)
+                                    .background(themeManager.colorScheme == .light ? Color.black : Color.white)
                                     .cornerRadius(25) // Pill shape
                             }
                             

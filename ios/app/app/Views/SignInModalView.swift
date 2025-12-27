@@ -9,6 +9,7 @@ import SwiftUI
 import SafariServices
 
 struct SignInModalView: View {
+    @EnvironmentObject var themeManager: ThemeManager
     @Binding var isPresented: Bool
     var onGoogleSignIn: (() -> Void)? = nil
     var isGoogleLoading: Bool = false
@@ -48,7 +49,7 @@ struct SignInModalView: View {
                     // Title
                     Text("Sign In")
                         .font(.custom("ProductSans-Bold", size: 22))
-                        .foregroundColor(Color(uiColor: .label))
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
                         .padding(.bottom, 32)
                     
                     // Email Input
@@ -93,18 +94,17 @@ struct SignInModalView: View {
                 .padding(.horizontal, 24)
                 .padding(.bottom, 24)
             }
-            .background(Color(uiColor: .systemBackground))
+            .background(AppColors.background(themeManager.colorScheme))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: handleClose) {
                         Image(systemName: "xmark")
-                            .foregroundColor(Color(uiColor: .label))
+                            .foregroundColor(AppColors.text(themeManager.colorScheme))
                     }
                 }
             }
         }
-        .preferredColorScheme(.dark)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .interactiveDismissDisabled(false)
@@ -161,23 +161,23 @@ struct SignInModalView: View {
         VStack(spacing: 4) {
             Text("By continuing, you agree to the")
                 .font(.custom("ProductSans-Regular", size: 14))
-                .foregroundColor(Color(uiColor: .secondaryLabel))
+                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
             
             HStack(spacing: 4) {
                 Button(action: { showTerms = true }) {
                     Text("Terms of Use")
                         .font(.custom("ProductSans-Bold", size: 14))
-                        .foregroundColor(.white)
+                        .foregroundColor(AppColors.primary)
                 }
                 
                 Text("and")
                     .font(.custom("ProductSans-Regular", size: 14))
-                    .foregroundColor(Color(uiColor: .secondaryLabel))
+                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                 
                 Button(action: { showPrivacy = true }) {
                     Text("Privacy Policy")
                         .font(.custom("ProductSans-Bold", size: 14))
-                        .foregroundColor(.white)
+                        .foregroundColor(AppColors.primary)
                 }
             }
         }
