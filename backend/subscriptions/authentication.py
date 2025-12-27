@@ -50,3 +50,4 @@ class SupabaseAuthentication(BaseAuthentication):
             raise AuthenticationFailed(f'Authentication failed: {str(e)}')
 
 
+

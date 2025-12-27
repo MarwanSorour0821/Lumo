@@ -12,6 +12,7 @@ struct OnboardingView: View {
     @State private var isSignInModalVisible = false
     @State private var isGoogleLoading = false
     @State private var navigateToSignUp = false
+    @State private var isSignedIn = false
     
     // Animation states
     @State private var mainTextOpacity: Double = 0
@@ -39,11 +40,19 @@ struct OnboardingView: View {
                     onGoogleSignIn: {
                         handleGoogleSignIn()
                     },
-                    isGoogleLoading: isGoogleLoading
+                    isGoogleLoading: isGoogleLoading,
+                    onSignInSuccess: { userId, email in
+                        print("✅ Sign-in successful! User ID: \(userId), Email: \(email ?? "N/A")")
+                        isSignedIn = true
+                    }
                 )
             }
             .navigationDestination(isPresented: $navigateToSignUp) {
                 SignUpSexView(coordinator: SignUpFlowCoordinator())
+            }
+            .navigationDestination(isPresented: $isSignedIn) {
+                HomeView()
+                    .navigationBarBackButtonHidden(true)
             }
         }
     }
@@ -92,8 +101,8 @@ struct OnboardingView: View {
     
     var textContent: some View {
         VStack(spacing: 24) {
-            Text("Top-class premium\nanalysis on your\nblood tests at your\nfinger tips.")
-                .font(.custom("ProductSans-Regular", size: 40))
+            Text("Understand your blood.\nTake control of your health.")
+                .font(.custom("ProductSans-Regular", size: 30))
                 .foregroundColor(Theme.colors.primaryText)
                 .multilineTextAlignment(.center)
                 .lineLimit(nil)
@@ -234,8 +243,8 @@ struct OnboardingView: View {
                     }
                 } else if let user = response.user {
                     // Handle successful sign-in
-                    print("Google sign-in successful: \(user.id)")
-                    // TODO: Navigate to home or check if profile is complete
+                    print("✅ Google sign-in successful! User ID: \(user.id), Email: \(user.email ?? "N/A")")
+                    isSignedIn = true
                 }
             }
     }

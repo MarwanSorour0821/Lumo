@@ -66,3 +66,4 @@ GRANT SELECT, INSERT, UPDATE ON subscriptions TO authenticated;
 GRANT ALL ON subscriptions TO service_role;
 
 
+
