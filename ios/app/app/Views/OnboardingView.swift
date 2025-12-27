@@ -50,6 +50,7 @@ struct OnboardingView: View {
                         appState.isAuthenticated = true
                     }
                 )
+                .environmentObject(themeManager)
             }
             .navigationDestination(isPresented: $navigateToSignUp) {
                 SignUpSexView(coordinator: SignUpFlowCoordinator())

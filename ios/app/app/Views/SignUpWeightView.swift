@@ -82,12 +82,12 @@ struct SignUpWeightView: View {
                                         if weightUnit == "lbs" {
                                             Text("\(Int(weightInKg)) kg")
                                                 .font(.custom("ProductSans-Regular", size: 15))
-                                                .foregroundColor(.white.opacity(0.6))
+                                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                                         } else {
                                             let weightInLbs = weight * 2.20462
                                             Text("\(Int(weightInLbs)) lbs")
                                                 .font(.custom("ProductSans-Regular", size: 15))
-                                                .foregroundColor(.white.opacity(0.6))
+                                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                                         }
                                     }
                                     
@@ -115,7 +115,7 @@ struct SignUpWeightView: View {
                                     
                                     Text("Your data is private and secure")
                                         .font(.custom("ProductSans-Regular", size: 12))
-                                        .foregroundColor(.white.opacity(0.6))
+                                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                                 }
                                 Spacer()
                             }
@@ -202,6 +202,7 @@ struct SignUpWeightView: View {
                 weightUnit: $weightUnit,
                 isPresented: $showWeightPicker
             )
+            .environmentObject(themeManager)
             .presentationDetents([.fraction(0.4), .medium])
         }
     }

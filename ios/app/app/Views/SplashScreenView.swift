@@ -8,13 +8,15 @@
 import SwiftUI
 
 struct SplashScreenView: View {
+    @EnvironmentObject var themeManager: ThemeManager
     @State private var isAnimating = false
     @State private var opacity: Double = 0
     
     var body: some View {
         ZStack {
             // Background
-            Color.black.ignoresSafeArea()
+            AppColors.background(themeManager.colorScheme)
+                .ignoresSafeArea()
             
             // Logo and Text
             HStack(spacing: 12) {
@@ -27,7 +29,7 @@ struct SplashScreenView: View {
                 
                 Text("Lumo")
                     .font(.custom("ProductSans-Bold", size: 42))
-                    .foregroundColor(.white)
+                    .foregroundColor(AppColors.text(themeManager.colorScheme))
                     .opacity(opacity)
                     .offset(x: isAnimating ? 0 : -20)
             }

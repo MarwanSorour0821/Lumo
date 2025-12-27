@@ -75,11 +75,11 @@ struct SignUpAgeView: View {
                                     VStack(alignment: .leading, spacing: 6) {
                                         Text(birthdayFormatter.string(from: selectedBirthday))
                                             .font(.custom("ProductSans-Bold", size: 19))
-                                            .foregroundColor(.white)
+                                            .foregroundColor(AppColors.text(themeManager.colorScheme))
                                         
                                         Text("\(calculatedAge) years old")
                                             .font(.custom("ProductSans-Regular", size: 15))
-                                            .foregroundColor(.white.opacity(0.6))
+                                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                                     }
                                     
                                     Spacer()
@@ -185,6 +185,7 @@ struct SignUpAgeView: View {
                 selectedDate: $selectedBirthday,
                 isPresented: $showDatePicker
             )
+            .environmentObject(themeManager)
             .presentationDetents([.fraction(0.4), .medium])
         }
     }

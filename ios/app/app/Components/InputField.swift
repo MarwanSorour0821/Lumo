@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct InputField: View {
+    @EnvironmentObject var themeManager: ThemeManager
     let placeholder: String
     @Binding var text: String
     var icon: InputIcon
@@ -30,7 +31,7 @@ struct InputField: View {
             if isSecure {
                 SecureField(placeholder, text: $text)
                     .font(.custom("ProductSans-Regular", size: 16))
-                    .foregroundColor(Color(uiColor: .label))
+                    .foregroundColor(AppColors.text(themeManager.colorScheme))
                     .keyboardType(keyboardType)
                     .autocapitalization(.none)
                     .autocorrectionDisabled()
@@ -38,7 +39,7 @@ struct InputField: View {
             } else {
                 TextField(placeholder, text: $text)
                     .font(.custom("ProductSans-Regular", size: 16))
-                    .foregroundColor(Color(uiColor: .label))
+                    .foregroundColor(AppColors.text(themeManager.colorScheme))
                     .keyboardType(keyboardType)
                     .autocapitalization(.none)
                     .autocorrectionDisabled()
@@ -48,7 +49,7 @@ struct InputField: View {
         }
         .padding(.horizontal, 16)
         .frame(height: 56)
-        .background(Color(uiColor: .secondarySystemBackground))
+        .background(AppColors.inputBackground(themeManager.colorScheme))
         .cornerRadius(28)
     }
     
@@ -57,11 +58,11 @@ struct InputField: View {
         switch icon {
         case .email:
             Image(systemName: "envelope")
-                .foregroundColor(Color(uiColor: .secondaryLabel))
+                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                 .frame(width: 20, height: 20)
         case .password:
             Image(systemName: "lock")
-                .foregroundColor(Color(uiColor: .secondaryLabel))
+                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                 .frame(width: 20, height: 20)
         case .none:
             EmptyView()
