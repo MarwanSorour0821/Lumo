@@ -8,6 +8,8 @@
 import SwiftUI
 
 struct OnboardingView: View {
+    @EnvironmentObject var appState: AppState
+    @EnvironmentObject var themeManager: ThemeManager
     @State private var currentImageIndex = 0
     @State private var isSignInModalVisible = false
     @State private var isGoogleLoading = false
@@ -44,22 +46,23 @@ struct OnboardingView: View {
                     onSignInSuccess: { userId, email in
                         print("✅ Sign-in successful! User ID: \(userId), Email: \(email ?? "N/A")")
                         isSignedIn = true
+                        // Update app state to reflect authentication
+                        appState.isAuthenticated = true
                     }
                 )
             }
             .navigationDestination(isPresented: $navigateToSignUp) {
                 SignUpSexView(coordinator: SignUpFlowCoordinator())
             }
-            .navigationDestination(isPresented: $isSignedIn) {
-                HomeView()
-                    .navigationBarBackButtonHidden(true)
-            }
+            // Navigation to HomeView is now handled by AppState in RootView
+            // When isSignedIn becomes true, AppState.isAuthenticated is set to true
+            // and RootView will automatically show HomeView
         }
     }
     
     // MARK: - Background
     var backgroundView: some View {
-        Theme.colors.background
+        AppColors.background(themeManager.colorScheme)
             .ignoresSafeArea()
     }
     
@@ -103,7 +106,7 @@ struct OnboardingView: View {
         VStack(spacing: 24) {
             Text("Understand your blood.\nTake control of your health.")
                 .font(.custom("ProductSans-Regular", size: 30))
-                .foregroundColor(Theme.colors.primaryText)
+                .foregroundColor(AppColors.text(themeManager.colorScheme))
                 .multilineTextAlignment(.center)
                 .lineLimit(nil)
                 .opacity(mainTextOpacity)
@@ -111,7 +114,7 @@ struct OnboardingView: View {
             
             Text("Create an account and join thousands of\npeople who are already using our app.")
                 .font(.custom("ProductSans-Regular", size: 16))
-                .foregroundColor(Theme.colors.secondaryText)
+                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                 .multilineTextAlignment(.center)
                 .opacity(subTextOpacity)
         }
@@ -131,13 +134,13 @@ struct OnboardingView: View {
                 Spacer()
                 Text("Get Started")
                     .font(.custom("ProductSans-Bold", size: 16))
-                    .foregroundColor(Theme.colors.buttonText)
+                    .foregroundColor(.white)
                 Spacer()
             }
             .frame(height: 56)
             .background(
                 RoundedRectangle(cornerRadius: 28)
-                    .fill(Theme.colors.button)
+                    .fill(AppColors.primary)
             )
             .shadow(color: Color(hex: "#BB3E4F").opacity(0.6), radius: 16, x: 0, y: 6)
         }
@@ -150,10 +153,10 @@ struct OnboardingView: View {
             HStack(spacing: 4) {
                 Text("Already have an account?")
                     .font(.custom("ProductSans-Regular", size: 14))
-                    .foregroundColor(Theme.colors.secondaryText)
+                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                 Text("Sign in")
                     .font(.custom("ProductSans-Bold", size: 14))
-                    .foregroundColor(.white)
+                    .foregroundColor(AppColors.primary)
             }
         }
         .opacity(buttonOpacity)
@@ -177,7 +180,7 @@ struct OnboardingView: View {
                 
                 // Bottom gradient overlay
                 LinearGradient(
-                    gradient: Gradient(colors: [Theme.colors.background, Color.clear]),
+                    gradient: Gradient(colors: [AppColors.background(themeManager.colorScheme), Color.clear]),
                     startPoint: .bottom,
                     endPoint: .top
                 )
@@ -254,5 +257,5 @@ struct OnboardingView: View {
 // MARK: - Preview
 #Preview {
         OnboardingView()
-        .preferredColorScheme(.dark)
+            .environmentObject(ThemeManager.shared)
 }

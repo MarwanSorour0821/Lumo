@@ -24,8 +24,10 @@ enum TextInputAutocapitalization: Equatable {
     }
 }
 
+
 struct SignUpPersonalView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var themeManager: ThemeManager
     @ObservedObject var coordinator: SignUpFlowCoordinator
     @State private var firstName: String = ""
     @State private var lastName: String = ""
@@ -39,7 +41,7 @@ struct SignUpPersonalView: View {
     
     var body: some View {
         ZStack {
-            Theme.colors.background
+            AppColors.background(themeManager.colorScheme)
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
@@ -49,7 +51,7 @@ struct SignUpPersonalView: View {
                         // Heading
                         Text("What should we call you?")
                             .font(.custom("ProductSans-Regular", size: 40))
-                            .foregroundColor(.white)
+                            .foregroundColor(AppColors.text(themeManager.colorScheme))
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .opacity(headingOpacity)
                             .padding(.top, 32)

@@ -9,6 +9,7 @@ import SwiftUI
 
 struct SignUpHeightView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var themeManager: ThemeManager
     @ObservedObject var coordinator: SignUpFlowCoordinator
     @State private var height: Double = 170 // cm
     @State private var navigateToWeight = false
@@ -27,7 +28,7 @@ struct SignUpHeightView: View {
     
     var body: some View {
         ZStack {
-            Theme.colors.background
+            AppColors.background(themeManager.colorScheme)
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
@@ -38,13 +39,13 @@ struct SignUpHeightView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("What's your height?")
                                 .font(.custom("ProductSans-Regular", size: 30))
-                                .foregroundColor(.white)
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
                                 .opacity(headingOpacity)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             
                             Text("We use this to personalize your health metrics and goals. Your height data is kept private and secure.")
                                 .font(.custom("ProductSans-Regular", size: 16))
-                                .foregroundColor(.white.opacity(0.7))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                                 .opacity(headingOpacity)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
@@ -56,7 +57,7 @@ struct SignUpHeightView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Height")
                                 .font(.custom("ProductSans-Bold", size: 14))
-                                .foregroundColor(.white.opacity(0.7))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             
                             Button(action: {
@@ -68,7 +69,7 @@ struct SignUpHeightView: View {
                                     VStack(alignment: .leading, spacing: 6) {
                                         Text("\(Int(height)) cm")
                                             .font(.custom("ProductSans-Bold", size: 19))
-                                            .foregroundColor(Theme.colors.buttonText)
+                                            .foregroundColor(.white)
                                         
                                         let (feet, inches) = heightInFeetInches
                                         Text("\(feet) ft \(inches) in")
@@ -80,7 +81,7 @@ struct SignUpHeightView: View {
                                     
                                     Image(systemName: "ruler")
                                         .font(.system(size: 24, weight: .medium))
-                                        .foregroundColor(.white.opacity(0.7))
+                                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                                 }
                                 .padding(.horizontal, 20)
                                 .padding(.vertical, 18)
@@ -96,7 +97,7 @@ struct SignUpHeightView: View {
                                 HStack(spacing: 6) {
                                     Image(systemName: "lock.fill")
                                         .font(.system(size: 12, weight: .medium))
-                                        .foregroundColor(Theme.colors.button)
+                                        .foregroundColor(AppColors.primary)
                                     
                                     Text("Your data is private and secure")
                                         .font(.custom("ProductSans-Regular", size: 12))
@@ -207,6 +208,7 @@ struct SignUpHeightView: View {
 
 // MARK: - Height Picker Sheet
 struct HeightPickerSheet: View {
+    @EnvironmentObject var themeManager: ThemeManager
     @Binding var selectedHeight: Double
     @Binding var isPresented: Bool
     @State private var heightUnit: String = "cm"
@@ -223,7 +225,7 @@ struct HeightPickerSheet: View {
     
     var body: some View {
         ZStack {
-            Theme.colors.background
+            AppColors.background(themeManager.colorScheme)
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
@@ -231,7 +233,7 @@ struct HeightPickerSheet: View {
                 HStack {
                     Text("Your height")
                         .font(.custom("ProductSans-Bold", size: 17))
-                        .foregroundColor(.white)
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
                     
                     Spacer()
                     
@@ -306,7 +308,7 @@ struct HeightPickerSheet: View {
                     }
                     .pickerStyle(.wheel)
                     .colorScheme(.dark)
-                    .accentColor(Theme.colors.button)
+                    .accentColor(AppColors.primary)
                     .padding(.horizontal, 24)
                     .onChange(of: tempCmHeight) { oldValue, newValue in
                         // Update the binding in real-time as user scrolls
@@ -327,7 +329,7 @@ struct HeightPickerSheet: View {
                         }
                         .pickerStyle(.wheel)
                         .colorScheme(.dark)
-                        .accentColor(Theme.colors.button)
+                        .accentColor(AppColors.primary)
                         .frame(maxWidth: .infinity)
                         .onChange(of: selectedFeet) { oldValue, newValue in
                             updateHeightFromFeetInches()
@@ -341,7 +343,7 @@ struct HeightPickerSheet: View {
                         }
                         .pickerStyle(.wheel)
                         .colorScheme(.dark)
-                        .accentColor(Theme.colors.button)
+                        .accentColor(AppColors.primary)
                         .frame(maxWidth: .infinity)
                         .onChange(of: selectedInches) { oldValue, newValue in
                             updateHeightFromFeetInches()
@@ -376,7 +378,7 @@ struct HeightPickerSheet: View {
                     .padding(.vertical, 16)
                     .background(
                         RoundedRectangle(cornerRadius: 28)
-                            .fill(Theme.colors.button)
+                            .fill(AppColors.primary)
                     )
                 }
                 .padding(.horizontal, 24)
