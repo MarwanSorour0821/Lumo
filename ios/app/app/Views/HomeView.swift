@@ -8,30 +8,37 @@
 import SwiftUI
 import Supabase
 import UIKit
+import UniformTypeIdentifiers
+import WebKit
 
 struct HomeView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @State private var showAnalyseModal = false
+    @State private var selectedTab: Int = 0
     
     var body: some View {
         ZStack {
-            TabView {
+            TabView(selection: $selectedTab) {
                 HomeTabView()
+                    .tag(0)
                     .tabItem {
                         Label("Home", systemImage: "apple.homekit")
                     }
                 
                 HistoryTabView()
+                    .tag(1)
                     .tabItem {
                         Label("History", systemImage: "gauge.chart.lefthalf.righthalf")
                     }
                 
                 ChatTabView()
+                    .tag(2)
                     .tabItem {
                         Label("Chat", systemImage: "quote.bubble")
                     }
                 
                 SettingsTabView()
+                    .tag(3)
                     .tabItem {
                         Label("Me", systemImage: "brain.filled.head.profile")
                     }
@@ -66,28 +73,30 @@ struct HomeView: View {
                 }
             }
             
-            // Floating Analyse Button
-            VStack {
-                Spacer()
-                HStack {
+            // Floating Analyse Button (hidden on Chat tab)
+            if selectedTab != 2 {
+                VStack {
                     Spacer()
-                    Button {
-                        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                        impactFeedback.impactOccurred()
-                        showAnalyseModal = true
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 24, weight: .bold))
-                            .foregroundColor(.white)
-                            .frame(width: 60, height: 60)
-                            .background(
-                                Circle()
-                                    .fill(Color(hex: "#C7002B"))
-                                    .shadow(color: Color(hex: "#BB3E4F").opacity(0.6), radius: 16, x: 0, y: 6)
-                            )
+                    HStack {
+                        Spacer()
+                        Button {
+                            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                            impactFeedback.impactOccurred()
+                            showAnalyseModal = true
+                        } label: {
+                            Image(systemName: "plus")
+                                .font(.system(size: 24, weight: .bold))
+                                .foregroundColor(.white)
+                                .frame(width: 60, height: 60)
+                                .background(
+                                    Circle()
+                                        .fill(Color(hex: "#C7002B"))
+                                        .shadow(color: Color(hex: "#BB3E4F").opacity(0.6), radius: 16, x: 0, y: 6)
+                                )
+                        }
+                        .padding(.trailing, 24)
+                        .padding(.bottom, 70) // Position above tab bar
                     }
-                    .padding(.trailing, 24)
-                    .padding(.bottom, 70) // Position above tab bar
                 }
             }
         }
@@ -441,40 +450,731 @@ struct HomeTabView: View {
 
 // MARK: - History Tab View
 struct HistoryTabView: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    @State private var analyses: [Analysis] = []
+    @State private var isLoading: Bool = true
+    @State private var errorMessage: String? = nil
+    @State private var selectedAnalysis: Analysis? = nil
+    @State private var showDetail: Bool = false
+
     var body: some View {
         NavigationView {
-            VStack(spacing: 16) {
-                Text("History")
-                    .font(.custom("ProductSans-Bold", size: 32))
-                    .foregroundColor(.white)
-                
-                Text("Your test history")
-                    .font(.custom("ProductSans-Regular", size: 16))
-                    .foregroundColor(Color(hex: "#808080"))
+            ZStack {
+                AppColors.background(themeManager.colorScheme)
+                    .ignoresSafeArea()
+
+                if isLoading {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: AppColors.primary))
+                } else if let error = errorMessage {
+                    VStack(spacing: 12) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 36))
+                            .foregroundColor(.yellow)
+                        Text("Failed to load analyses")
+                            .font(.custom("ProductSans-Bold", size: 18))
+                            .foregroundColor(AppColors.text(themeManager.colorScheme))
+                        Text(error)
+                            .font(.custom("ProductSans-Regular", size: 14))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(24)
+                } else if analyses.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "tray")
+                            .font(.system(size: 44))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                        Text("No analyses yet")
+                            .font(.custom("ProductSans-Bold", size: 20))
+                            .foregroundColor(AppColors.text(themeManager.colorScheme))
+                        Text("Upload a lab report to see your history")
+                            .font(.custom("ProductSans-Regular", size: 14))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(24)
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 12) {
+                            ForEach(analyses, id: \ .id) { analysis in
+                                Button(action: {
+                                    selectedAnalysis = analysis
+                                    showDetail = true
+                                }) {
+                                    HStack(spacing: 12) {
+                                        VStack(alignment: .leading, spacing: 6) {
+                                            Text(listTitle(for: analysis))
+                                                .font(.custom("ProductSans-Bold", size: 16))
+                                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+
+                                            Text(listSubtitle(for: analysis))
+                                                .font(.custom("ProductSans-Regular", size: 14))
+                                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                                                .lineLimit(2)
+                                        }
+
+                                        Spacer()
+
+                                        VStack(alignment: .trailing, spacing: 6) {
+                                            Text(formattedDate(analysis.created_at))
+                                                .font(.custom("ProductSans-Regular", size: 12))
+                                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+
+                                            Image(systemName: "chevron.right")
+                                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                                        }
+                                    }
+                                    .padding(12)
+                                    .background(AppColors.surface(themeManager.colorScheme))
+                                    .cornerRadius(12)
+                                    .shadow(color: Color.black.opacity(themeManager.colorScheme == .light ? 0.03 : 0.0), radius: 1, x: 0, y: 1)
+                                    .padding(.horizontal, 16)
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                            }
+                        }
+                        .padding(.vertical, 20)
+                    }
+                    .refreshable {
+                        await loadAnalyses()
+                    }
+                }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.black.ignoresSafeArea())
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitle("History", displayMode: .inline)
+            .onAppear {
+                Task { await loadAnalyses() }
+            }
+            .sheet(isPresented: $showDetail) {
+                if let analysis = selectedAnalysis {
+                    AnalysisDetailView(analysis: analysis)
+                        .environmentObject(themeManager)
+                }
+            }
         }
+    }
+
+    // MARK: - Helpers
+    private func loadAnalyses() async {
+        await MainActor.run { isLoading = true; errorMessage = nil }
+        do {
+            let uid = try await AuthService.shared.getCurrentUserId()
+            let fetched = try await HealthScoreService.shared.fetchAnalyses(userId: uid)
+            await MainActor.run {
+                self.analyses = fetched
+                self.isLoading = false
+            }
+        } catch {
+            await MainActor.run {
+                self.errorMessage = error.localizedDescription
+                self.isLoading = false
+            }
+        }
+    }
+
+    private func formattedDate(_ iso: String) -> String {
+        let formatter = ISO8601DateFormatter()
+        if let date = formatter.date(from: iso) {
+            let out = DateFormatter()
+            out.dateStyle = .medium
+            out.timeStyle = .none
+            return out.string(from: date)
+        }
+        return iso
+    }
+
+    private func listTitle(for analysis: Analysis) -> String {
+        if let parsed = analysis.getParsedData(), let name = parsed.patientInfo?.name, !name.isEmpty {
+            return name
+        }
+        // fallback to ID short
+        return "Analysis \(analysis.id.prefix(8))"
+    }
+
+    private func listSubtitle(for analysis: Analysis) -> String {
+        if let parsed = analysis.getParsedData() {
+            let count = parsed.testResults.count
+            return "\(count) markers · Report"
+        }
+        return "Lab report"
+    }
+}
+
+// MARK: - Analysis Detail View
+struct AnalysisDetailView: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    let analysis: Analysis
+
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack {
+                        Text("Report")
+                            .font(.custom("ProductSans-Bold", size: 20))
+                            .foregroundColor(AppColors.text(themeManager.colorScheme))
+                        Spacer()
+                        Text(formattedDate(analysis.created_at))
+                            .font(.custom("ProductSans-Regular", size: 13))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                    }
+
+                    if let parsed = analysis.getParsedData() {
+                        if let patient = parsed.patientInfo {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Patient")
+                                    .font(.custom("ProductSans-Bold", size: 16))
+                                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+                                if let name = patient.name { Text(name).foregroundColor(AppColors.textSecondary(themeManager.colorScheme)) }
+                                if let age = patient.age { Text("Age: \(age)").foregroundColor(AppColors.textSecondary(themeManager.colorScheme)) }
+                                if let sex = patient.sex { Text("Sex: \(sex)").foregroundColor(AppColors.textSecondary(themeManager.colorScheme)) }
+                            }
+                            .padding()
+                            .background(AppColors.surface(themeManager.colorScheme))
+                            .cornerRadius(12)
+                        }
+
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Results")
+                                .font(.custom("ProductSans-Bold", size: 18))
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+
+                            ForEach(parsed.testResults, id: \ .marker) { result in
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(result.marker)
+                                            .font(.custom("ProductSans-Bold", size: 14))
+                                            .foregroundColor(AppColors.text(themeManager.colorScheme))
+                                        Text(result.referenceRange)
+                                            .font(.custom("ProductSans-Regular", size: 12))
+                                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                                    }
+
+                                    Spacer()
+
+                                    VStack(alignment: .trailing) {
+                                        Text(result.value + " " + result.unit)
+                                            .font(.custom("ProductSans-Bold", size: 14))
+                                            .foregroundColor(AppColors.primary)
+                                        Text(result.status)
+                                            .font(.custom("ProductSans-Regular", size: 12))
+                                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                                    }
+                                }
+                                .padding(12)
+                                .background(AppColors.surface(themeManager.colorScheme))
+                                .cornerRadius(10)
+                            }
+                        }
+                    } else {
+                        Text("Unable to parse report details")
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                    }
+                }
+                .padding(16)
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") { }
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+                }
+            }
+            .background(AppColors.background(themeManager.colorScheme).ignoresSafeArea())
+        }
+    }
+
+    private func formattedDate(_ iso: String) -> String {
+        let formatter = ISO8601DateFormatter()
+        if let date = formatter.date(from: iso) {
+            let out = DateFormatter()
+            out.dateStyle = .medium
+            out.timeStyle = .none
+            return out.string(from: date)
+        }
+        return iso
     }
 }
 
 // MARK: - Chat Tab View
 struct ChatTabView: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    @State private var messages: [ChatMessageDTO] = []
+    @State private var messageText: String = ""
+    @State private var userId: String? = nil
+    @State private var userName: String? = nil
+    @State private var isInitialLoading: Bool = true
+    @State private var isTyping: Bool = false
+    @State private var isUploading: Bool = false
+    @State private var selectedImage: UIImage? = nil
+    @State private var selectedDocumentURL: URL? = nil
+    @State private var showImagePicker: Bool = false
+    @State private var showDocumentPicker: Bool = false
+    @State private var showAttachmentActionSheet: Bool = false
+    @State private var scrollProxyId = UUID()
+
     var body: some View {
         NavigationView {
-            VStack(spacing: 16) {
-                Text("Chat")
-                    .font(.custom("ProductSans-Bold", size: 32))
-                    .foregroundColor(.white)
-                
-                Text("Get medical advice")
-                    .font(.custom("ProductSans-Regular", size: 16))
-                    .foregroundColor(Color(hex: "#808080"))
+            VStack(spacing: 0) {
+                // Header
+                ZStack {
+                    HStack {
+                        Spacer()
+                    }
+                    Text("Chat")
+                        .font(.custom("ProductSans-Bold", size: 20))
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+                }
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity)
+                .background(AppColors.background(themeManager.colorScheme))
+
+                // Messages
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(spacing: 12) {
+                            if isInitialLoading {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: AppColors.primary))
+                                    .padding(.top, 40)
+                            } else if messages.isEmpty {
+                                VStack(spacing: 8) {
+                                    Text("Hello \(userName ?? "")")
+                                        .font(.custom("ProductSans-Bold", size: 28))
+                                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+                                    Text("How may I assist you?")
+                                        .font(.custom("ProductSans-Regular", size: 16))
+                                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                                }
+                                .frame(maxWidth: .infinity, minHeight: 200)
+                                .padding(.top, 40)
+                            } else {
+                                ForEach(messages) { msg in
+                                    MessageRow(message: msg)
+                                        .id(msg.id)
+                                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                                }
+                                if isTyping {
+                                    TypingIndicatorView()
+                                        .transition(.opacity)
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 12)
+                        .animation(.spring(response: 0.45, dampingFraction: 0.8, blendDuration: 0), value: messages.count)
+                        .onChange(of: messages.count) { _ in
+                            // Scroll to bottom when new messages arrive
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: {
+                                if let last = messages.last {
+                                    proxy.scrollTo(last.id, anchor: .bottom)
+                                }
+                            })
+                        }
+                    }
+                }
+
+                // Selected file preview
+                if let image = selectedImage {
+                    HStack {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 60, height: 60)
+                            .cornerRadius(8)
+
+                        Text("Image ready to send")
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+
+                        Spacer()
+
+                        Button(action: {
+                            selectedImage = nil
+                        }) {
+                            Text("×")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+                                .padding(8)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(AppColors.surface(themeManager.colorScheme))
+                } else if let doc = selectedDocumentURL {
+                    HStack {
+                        Image(systemName: "doc.fill")
+                            .foregroundColor(AppColors.primary)
+                            .frame(width: 40, height: 40)
+
+                        Text(doc.lastPathComponent)
+                            .foregroundColor(AppColors.text(themeManager.colorScheme))
+                            .lineLimit(1)
+
+                        Spacer()
+
+                        Button(action: {
+                            selectedDocumentURL = nil
+                        }) {
+                            Text("×")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+                                .padding(8)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(AppColors.surface(themeManager.colorScheme))
+                }
+
+                // Input bar
+                HStack(spacing: 12) {
+                    // Attachment button: circular and same height as input
+                    Button(action: {
+                        showAttachmentActionSheet = true
+                    }) {
+                        Image(systemName: "paperclip.circle.fill")
+                            .font(.system(size: 30, weight: .regular))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            .frame(width: 48, height: 48)
+                            .contentShape(Rectangle())
+                    }
+                    .actionSheet(isPresented: $showAttachmentActionSheet) {
+                        ActionSheet(title: Text("Add attachment"), buttons: [
+                            .default(Text("Photo")) { showImagePicker = true },
+                            .default(Text("File (PDF)")) { showDocumentPicker = true },
+                            .cancel()
+                        ])
+                    }
+
+                    // Rounded input (pill shaped)
+                    TextField("Ask anything", text: $messageText, onCommit: sendMessage)
+                        .textFieldStyle(PlainTextFieldStyle())
+                        .padding(.horizontal, 16)
+                        .frame(height: 48)
+                        .background(AppColors.surface(themeManager.colorScheme))
+                        .clipShape(Capsule())
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+                        .overlay(
+                            // optional placeholder color alignment
+                            EmptyView()
+                        )
+                        .frame(maxWidth: .infinity)
+
+                    // Send button: same height as input
+                    Button(action: sendMessage) {
+                        if isUploading || isTyping {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: AppColors.primary))
+                                .frame(width: 24, height: 24)
+                                .frame(width: 48, height: 48)
+                        } else {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .font(.system(size: 32, weight: .regular))
+                                .foregroundColor(AppColors.primary)
+                                .frame(width: 48, height: 48)
+                                .contentShape(Rectangle())
+                        }
+                    }
+                    .disabled((messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && selectedImage == nil && selectedDocumentURL == nil) || isUploading || isTyping)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(AppColors.background(themeManager.colorScheme))
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.black.ignoresSafeArea())
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarHidden(true)
+            .sheet(isPresented: $showImagePicker) {
+                ImagePicker(sourceType: .photoLibrary) { image in
+                    if let img = image {
+                        self.selectedImage = img
+                    }
+                    showImagePicker = false
+                }
+            }
+            .sheet(isPresented: $showDocumentPicker) {
+                DocumentPicker { url in
+                    if let u = url {
+                        self.selectedDocumentURL = u
+                    }
+                    showDocumentPicker = false
+                }
+            }
+            .onAppear {
+                Task {
+                    await initializeChat()
+                }
+            }
+        }
+    }
+
+    // MARK: - Actions
+    private func initializeChat() async {
+        isInitialLoading = true
+        do {
+            let uid = try await AuthService.shared.getCurrentUserId()
+            userId = uid
+
+            // Load user name
+            if let client = SupabaseManager.shared.getClient() {
+                do {
+                    let session = try await client.auth.session
+                    userName = session.user.email?.components(separatedBy: "@").first?.capitalized
+                } catch {
+                    userName = "User"
+                }
+            }
+
+            // Load history
+            let history = try await ChatService.shared.getChatHistory(userId: uid)
+            await MainActor.run {
+                self.messages = history
+                self.isInitialLoading = false
+            }
+        } catch {
+            print("Error initializing chat: \(error)")
+            await MainActor.run { self.isInitialLoading = false }
+        }
+    }
+
+    private func sendMessage() {
+        Task {
+            guard let uid = userId else { return }
+            let userMessage = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            // Prepare optimistic local user message
+            let tempId = Int(Date().timeIntervalSince1970 * 1000)
+            var tempContent = userMessage
+            var messageType = "text"
+            var fileName: String? = nil
+
+            if let img = selectedImage {
+                messageType = "image"
+                fileName = "photo_\(Int(Date().timeIntervalSince1970)).jpg"
+                tempContent = "[Shared an image: \(fileName!)] \(userMessage)"
+            } else if let doc = selectedDocumentURL {
+                messageType = "pdf"
+                fileName = doc.lastPathComponent
+                tempContent = "[Shared a PDF: \(fileName!)] \(userMessage)"
+            }
+
+            let tempMsg = ChatMessageDTO(id: tempId, role: "user", content: tempContent, message_type: messageType, file_name: fileName, file_size: nil, created_at: ISO8601DateFormatter().string(from: Date()))
+
+            await MainActor.run {
+                withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+                    self.messages.append(tempMsg)
+                }
+                self.messageText = ""
+                self.isUploading = (self.selectedImage != nil || self.selectedDocumentURL != nil)
+                self.isTyping = true
+            }
+
+            do {
+                if let img = selectedImage {
+                    // write image to temp file
+                    let data = img.jpegData(compressionQuality: 0.8) ?? Data()
+                    let tmpURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName ?? "upload.jpg")
+                    try data.write(to: tmpURL)
+
+                    let result = try await ChatService.shared.sendChatFile(userId: uid, fileUrl: tmpURL, fileName: fileName ?? "image.jpg", mimeType: "image/jpeg", message: userMessage.isEmpty ? nil : userMessage)
+
+                    if let assistant = result.response {
+                        let assistantMsg = ChatMessageDTO(id: Int(Date().timeIntervalSince1970 * 1000) + 1, role: "assistant", content: assistant, message_type: "text", file_name: nil, file_size: nil, created_at: ISO8601DateFormatter().string(from: Date()))
+                        await MainActor.run {
+                            withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+                                self.messages.append(assistantMsg)
+                            }
+                        }
+                    }
+                } else if let doc = selectedDocumentURL {
+                    let mime = "application/pdf"
+                    let result = try await ChatService.shared.sendChatFile(userId: uid, fileUrl: doc, fileName: doc.lastPathComponent, mimeType: mime, message: userMessage.isEmpty ? nil : userMessage)
+                    if let assistant = result.response {
+                        let assistantMsg = ChatMessageDTO(id: Int(Date().timeIntervalSince1970 * 1000) + 1, role: "assistant", content: assistant, message_type: "text", file_name: nil, file_size: nil, created_at: ISO8601DateFormatter().string(from: Date()))
+                        await MainActor.run {
+                            withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+                                self.messages.append(assistantMsg)
+                            }
+                        }
+                    }
+                } else {
+                    // text message
+                    let response = try await ChatService.shared.sendChatMessage(userId: uid, message: userMessage)
+                    if !response.isEmpty {
+                        let assistantMsg = ChatMessageDTO(id: Int(Date().timeIntervalSince1970 * 1000) + 1, role: "assistant", content: response, message_type: "text", file_name: nil, file_size: nil, created_at: ISO8601DateFormatter().string(from: Date()))
+                        await MainActor.run {
+                            withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+                                self.messages.append(assistantMsg)
+                            }
+                        }
+                    }
+                }
+            } catch {
+                print("Error sending message: \(error)")
+                // Optionally show error UI
+            }
+
+            await MainActor.run {
+                self.selectedImage = nil
+                self.selectedDocumentURL = nil
+                self.isUploading = false
+                self.isTyping = false
+            }
+        }
+    }
+
+    // MARK: - Subviews
+    @ViewBuilder
+    private func MessageRow(message: ChatMessageDTO) -> some View {
+        HStack {
+            if message.role == "assistant" {
+                // assistant flush left
+                VStack(alignment: .leading, spacing: 6) {
+                    if message.message_type != "text", let name = message.file_name {
+                        HStack(spacing: 8) {
+                            Image(systemName: message.message_type == "image" ? "photo" : "doc.richtext")
+                                .foregroundColor(AppColors.primary)
+                            Text(name)
+                                .font(.custom("ProductSans-Bold", size: 14))
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+                        }
+                        .padding(10)
+                        .background(AppColors.surface(themeManager.colorScheme))
+                        .cornerRadius(12)
+                        .transition(.scale)
+                    }
+
+                    if !message.content.isEmpty {
+                        if isLaTeX(message.content) {
+                            LaTeXView(latex: message.content)
+                                .frame(minHeight: 40)
+                                .padding(8)
+                                .background(AppColors.surface(themeManager.colorScheme))
+                                .cornerRadius(12)
+                                .transition(.asymmetric(insertion: .move(edge: .leading).combined(with: .opacity), removal: .opacity))
+                        } else {
+                            Text(message.content)
+                                .font(.custom("ProductSans-Regular", size: 16))
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+                                .padding(12)
+                                .background(AppColors.surface(themeManager.colorScheme))
+                                .clipShape(RoundedRectangle(cornerRadius: 16))
+                                .shadow(color: Color.black.opacity(0.04), radius: 1, x: 0, y: 1)
+                                .transition(.asymmetric(insertion: .move(edge: .leading).combined(with: .opacity), removal: .opacity))
+                        }
+                    }
+                }
+                .frame(maxWidth: UIScreen.main.bounds.width * 0.75, alignment: .leading)
+                .padding(.leading, 8)
+                .padding(.trailing, 80)
+
+                Spacer(minLength: 8)
+            } else {
+                Spacer(minLength: 8)
+
+                VStack(alignment: .trailing, spacing: 6) {
+                    if message.message_type != "text", let name = message.file_name {
+                        HStack(spacing: 8) {
+                            Text(name)
+                                .font(.custom("ProductSans-Bold", size: 14))
+                                .foregroundColor(Color.white)
+                            Image(systemName: message.message_type == "image" ? "photo" : "doc.richtext")
+                                .foregroundColor(Color.white.opacity(0.9))
+                        }
+                        .padding(10)
+                        .background(AppColors.primary.opacity(0.95))
+                        .cornerRadius(12)
+                        .transition(.scale)
+                    }
+
+                    if !message.content.isEmpty {
+                        Text(message.content)
+                            .font(.custom("ProductSans-Regular", size: 16))
+                            .foregroundColor(Color.white)
+                            .padding(12)
+                            .background(AppColors.primary)
+                            .clipShape(RoundedRectangle(cornerRadius: 16))
+                            .shadow(color: Color.black.opacity(0.08), radius: 1, x: 0, y: 1)
+                            .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
+                    }
+                }
+                .frame(maxWidth: UIScreen.main.bounds.width * 0.75, alignment: .trailing)
+                .padding(.trailing, 8)
+                .padding(.leading, 80)
+            }
+        }
+        .animation(.spring(response: 0.45, dampingFraction: 0.8), value: UUID())
+    }
+
+    private func TypingIndicatorView() -> some View {
+        HStack {
+            if true { Spacer() }
+            HStack(spacing: 6) {
+                Circle().frame(width: 8, height: 8).foregroundColor(AppColors.textSecondary(themeManager.colorScheme)).opacity(0.6)
+                Circle().frame(width: 8, height: 8).foregroundColor(AppColors.textSecondary(themeManager.colorScheme)).opacity(0.4)
+                Circle().frame(width: 8, height: 8).foregroundColor(AppColors.textSecondary(themeManager.colorScheme)).opacity(0.6)
+            }
+            .padding(10)
+            .background(AppColors.surface(themeManager.colorScheme))
+            .cornerRadius(16)
+            if true { Spacer() }
+        }
+    }
+}
+
+// MARK: - Image Picker Wrapper
+struct ImagePicker: UIViewControllerRepresentable {
+    enum SourceType { case camera, photoLibrary }
+    var sourceType: SourceType = .photoLibrary
+    var completion: (UIImage?) -> Void
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.delegate = context.coordinator
+        picker.sourceType = (sourceType == .camera && UIImagePickerController.isSourceTypeAvailable(.camera)) ? .camera : .photoLibrary
+        picker.allowsEditing = false
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
+        let parent: ImagePicker
+        init(_ parent: ImagePicker) { self.parent = parent }
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+            let image = info[.originalImage] as? UIImage
+            parent.completion(image)
+            picker.dismiss(animated: true)
+        }
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.completion(nil)
+            picker.dismiss(animated: true)
+        }
+    }
+}
+
+// MARK: - Document Picker Wrapper
+struct DocumentPicker: UIViewControllerRepresentable {
+    var completion: (URL?) -> Void
+
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.pdf])
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    class Coordinator: NSObject, UIDocumentPickerDelegate {
+        let parent: DocumentPicker
+        init(_ parent: DocumentPicker) { self.parent = parent }
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            parent.completion(urls.first)
+        }
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            parent.completion(nil)
         }
     }
 }
@@ -491,14 +1191,14 @@ struct SettingsTabView: View {
     @State private var isRefreshing = false
     @State private var hasActiveSubscription = false
     @State private var showAppearancePicker = false
-    
+
     var body: some View {
         NavigationView {
             ZStack {
                 // Background
                 AppColors.background(themeManager.colorScheme)
                     .ignoresSafeArea()
-                
+
                 ScrollView {
                     VStack(spacing: 0) {
                         // Title with Gear Icon
@@ -506,7 +1206,7 @@ struct SettingsTabView: View {
                             Image(systemName: "gearshape.fill")
                                 .font(.system(size: 28))
                                 .foregroundColor(AppColors.text(themeManager.colorScheme))
-                            
+
                             Text("Settings")
                                 .font(.custom("ProductSans-Bold", size: 32))
                                 .foregroundColor(AppColors.text(themeManager.colorScheme))
@@ -515,124 +1215,41 @@ struct SettingsTabView: View {
                         .padding(.horizontal, 24)
                         .padding(.top, 20)
                         .padding(.bottom, 32)
-                        
+
                         // Settings Items
                         VStack(spacing: 0) {
-                            // Appearance
-                            SettingsItem(
-                                icon: "sun.max.fill",
-                                text: "Appearance",
-                                rightContent: {
-                                    Text(themeManager.displayName)
-                                        .font(.custom("ProductSans-Regular", size: 14))
-                                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                                },
-                                onPress: {
-                                    let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                                    impactFeedback.impactOccurred()
-                                    showAppearancePicker = true
-                                }
-                            )
-                            
-                            // Notifications
-                            SettingsItem(
-                                icon: "bell.fill",
-                                text: "Notifications",
-                                onPress: {
-                                    let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                                    impactFeedback.impactOccurred()
-                                    showNotificationSettings = true
-                                }
-                            )
-                            
-                            // Edit Information
-                            SettingsItem(
-                                icon: "person.fill",
-                                text: "Edit information",
-                                onPress: {
-                                    let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                                    impactFeedback.impactOccurred()
-                                    showEditInformation = true
-                                }
-                            )
-                            
-                            // Upgrade to Pro / Manage Subscription
-                            if !hasActiveSubscription {
-                                SettingsItem(
-                                    icon: "bolt.fill",
-                                    text: "Upgrade to Pro",
-                                    rightContent: {
-                                        HStack(spacing: 8) {
-                                            Text("PRO")
-                                                .font(.custom("ProductSans-Bold", size: 10))
-                                                .foregroundColor(.white)
-                                                .padding(.horizontal, 6)
-                                                .padding(.vertical, 2)
-                                                .background(Color(hex: "#C7002B"))
-                                                .cornerRadius(4)
-                                            
-                                            Image(systemName: "chevron.right")
-                                                .font(.system(size: 14))
-                                                .foregroundColor(.white)
-                                        }
-                                    },
-                                    onPress: {
-                                        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                                        impactFeedback.impactOccurred()
-                                        // TODO: Navigate to Paywall
-                                    }
-                                )
-                            } else {
-                                SettingsItem(
-                                    icon: "bolt.fill",
-                                    text: "Manage Subscription",
-                                    rightContent: {
-                                        HStack(spacing: 8) {
-                                            Text("PRO")
-                                                .font(.custom("ProductSans-Bold", size: 10))
-                                                .foregroundColor(.white)
-                                                .padding(.horizontal, 6)
-                                                .padding(.vertical, 2)
-                                                .background(Color(hex: "#C7002B"))
-                                                .cornerRadius(4)
-                                            
-                                            Image(systemName: "chevron.right")
-                                                .font(.system(size: 14))
-                                                .foregroundColor(.white)
-                                        }
-                                    },
-                                    onPress: {
-                                        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                                        impactFeedback.impactOccurred()
-                                        // TODO: Open subscription management
-                                    }
-                                )
+                            SettingsItem(icon: "sun.max.fill", text: "Appearance") {
+                                showAppearancePicker = true
                             }
-                            
-                            // Sign Out
-                            SettingsItem(
-                                icon: "rectangle.portrait.and.arrow.forward",
-                                text: "Sign out",
-                                onPress: {
-                                    let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                                    impactFeedback.impactOccurred()
-                                    showSignOutAlert = true
+
+                            SettingsItem(icon: "bell.fill", text: "Notifications") {
+                                showNotificationSettings = true
+                            }
+
+                            SettingsItem(icon: "person.fill", text: "Edit information") {
+                                showEditInformation = true
+                            }
+
+                            if !hasActiveSubscription {
+                                SettingsItem(icon: "star.fill", text: "Upgrade to Pro") {
+                                    // Placeholder action - integrate purchase flow
                                 }
-                            )
-                            
-                            // Delete Account
-                            SettingsItem(
-                                icon: "trash.fill",
-                                text: "Delete account",
-                                onPress: {
-                                    let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                                    impactFeedback.impactOccurred()
-                                    showDeleteAccountAlert = true
+                            } else {
+                                SettingsItem(icon: "creditcard.fill", text: "Manage Subscription") {
+                                    // Placeholder for subscription management
                                 }
-                            )
+                            }
+
+                            SettingsItem(icon: "arrow.right.square.fill", text: "Sign Out") {
+                                showSignOutAlert = true
+                            }
+
+                            SettingsItem(icon: "trash.fill", text: "Delete Account") {
+                                showDeleteAccountAlert = true
+                            }
                         }
                         .padding(.horizontal, 24)
-                        
+
                         Spacer()
                             .frame(height: 40)
                     }
@@ -675,147 +1292,72 @@ struct SettingsTabView: View {
             Text("This is your last chance. Your account and all data will be permanently deleted. Are you absolutely sure?")
         }
         .onAppear {
-            Task {
-                await refreshSettings()
-            }
+            Task { await refreshSettings() }
         }
         .confirmationDialog("Choose Appearance", isPresented: $showAppearancePicker, titleVisibility: .visible) {
-            Button("Light Mode") {
-                themeManager.setColorScheme(.light)
-            }
-            Button("Dark Mode") {
-                themeManager.setColorScheme(.dark)
-            }
-            Button("System") {
-                themeManager.setColorScheme(nil)
-            }
+            Button("Light Mode") { themeManager.setColorScheme(.light) }
+            Button("Dark Mode") { themeManager.setColorScheme(.dark) }
+            Button("System") { themeManager.setColorScheme(nil) }
             Button("Cancel", role: .cancel) { }
         }
     }
-    
+
     private func refreshSettings() async {
         isRefreshing = true
         // TODO: Refresh subscription status
-        // For now, just set to false
         hasActiveSubscription = false
         isRefreshing = false
     }
-    
+
     private func handleSignOut() {
         Task {
             do {
-                guard let client = SupabaseManager.shared.getClient() else {
-                    await MainActor.run {
-                        // Show error
-                    }
-                    return
-                }
-                
+                guard let client = SupabaseManager.shared.getClient() else { return }
                 try await client.auth.signOut()
-                
-                await MainActor.run {
-                    // Update app state to reflect sign out
-                    appState.isAuthenticated = false
-                    print("✅ Signed out successfully")
-                }
+                await MainActor.run { appState.isAuthenticated = false }
             } catch {
-                await MainActor.run {
-                    // Show error
-                    print("Error signing out: \(error.localizedDescription)")
-                }
+                await MainActor.run { print("Error signing out: \(error.localizedDescription)") }
             }
         }
     }
-    
+
     private func handleDeleteAccount() {
         Task {
             do {
-                // Step 1: Delete all user data from backend
                 let userId = try await AuthService.shared.getCurrentUserId()
                 guard let apiURLString = SupabaseManager.shared.getAPIURL(),
                       let apiURL = URL(string: "\(apiURLString)/api/analyses/delete-account/") else {
                     throw NSError(domain: "Settings", code: 1, userInfo: [NSLocalizedDescriptionKey: "API URL not configured"])
                 }
-                
+
                 let accessToken = try await AuthService.shared.getAccessToken()
-                
+
                 var request = URLRequest(url: apiURL)
                 request.httpMethod = "DELETE"
                 request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
                 request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                
+
                 let (_, response) = try await URLSession.shared.data(for: request)
-                
+
                 guard let httpResponse = response as? HTTPURLResponse,
                       (200...299).contains(httpResponse.statusCode) else {
                     throw NSError(domain: "Settings", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to delete account data"])
                 }
-                
-                // Step 2: Sign out
+
                 guard let client = SupabaseManager.shared.getClient() else {
                     throw NSError(domain: "Settings", code: 3, userInfo: [NSLocalizedDescriptionKey: "Supabase client not configured"])
                 }
-                
+
                 try await client.auth.signOut()
-                
+
                 await MainActor.run {
-                    // Update app state to reflect account deletion
                     appState.isAuthenticated = false
                     print("Account deleted successfully")
                 }
             } catch {
-                await MainActor.run {
-                    print("Error deleting account: \(error.localizedDescription)")
-                    // Show error alert
-                }
+                await MainActor.run { print("Error deleting account: \(error.localizedDescription)") }
             }
         }
-    }
-}
-
-// MARK: - Settings Item
-struct SettingsItem<RightContent: View>: View {
-    @EnvironmentObject var themeManager: ThemeManager
-    let icon: String
-    let text: String
-    let rightContent: RightContent?
-    let onPress: (() -> Void)?
-    
-    init(icon: String, text: String, @ViewBuilder rightContent: () -> RightContent = { EmptyView() }, onPress: (() -> Void)? = nil) {
-        self.icon = icon
-        self.text = text
-        self.rightContent = rightContent()
-        self.onPress = onPress
-    }
-    
-    var body: some View {
-        Button(action: {
-            onPress?()
-        }) {
-            HStack(spacing: 16) {
-                Image(systemName: icon)
-                    .font(.system(size: 24))
-                    .foregroundColor(AppColors.text(themeManager.colorScheme))
-                    .frame(width: 24)
-                
-                Text(text)
-                    .font(.custom("ProductSans-Regular", size: 16))
-                    .foregroundColor(AppColors.text(themeManager.colorScheme))
-                
-                Spacer()
-                
-                if rightContent is EmptyView {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 14))
-                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                } else {
-                    rightContent
-                }
-            }
-            .padding(.vertical, 16)
-            .padding(.horizontal, 16)
-        }
-        .buttonStyle(PlainButtonStyle())
     }
 }
 
@@ -823,7 +1365,7 @@ struct SettingsItem<RightContent: View>: View {
 struct AnalyseModalView: View {
     @Binding var isPresented: Bool
     @State private var selectedFile: String? = nil
-    
+
     var body: some View {
         NavigationView {
             VStack(spacing: 24) {
@@ -831,56 +1373,38 @@ struct AnalyseModalView: View {
                 RoundedRectangle(cornerRadius: 2)
                     .fill(Color(hex: "#333333"))
                     .frame(width: 40, height: 4)
-                    .padding(.top, 8)
-                
+
                 Spacer()
-                
+
                 if selectedFile == nil {
-                    // Upload Options
-                    VStack(spacing: 16) {
-                        Text("Add Post")
+                    VStack(spacing: 12) {
+                        Text("Upload a file to analyse")
                             .font(.custom("ProductSans-Bold", size: 18))
                             .foregroundColor(.white)
-                        
-                        Text("Export post to upload here")
-                            .font(.custom("ProductSans-Regular", size: 14))
-                            .foregroundColor(Color(hex: "#808080"))
-                        
+
                         HStack(spacing: 16) {
-                            uploadOption(icon: "camera.fill", title: "Camera")
-                            uploadOption(icon: "photo.fill", title: "Photo")
-                            uploadOption(icon: "doc.fill", title: "File")
+                            uploadOption(icon: "photo", title: "Photo")
+                            uploadOption(icon: "doc.fill", title: "PDF")
                         }
-                        .padding(.top, 16)
                     }
-                    .padding(20)
-                    .frame(maxWidth: .infinity)
-                    .background(Color.black)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color(hex: "#333333"), style: StrokeStyle(lineWidth: 2, dash: [5]))
-                    )
-                    .padding(.horizontal, 24)
+                } else {
+                    Text("Selected: \(selectedFile ?? "")")
+                        .foregroundColor(.white)
                 }
-                
+
                 Spacer()
-                
-                // Continue Button
+
                 Button {
                     // Handle continue action
+                    isPresented = false
                 } label: {
-                    HStack {
-                        Text("Continue")
-                            .font(.custom("ProductSans-Bold", size: 16))
-                            .foregroundColor(selectedFile == nil ? Color(hex: "#808080") : .white)
-                        
-                        Image(systemName: "arrow.right")
-                            .foregroundColor(selectedFile == nil ? Color(hex: "#808080") : .white)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(selectedFile == nil ? Color(hex: "#333333") : Color(hex: "#C7002B"))
-                    .cornerRadius(24)
+                    Text("Continue")
+                        .font(.custom("ProductSans-Bold", size: 16))
+                        .foregroundColor(.white)
+                        .padding()
+                        .frame(maxWidth: .infinity)
+                        .background(Color.blue)
+                        .cornerRadius(12)
                 }
                 .disabled(selectedFile == nil)
                 .padding(.horizontal, 24)
@@ -890,17 +1414,15 @@ struct AnalyseModalView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button {
-                        isPresented = false
-                    } label: {
-                        Image(systemName: "chevron.left")
+                    Button(action: { isPresented = false }) {
+                        Text("Close")
                             .foregroundColor(.white)
                     }
                 }
             }
         }
     }
-    
+
     private func uploadOption(icon: String, title: String) -> some View {
         VStack(spacing: 8) {
             Circle()
@@ -908,10 +1430,10 @@ struct AnalyseModalView: View {
                 .frame(width: 64, height: 64)
                 .overlay(
                     Image(systemName: icon)
-                        .font(.system(size: 32))
+                        .font(.system(size: 24))
                         .foregroundColor(.white)
                 )
-            
+
             Text(title)
                 .font(.custom("ProductSans-Regular", size: 14))
                 .foregroundColor(.white)
@@ -923,195 +1445,39 @@ struct AnalyseModalView: View {
 struct HealthScoreInfoModal: View {
     @EnvironmentObject var themeManager: ThemeManager
     @Binding var isPresented: Bool
-    
+
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    // Header
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("How Your Health Score is Calculated")
-                            .font(.custom("ProductSans-Bold", size: 28))
-                            .foregroundColor(AppColors.text(themeManager.colorScheme))
-                        
-                        Text("Your score reflects cardiovascular, metabolic, and inflammatory risk — weighted by long-term impact and recent trends.")
-                            .font(.custom("ProductSans-Regular", size: 16))
-                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                    }
-                    .padding(.top, 20)
-                    
-                    // Component 1: Core Risk Biomarkers
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Text("1. Core Risk Biomarkers")
-                                .font(.custom("ProductSans-Bold", size: 20))
-                                .foregroundColor(AppColors.text(themeManager.colorScheme))
-                            Spacer()
-                            Text("45%")
-                                .font(.custom("ProductSans-Bold", size: 18))
-                                .foregroundColor(AppColors.primary)
-                        }
-                        
-                        Text("Evaluates 12 key blood markers that predict long-term disease risk:")
-                            .font(.custom("ProductSans-Regular", size: 14))
-                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                        
-                        VStack(alignment: .leading, spacing: 8) {
-                            infoRow(marker: "Hemoglobin (Hb)", range: "13.0-17.0", weight: "15%")
-                            infoRow(marker: "Total RBC count", range: "4.5-5.5", weight: "10%")
-                            infoRow(marker: "Packed Cell Volume (PCV)", range: "40-50", weight: "10%")
-                            infoRow(marker: "Total WBC count", range: "4000-11000", weight: "10%")
-                            infoRow(marker: "Platelet Count", range: "150000-410000", weight: "10%")
-                            infoRow(marker: "ESR", range: "0-15", weight: "5%")
-                            infoRow(marker: "Neutrophils", range: "50-62%", weight: "8%")
-                            infoRow(marker: "Lymphocytes", range: "20-40%", weight: "8%")
-                            infoRow(marker: "MCH", range: "27-32", weight: "7%")
-                            infoRow(marker: "MCHC", range: "32.5-34.5", weight: "7%")
-                            infoRow(marker: "MCV", range: "83-101", weight: "5%")
-                            infoRow(marker: "RDW", range: "11.6-14.0", weight: "5%")
-                        }
-                        .padding(.leading, 16)
-                        
-                        Text("• Normal values = 1.0 point\n• Abnormal values = 0.5-1.0 based on distance from optimal")
-                            .font(.custom("ProductSans-Regular", size: 14))
-                            .foregroundColor(.gray)
-                            .padding(.top, 8)
-                    }
-                    .padding()
-                    .background(Color(hex: "#1A1A1A"))
-                    .cornerRadius(16)
-                    
-                    // Component 2: Optimal vs Normal
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Text("2. Optimal vs Normal Ranges")
-                                .font(.custom("ProductSans-Bold", size: 20))
-                                .foregroundColor(.white)
-                            Spacer()
-                            Text("17.5%")
-                                .font(.custom("ProductSans-Bold", size: 18))
-                                .foregroundColor(Color(hex: "#C7002B"))
-                        }
-                        
-                        Text("Rewards markers in optimal ranges, not just \"normal\":")
-                            .font(.custom("ProductSans-Regular", size: 14))
-                            .foregroundColor(.gray)
-                        
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text("•")
-                                    .foregroundColor(.green)
-                                Text("Normal status = 1.0 point")
-                                    .foregroundColor(.gray)
-                            }
-                            HStack {
-                                Text("•")
-                                    .foregroundColor(.orange)
-                                Text("Low/High status = 0.5 points")
-                                    .foregroundColor(.gray)
-                            }
-                        }
-                        .padding(.leading, 16)
-                    }
-                    .padding()
-                    .background(Color(hex: "#1A1A1A"))
-                    .cornerRadius(16)
-                    
-                    // Component 3: Data Completeness
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Text("3. Data Completeness")
-                                .font(.custom("ProductSans-Bold", size: 20))
-                                .foregroundColor(.white)
-                            Spacer()
-                            Text("5%")
-                                .font(.custom("ProductSans-Bold", size: 18))
-                                .foregroundColor(Color(hex: "#C7002B"))
-                        }
-                        
-                        Text("Measures how complete your blood test is:")
-                            .font(.custom("ProductSans-Regular", size: 14))
-                            .foregroundColor(.gray)
-                        
-                        Text("Score = (Markers Found / 15 Expected) × 100%")
-                            .font(.custom("ProductSans-Regular", size: 14))
-                            .foregroundColor(.gray)
-                            .padding(.leading, 16)
-                            .padding(.top, 8)
-                    }
-                    .padding()
-                    .background(Color(hex: "#1A1A1A"))
-                    .cornerRadius(16)
-                    
-                    // Final Calculation
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Final Score Calculation")
-                            .font(.custom("ProductSans-Bold", size: 20))
-                            .foregroundColor(.white)
-                        
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Final = (Core Risk × 0.45) + (Optimal Range × 0.175) + (Completeness × 0.05)")
-                                .font(.custom("ProductSans-Regular", size: 14))
-                                .foregroundColor(.gray)
-                            
-                            Text("Display Score = Final × 10 (clamped to 0-10)")
-                                .font(.custom("ProductSans-Regular", size: 14))
-                                .foregroundColor(.gray)
-                        }
-                        .padding(.leading, 16)
-                    }
-                    .padding()
-                    .background(Color(hex: "#1A1A1A"))
-                    .cornerRadius(16)
-                    
-                    // Multiple Analyses Note
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Multiple Blood Tests")
-                            .font(.custom("ProductSans-Bold", size: 18))
-                            .foregroundColor(.white)
-                        
-                        Text("If you have multiple blood tests, we calculate a score for each and then average them to get your overall health score.")
-                            .font(.custom("ProductSans-Regular", size: 14))
-                            .foregroundColor(.gray)
-                    }
-                    .padding()
-                    .background(Color(hex: "#1A1A1A"))
-                    .cornerRadius(16)
-                    
-                    Spacer()
-                        .frame(height: 20)
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("What is the health score")
+                        .font(.custom("ProductSans-Bold", size: 20))
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+
+                    infoRow(marker: "Cholesterol", range: "0 - 200 mg/dL", weight: "High")
+                    infoRow(marker: "Blood Sugar", range: "70 - 99 mg/dL", weight: "Medium")
                 }
-                .padding(.horizontal, 24)
+                .padding()
             }
-            .background(Color.black.ignoresSafeArea())
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        isPresented = false
-                    } label: {
-                        Image(systemName: "xmark")
-                            .foregroundColor(.white)
-                    }
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(action: { isPresented = false }) { Text("Close") }
                 }
             }
         }
     }
-    
+
     private func infoRow(marker: String, range: String, weight: String) -> some View {
         HStack {
-            Text("• \(marker)")
-                .font(.custom("ProductSans-Regular", size: 14))
-                .foregroundColor(AppColors.text(themeManager.colorScheme))
+            VStack(alignment: .leading) {
+                Text(marker).font(.custom("ProductSans-Bold", size: 16))
+                Text(range).font(.custom("ProductSans-Regular", size: 14)).foregroundColor(.gray)
+            }
             Spacer()
-            Text(range)
-                .font(.custom("ProductSans-Regular", size: 12))
-                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-            Text(weight)
-                .font(.custom("ProductSans-Bold", size: 12))
-                .foregroundColor(AppColors.primary)
-                .frame(width: 40, alignment: .trailing)
+            Text(weight).font(.custom("ProductSans-Regular", size: 14))
         }
+        .padding(.vertical, 8)
     }
 }
 
@@ -1119,483 +1485,91 @@ struct HealthScoreInfoModal: View {
 struct BiomarkerCard: View {
     @EnvironmentObject var themeManager: ThemeManager
     let biomarker: HealthScoreService.BiomarkerAttention
-    
+
     var body: some View {
-        HStack(alignment: .top) {
-            // Left side: Name and reason
-            VStack(alignment: .leading, spacing: 4) {
+        HStack {
+            VStack(alignment: .leading) {
                 Text(biomarker.name)
-                    .font(.custom("ProductSans-Bold", size: 18))
+                    .font(.custom("ProductSans-Bold", size: 16))
                     .foregroundColor(AppColors.text(themeManager.colorScheme))
-                    .frame(height: 22) // Match the height of the right side elements
-                
+
+                // Show concise reason and status instead of non-existent `detail` property
                 Text(biomarker.reason)
                     .font(.custom("ProductSans-Regular", size: 14))
                     .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                    .lineLimit(1)
-            }
-            
-            Spacer()
-            
-            // Right side: Arrow icon and status tag (vertically aligned with name)
-            HStack(alignment: .center, spacing: 8) {
-                // Trend icon (on the left of the tag) - colored to match tag
-                if biomarker.trend != "→" {
-                    Image(systemName: trendIcon)
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundColor(statusColor)
-                        .frame(width: 20, height: 20)
-                }
-                
-                // Status badge with color (right-aligned)
+                    .lineLimit(2)
+
                 Text(biomarker.status)
-                    .font(.custom("ProductSans-Regular", size: 12))
-                    .foregroundColor(statusColor)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(statusColor.opacity(0.2))
-                    .cornerRadius(8)
+                    .font(.custom("ProductSans-Bold", size: 12))
+                    .foregroundColor(AppColors.primary)
             }
-            .frame(height: 22) // Match the height of the name text
+            Spacer()
         }
-        .padding(16)
+        .padding()
         .background(AppColors.surface(themeManager.colorScheme))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(AppColors.border(themeManager.colorScheme), lineWidth: 1)
-        )
         .cornerRadius(12)
         .padding(.horizontal, 24)
     }
-    
-    private var trendIcon: String {
-        switch biomarker.trend {
-        case "↑":
-            return "arrow.up.forward.circle.dotted"
-        case "↓":
-            return "arrow.down.right.circle.dotted"
-        default:
-            return ""
+}
+
+// New: SettingsItem used by the Settings tab
+struct SettingsItem: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    let icon: String
+    let text: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 20))
+                    .foregroundColor(AppColors.primary)
+                    .frame(width: 28)
+
+                Text(text)
+                    .font(.custom("ProductSans-Regular", size: 16))
+                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+            }
+            .padding(12)
+            .background(AppColors.surface(themeManager.colorScheme))
+            .cornerRadius(12)
         }
-    }
-    
-    private var statusColor: Color {
-        switch biomarker.status {
-        case "Optimal":
-            return .green
-        case "Borderline":
-            return .orange
-        case "Elevated":
-            return .red
-        default:
-            return .gray
-        }
-    }
-    
-    private var trendColor: Color {
-        switch biomarker.trend {
-        case "↑":
-            return .red
-        case "↓":
-            return .green
-        default:
-            return .gray
-        }
+        .buttonStyle(PlainButtonStyle())
+        .padding(.vertical, 6)
     }
 }
 
 // MARK: - Edit Information View
 struct EditInformationView: View {
-    @EnvironmentObject var themeManager: ThemeManager
     @Binding var isPresented: Bool
     @State private var firstName: String = ""
     @State private var lastName: String = ""
-    @State private var email: String = ""
-    @State private var newPassword: String = ""
-    @State private var confirmPassword: String = ""
-    @State private var isLoading: Bool = true
-    @State private var isSavingProfile: Bool = false
-    @State private var isSavingPassword: Bool = false
-    
+
     var body: some View {
         NavigationView {
-            ZStack {
-                AppColors.background(themeManager.colorScheme)
-                    .ignoresSafeArea()
-                
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 32) {
-                        // Title
-                        Text("Edit Information")
-                            .font(.custom("ProductSans-Bold", size: 32))
-                            .foregroundColor(AppColors.text(themeManager.colorScheme))
-                            .padding(.horizontal, 24)
-                            .padding(.top, 20)
-                        
-                        // Profile Section
-                        VStack(alignment: .leading, spacing: 16) {
-                            Text("Profile")
-                                .font(.custom("ProductSans-Bold", size: 18))
-                                .foregroundColor(AppColors.text(themeManager.colorScheme))
-                            
-                            VStack(spacing: 16) {
-                                CustomTextField(
-                                    label: "First name",
-                                    text: $firstName,
-                                    placeholder: "First name"
-                                )
-                                
-                                CustomTextField(
-                                    label: "Last name",
-                                    text: $lastName,
-                                    placeholder: "Last name"
-                                )
-                                
-                                CustomTextField(
-                                    label: "Email",
-                                    text: $email,
-                                    placeholder: "you@example.com",
-                                    keyboardType: .emailAddress
-                                )
-                            }
-                            
-                            Button(action: handleSaveProfile) {
-                                Text(isSavingProfile ? "Saving..." : "Save profile")
-                                    .font(.custom("ProductSans-Bold", size: 16))
-                                    .foregroundColor(.white)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 16)
-                                    .background(AppColors.primary)
-                                    .cornerRadius(12)
-                            }
-                            .disabled(isSavingProfile || isLoading)
-                        }
-                        .padding(24)
-                        .background(AppColors.surface(themeManager.colorScheme))
-                        .cornerRadius(16)
-                        .padding(.horizontal, 24)
-                        
-                        // Password Section
-                        VStack(alignment: .leading, spacing: 16) {
-                            Text("Password")
-                                .font(.custom("ProductSans-Bold", size: 18))
-                                .foregroundColor(AppColors.text(themeManager.colorScheme))
-                            
-                            VStack(spacing: 16) {
-                                CustomTextField(
-                                    label: "New password",
-                                    text: $newPassword,
-                                    placeholder: "Enter new password",
-                                    isSecure: true
-                                )
-                                
-                                CustomTextField(
-                                    label: "Confirm new password",
-                                    text: $confirmPassword,
-                                    placeholder: "Confirm new password",
-                                    isSecure: true
-                                )
-                            }
-                            
-                            Button(action: handleChangePassword) {
-                                Text(isSavingPassword ? "Updating..." : "Change password")
-                                    .font(.custom("ProductSans-Bold", size: 16))
-                                    .foregroundColor(.white)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 16)
-                                    .background(AppColors.primary)
-                                    .cornerRadius(12)
-                            }
-                            .disabled(isSavingPassword)
-                        }
-                        .padding(24)
-                        .background(AppColors.surface(themeManager.colorScheme))
-                        .cornerRadius(16)
-                        .padding(.horizontal, 24)
-                        .padding(.bottom, 40)
-                    }
+            Form {
+                Section(header: Text("Name")) {
+                    TextField("First name", text: $firstName)
+                    TextField("Last name", text: $lastName)
                 }
-            }
-            .navigationTitle("Edit Information")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
+
+                Section {
+                    Button("Save") {
+                        // Save action - hook into profile API
                         isPresented = false
                     }
-                    .foregroundColor(AppColors.text(themeManager.colorScheme))
                 }
             }
-            .onAppear {
-                loadProfile()
-            }
-        }
-    }
-    
-    private func loadProfile() {
-        Task {
-            isLoading = true
-            do {
-                let userId = try await AuthService.shared.getCurrentUserId()
-                print("🔵 Loading profile for user: \(userId)")
-                
-                // Fetch user profile from Supabase REST API (same pattern as React)
-                guard let supabaseURL = SupabaseManager.shared.getURL(),
-                      let supabaseKey = SupabaseManager.shared.getAnonKey(),
-                      let url = URL(string: "\(supabaseURL)/rest/v1/users?id=eq.\(userId)&select=first_name,last_name,email") else {
-                    print("❌ Failed to create URL")
-                    await MainActor.run {
-                        self.isLoading = false
-                    }
-                    return
-                }
-                
-                print("🔵 Request URL: \(url.absoluteString)")
-                
-                let accessToken = try await AuthService.shared.getAccessToken()
-                
-                var request = URLRequest(url: url)
-                request.httpMethod = "GET"
-                request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-                request.setValue(supabaseKey, forHTTPHeaderField: "apikey")
-                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                request.setValue("application/vnd.pgjson.object+json", forHTTPHeaderField: "Prefer")
-                
-                struct UserProfile: Codable {
-                    let first_name: String?
-                    let last_name: String?
-                    let email: String?
-                }
-                
-                let (data, response) = try await URLSession.shared.data(for: request)
-                
-                guard let httpResponse = response as? HTTPURLResponse else {
-                    print("❌ Invalid response type")
-                    await MainActor.run {
-                        self.isLoading = false
-                    }
-                    return
-                }
-                
-                print("🔵 Response status: \(httpResponse.statusCode)")
-                
-                guard (200...299).contains(httpResponse.statusCode) else {
-                    let errorString = String(data: data, encoding: .utf8) ?? "Unknown error"
-                    print("❌ HTTP error: \(errorString)")
-                    await MainActor.run {
-                        self.isLoading = false
-                    }
-                    return
-                }
-                
-                // Try to decode as single object first, then as array
-                let decoder = JSONDecoder()
-                var profile: UserProfile?
-                
-                // Try single object
-                if let singleProfile = try? decoder.decode(UserProfile.self, from: data) {
-                    profile = singleProfile
-                    print("✅ Decoded as single object")
-                } else if let array = try? decoder.decode([UserProfile].self, from: data),
-                          let firstProfile = array.first {
-                    profile = firstProfile
-                    print("✅ Decoded as array, using first element")
-                } else {
-                    let dataString = String(data: data, encoding: .utf8) ?? "Unable to decode"
-                    print("❌ Failed to decode profile. Response: \(dataString)")
-                    // Try to get email from session as fallback
-                    if let client = SupabaseManager.shared.getClient() {
-                        let session = try await client.auth.session
-                        await MainActor.run {
-                            self.email = session.user.email ?? ""
-                            self.isLoading = false
-                        }
-                        return
-                    }
-                }
-                
-                guard let userProfile = profile else {
-                    print("❌ Profile is nil")
-                    await MainActor.run {
-                        self.isLoading = false
-                    }
-                    return
-                }
-                
-                print("✅ Profile loaded - firstName: \(userProfile.first_name ?? "nil"), lastName: \(userProfile.last_name ?? "nil"), email: \(userProfile.email ?? "nil")")
-                
-                await MainActor.run {
-                    self.firstName = userProfile.first_name ?? ""
-                    self.lastName = userProfile.last_name ?? ""
-                    // If email is not in profile, try to get it from session
-                    if let email = userProfile.email, !email.isEmpty {
-                        self.email = email
-                    } else {
-                        // Get email from auth session as fallback
-                        Task {
-                            do {
-                                if let client = SupabaseManager.shared.getClient() {
-                                    let session = try await client.auth.session
-                                    await MainActor.run {
-                                        self.email = session.user.email ?? ""
-                                    }
-                                }
-                            } catch {
-                                print("⚠️ Could not get email from session: \(error.localizedDescription)")
-                            }
-                        }
-                    }
-                    self.isLoading = false
-                }
-            } catch {
-                await MainActor.run {
-                    self.isLoading = false
-                    print("❌ Error loading profile: \(error.localizedDescription)")
-                    if let decodingError = error as? DecodingError {
-                        print("❌ Decoding error details: \(decodingError)")
-                    }
-                }
-            }
-        }
-    }
-    
-    private func handleSaveProfile() {
-        Task {
-            isSavingProfile = true
-            do {
-                let userId = try await AuthService.shared.getCurrentUserId()
-                
-                // Update user profile in Supabase (same pattern as React)
-                guard let supabaseURL = SupabaseManager.shared.getURL(),
-                      let supabaseKey = SupabaseManager.shared.getAnonKey(),
-                      let url = URL(string: "\(supabaseURL)/rest/v1/users?id=eq.\(userId)") else {
-                    await MainActor.run {
-                        isSavingProfile = false
-                    }
-                    return
-                }
-                
-                let accessToken = try await AuthService.shared.getAccessToken()
-                
-                // Step 1: Update profile in users table
-                var request = URLRequest(url: url)
-                request.httpMethod = "PATCH"
-                request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-                request.setValue(supabaseKey, forHTTPHeaderField: "apikey")
-                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                request.setValue("application/vnd.pgjson.object+json", forHTTPHeaderField: "Prefer")
-                
-                let updateData: [String: Any] = [
-                    "first_name": firstName.trimmingCharacters(in: .whitespacesAndNewlines),
-                    "last_name": lastName.trimmingCharacters(in: .whitespacesAndNewlines),
-                    "email": email.trimmingCharacters(in: .whitespacesAndNewlines),
-                    "updated_at": ISO8601DateFormatter().string(from: Date())
-                ]
-                
-                request.httpBody = try JSONSerialization.data(withJSONObject: updateData)
-                
-                let (_, response) = try await URLSession.shared.data(for: request)
-                
-                guard let httpResponse = response as? HTTPURLResponse,
-                      (200...299).contains(httpResponse.statusCode) else {
-                    throw NSError(domain: "EditInformation", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to update profile"])
-                }
-                
-                // Step 2: Update email in auth if email changed (same as React)
-                if !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    guard let authURL = URL(string: "\(supabaseURL)/auth/v1/user") else {
-                        throw NSError(domain: "EditInformation", code: 2, userInfo: [NSLocalizedDescriptionKey: "Invalid auth URL"])
-                    }
-                    
-                    var authRequest = URLRequest(url: authURL)
-                    authRequest.httpMethod = "PUT"
-                    authRequest.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-                    authRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                    
-                    let authUpdateData: [String: Any] = [
-                        "email": email.trimmingCharacters(in: .whitespacesAndNewlines)
-                    ]
-                    
-                    authRequest.httpBody = try JSONSerialization.data(withJSONObject: authUpdateData)
-                    
-                    let (_, authResponse) = try await URLSession.shared.data(for: authRequest)
-                    
-                    if let authHttpResponse = authResponse as? HTTPURLResponse,
-                       !(200...299).contains(authHttpResponse.statusCode) {
-                        // Email update failed, but profile update succeeded
-                        print("Warning: Profile updated but email update failed")
-                    }
-                }
-                
-                await MainActor.run {
-                    isSavingProfile = false
-                    isPresented = false
-                }
-            } catch {
-                await MainActor.run {
-                    isSavingPassword = false
-                    print("Error saving profile: \(error.localizedDescription)")
-                }
-            }
-        }
-    }
-    
-    private func handleChangePassword() {
-        guard newPassword == confirmPassword else {
-            // Show error - passwords don't match
-            return
-        }
-        
-        guard newPassword.count >= 6 else {
-            // Show error - password too short
-            return
-        }
-        
-        Task {
-            isSavingPassword = true
-            do {
-                guard let client = SupabaseManager.shared.getClient() else {
-                    throw NSError(domain: "EditInformation", code: 1, userInfo: [NSLocalizedDescriptionKey: "Supabase client not configured"])
-                }
-                
-                // Update password using Supabase auth API (same pattern as React)
-                guard let supabaseURL = SupabaseManager.shared.getURL(),
-                      let url = URL(string: "\(supabaseURL)/auth/v1/user") else {
-                    throw NSError(domain: "EditInformation", code: 2, userInfo: [NSLocalizedDescriptionKey: "Invalid URL"])
-                }
-                
-                let accessToken = try await AuthService.shared.getAccessToken()
-                
-                var request = URLRequest(url: url)
-                request.httpMethod = "PUT"
-                request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                
-                let updateData: [String: Any] = [
-                    "password": newPassword
-                ]
-                
-                request.httpBody = try JSONSerialization.data(withJSONObject: updateData)
-                
-                let (_, response) = try await URLSession.shared.data(for: request)
-                
-                guard let httpResponse = response as? HTTPURLResponse,
-                      (200...299).contains(httpResponse.statusCode) else {
-                    let errorData = try? JSONSerialization.jsonObject(with: Data(), options: []) as? [String: Any]
-                    let errorMessage = errorData?["error"] as? String ?? "Failed to update password"
-                    throw NSError(domain: "EditInformation", code: 3, userInfo: [NSLocalizedDescriptionKey: errorMessage])
-                }
-                
-                await MainActor.run {
-                    isSavingPassword = false
-                    newPassword = ""
-                    confirmPassword = ""
-                    // Show success
-                }
-            } catch {
-                await MainActor.run {
-                    isSavingPassword = false
-                    print("Error changing password: \(error.localizedDescription)")
+            .navigationBarTitle("Edit Information", displayMode: .inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") { isPresented = false }
                 }
             }
         }
@@ -1699,7 +1673,7 @@ struct CustomTextField: View {
                 .font(.custom("ProductSans-Regular", size: 14))
                 .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
             
-            if isSecure {
+            if (isSecure) {
                 SecureField(placeholder, text: $text)
                     .font(.custom("ProductSans-Regular", size: 16))
                     .foregroundColor(AppColors.text(themeManager.colorScheme))
@@ -1718,6 +1692,62 @@ struct CustomTextField: View {
                 .frame(height: 1)
         }
     }
+}
+
+// MARK: - LaTeX Renderer
+struct LaTeXView: UIViewRepresentable {
+    let latex: String
+    func makeUIView(context: Context) -> WKWebView {
+        let prefs = WKWebpagePreferences()
+        prefs.allowsContentJavaScript = true
+        let config = WKWebViewConfiguration()
+        config.defaultWebpagePreferences = prefs
+        let web = WKWebView(frame: .zero, configuration: config)
+        web.scrollView.isScrollEnabled = false
+        web.isOpaque = false
+        web.backgroundColor = .clear
+        return web
+    }
+
+    func updateUIView(_ webView: WKWebView, context: Context) {
+        // Sanitize content minimally for HTML embedding
+        let safeContent = latex
+            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "</", with: "&lt;/")
+
+        // Use a unique placeholder token to avoid Swift string interpolation issues
+        let placeholder = "@@LATEX@@"
+
+        // Build a simple MathJax page and embed the sanitized LaTeX by replacing the placeholder
+        let wrapped = """
+        <!doctype html>
+        <html>
+        <head>
+          <meta name='viewport' content='width=device-width, initial-scale=1'>
+          <style>body{font-family:-apple-system; background:transparent; color:#000; margin:0; padding:6px 8px;}</style>
+          <script>window.MathJax = { tex: {inlineMath: [['$$','$$'], ['\\(','\\)']]}, svg: { fontCache: 'global' } };</script>
+          <script src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js'></script>
+        </head>
+        <body>
+          <div>$$@@LATEX@@$$</div>
+        </body>
+        </html>
+        """.replacingOccurrences(of: placeholder, with: safeContent)
+
+        webView.loadHTMLString(wrapped, baseURL: nil)
+    }
+}
+
+// Helper to detect LaTeX-like content
+private func isLaTeX(_ text: String) -> Bool {
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    if trimmed.contains("$$") { return true }
+    if trimmed.contains("\\begin{") { return true }
+    if trimmed.contains("\\(") || trimmed.contains("\\[") { return true }
+    // simple heuristic: many backslashes indicate LaTeX
+    let backslashCount = trimmed.filter { $0 == "\\" }.count
+    if backslashCount >= 3 { return true }
+    return false
 }
 
 #Preview {

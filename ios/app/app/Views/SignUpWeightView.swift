@@ -149,7 +149,7 @@ struct SignUpWeightView: View {
                                         .fill(.white)
                                 )
                         }
-                        .buttonStyle(.glass)
+                        .applyGlassButtonStyle()
                         .clipShape(Circle())
                         
                         // Next Button
