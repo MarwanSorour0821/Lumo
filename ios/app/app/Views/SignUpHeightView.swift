@@ -135,7 +135,8 @@ struct SignUpHeightView: View {
                                         .fill(.white)
                                 )
                         }
-                        .buttonStyle(.glass)
+                        //.buttonStyle(.glass)
+                        .applyGlassButtonStyle()
                         .clipShape(Circle())
                         
                         // Next Button
@@ -311,11 +312,8 @@ struct HeightPickerSheet: View {
                     .colorScheme(.dark)
                     .accentColor(AppColors.primary)
                     .padding(.horizontal, 24)
-                    .onChange(of: tempCmHeight) { oldValue, newValue in
-                        // Update the binding in real-time as user scrolls
-                        selectedHeight = newValue
-                    }
-                    .onChange(of: tempCmHeight) { oldValue, newValue in
+                    // Use single-argument onChange for wider iOS compatibility
+                    .onChange(of: tempCmHeight) { newValue in
                         // Update the binding in real-time as user scrolls
                         selectedHeight = newValue
                     }
@@ -332,7 +330,7 @@ struct HeightPickerSheet: View {
                         .colorScheme(.dark)
                         .accentColor(AppColors.primary)
                         .frame(maxWidth: .infinity)
-                        .onChange(of: selectedFeet) { oldValue, newValue in
+                        .onChange(of: selectedFeet) { _ in
                             updateHeightFromFeetInches()
                         }
                         
@@ -346,7 +344,7 @@ struct HeightPickerSheet: View {
                         .colorScheme(.dark)
                         .accentColor(AppColors.primary)
                         .frame(maxWidth: .infinity)
-                        .onChange(of: selectedInches) { oldValue, newValue in
+                        .onChange(of: selectedInches) { _ in
                             updateHeightFromFeetInches()
                         }
                     }

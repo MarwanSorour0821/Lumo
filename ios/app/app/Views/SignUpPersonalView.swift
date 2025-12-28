@@ -181,7 +181,7 @@ struct SignUpPersonalView: View {
                                         .fill(.white)
                                 )
                         }
-                        .buttonStyle(.glass)
+                        .applyGlassButtonStyle()
                         .clipShape(Circle())
                         
                         // Next Button
@@ -332,6 +332,18 @@ struct UnderlineInputField: View {
                     .foregroundColor(.red)
                     .padding(.top, 4)
             }
+        }
+    }
+}
+
+// Compatibility helper for the iOS 26 `.glass` button style
+extension View {
+    @ViewBuilder
+    func applyGlassButtonStyle() -> some View {
+        if #available(iOS 26.0, *) {
+            self.buttonStyle(.glass)
+        } else {
+            self.buttonStyle(PlainButtonStyle())
         }
     }
 }

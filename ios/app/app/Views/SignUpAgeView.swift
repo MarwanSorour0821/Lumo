@@ -140,7 +140,8 @@ struct SignUpAgeView: View {
                                         .fill(.white)
                                 )
                         }
-                        .buttonStyle(.glass)
+                        //.buttonStyle(.glass)
+                        .applyGlassButtonStyle()
                         .clipShape(Circle())
                         
                         // Next Button
