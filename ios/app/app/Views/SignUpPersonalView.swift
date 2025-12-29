@@ -63,12 +63,12 @@ struct SignUpPersonalView: View {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("First Name")
                                     .font(.custom("ProductSans-Regular", size: 14))
-                                    .foregroundColor(.white.opacity(0.7))
+                                    .foregroundColor(AppColors.text(themeManager.colorScheme).opacity(0.7))
                                 
                                 ZStack(alignment: .leading) {
                                     TextField("", text: $firstName)
                                         .font(.custom("ProductSans-Regular", size: 17))
-                                        .foregroundColor(.white)
+                                        .foregroundColor(AppColors.text(themeManager.colorScheme))
                                         .autocapitalization(.words)
                                         .autocorrectionDisabled()
                                         .textContentType(.givenName)
@@ -79,7 +79,7 @@ struct SignUpPersonalView: View {
                                                     HStack {
                                                         Text("John")
                                                             .font(.custom("ProductSans-Regular", size: 17))
-                                                            .foregroundColor(.white.opacity(0.4))
+                                                            .foregroundColor(AppColors.text(themeManager.colorScheme).opacity(0.4))
                                                         Spacer()
                                                     }
                                                     .padding(.horizontal, 16)
@@ -91,7 +91,7 @@ struct SignUpPersonalView: View {
                                 }
                                 .background(
                                     RoundedRectangle(cornerRadius: 12)
-                                        .fill(Color.white.opacity(0.1))
+                                        .fill(AppColors.surface(themeManager.colorScheme).opacity(0.1))
                                 )
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 12)
@@ -110,12 +110,12 @@ struct SignUpPersonalView: View {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Last Name (Optional)")
                                     .font(.custom("ProductSans-Regular", size: 14))
-                                    .foregroundColor(.white.opacity(0.7))
+                                    .foregroundColor(AppColors.text(themeManager.colorScheme).opacity(0.7))
                                 
                                 ZStack(alignment: .leading) {
                                     TextField("", text: $lastName)
                                         .font(.custom("ProductSans-Regular", size: 17))
-                                        .foregroundColor(.white)
+                                        .foregroundColor(AppColors.text(themeManager.colorScheme))
                                         .autocapitalization(.words)
                                         .autocorrectionDisabled()
                                         .textContentType(.familyName)
@@ -126,7 +126,7 @@ struct SignUpPersonalView: View {
                                                     HStack {
                                                         Text("Doe")
                                                             .font(.custom("ProductSans-Regular", size: 17))
-                                                            .foregroundColor(.white.opacity(0.4))
+                                                            .foregroundColor(AppColors.text(themeManager.colorScheme).opacity(0.4))
                                                         Spacer()
                                                     }
                                                     .padding(.horizontal, 16)
@@ -138,7 +138,7 @@ struct SignUpPersonalView: View {
                                 }
                                 .background(
                                     RoundedRectangle(cornerRadius: 12)
-                                        .fill(Color.white.opacity(0.1))
+                                        .fill(AppColors.surface(themeManager.colorScheme).opacity(0.1))
                                 )
                             }
                         }
@@ -174,11 +174,11 @@ struct SignUpPersonalView: View {
                         }) {
                             Image(systemName: "arrow.left")
                                 .font(.system(size: 18, weight: .medium))
-                                .foregroundColor(.black)
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
                                 .frame(width: 44, height: 44)
                                 .background(
                                     Circle()
-                                        .fill(.white)
+                                        .fill(AppColors.surface(themeManager.colorScheme))
                                 )
                         }
                         .applyGlassButtonStyle()
@@ -208,7 +208,7 @@ struct SignUpPersonalView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(themeManager.colorScheme)
         .navigationBarBackButtonHidden(true) // Hide top back button, use bottom button
         .toolbar {
             ToolbarItem(placement: .principal) {

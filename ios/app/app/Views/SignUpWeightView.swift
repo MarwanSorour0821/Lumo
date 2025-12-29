@@ -101,7 +101,7 @@ struct SignUpWeightView: View {
                                 .padding(.vertical, 18)
                                 .background(
                                     RoundedRectangle(cornerRadius: 12)
-                                        .fill(Color.white.opacity(0.1))
+                                        .fill(AppColors.inputBackground(themeManager.colorScheme))
                                 )
                             }
                             
@@ -142,11 +142,11 @@ struct SignUpWeightView: View {
                         }) {
                             Image(systemName: "arrow.left")
                                 .font(.system(size: 18, weight: .medium))
-                                .foregroundColor(.black)
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
                                 .frame(width: 44, height: 44)
                                 .background(
                                     Circle()
-                                        .fill(.white)
+                                        .fill(AppColors.surface(themeManager.colorScheme))
                                 )
                         }
                         .applyGlassButtonStyle()
@@ -176,7 +176,7 @@ struct SignUpWeightView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(themeManager.colorScheme)
         .navigationBarBackButtonHidden(true) // Hide top back button, use bottom button
         .toolbar {
             ToolbarItem(placement: .principal) {
@@ -251,25 +251,25 @@ struct UnitToggleButton: View {
                         .font(.system(size: 12, weight: .bold))
                         .foregroundColor(Color(hex: "#B01328"))
                         .frame(width: 20, height: 20)
-                        .background(Circle().fill(.white))
+                        .background(Circle().fill(AppColors.background(ThemeManager.shared.colorScheme)))
                 } else {
                     Circle()
-                        .fill(.white.opacity(0.3))
+                        .fill(AppColors.textSecondary(ThemeManager.shared.colorScheme).opacity(0.3))
                         .frame(width: 8, height: 8)
                 }
                 
                 Text(title)
                     .font(.custom(isSelected ? "ProductSans-Bold" : "ProductSans-Regular", size: 16))
-                    .foregroundColor(isSelected ? .white : .white.opacity(0.7))
+                    .foregroundColor(isSelected ? AppColors.text(ThemeManager.shared.colorScheme) : AppColors.textSecondary(ThemeManager.shared.colorScheme))
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 12)
             .background(
                 RoundedRectangle(cornerRadius: 28)
-                    .fill(isSelected ? Color(hex: "#B01328") : Color.white.opacity(0.05))
+                    .fill(isSelected ? Color(hex: "#B01328") : AppColors.inputBackground(ThemeManager.shared.colorScheme))
                     .overlay(
                         RoundedRectangle(cornerRadius: 28)
-                            .stroke(isSelected ? Color(hex: "#B01328") : Color.white.opacity(0.3), lineWidth: 1)
+                            .stroke(isSelected ? Color(hex: "#B01328") : AppColors.border(ThemeManager.shared.colorScheme), lineWidth: 1)
                     )
             )
         }
@@ -315,7 +315,7 @@ struct WeightPickerSheet: View {
                         }) {
                             Text("kgs")
                                 .font(.custom(pickerUnit == "kg" ? "ProductSans-Bold" : "ProductSans-Regular", size: 15))
-                                .foregroundColor(pickerUnit == "kg" ? Color.black : Color.white.opacity(0.7))
+                                .foregroundColor(pickerUnit == "kg" ? AppColors.text(themeManager.colorScheme) : AppColors.textSecondary(themeManager.colorScheme))
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 8)
                                 .frame(minWidth: 60)
@@ -332,7 +332,7 @@ struct WeightPickerSheet: View {
                         }) {
                             Text("lbs")
                                 .font(.custom(pickerUnit == "lbs" ? "ProductSans-Bold" : "ProductSans-Regular", size: 15))
-                                .foregroundColor(pickerUnit == "lbs" ? Color.black : Color.white.opacity(0.7))
+                                .foregroundColor(pickerUnit == "lbs" ? AppColors.text(themeManager.colorScheme) : AppColors.textSecondary(themeManager.colorScheme))
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 8)
                                 .frame(minWidth: 60)
@@ -340,13 +340,12 @@ struct WeightPickerSheet: View {
                     }
                     .background(
                         RoundedRectangle(cornerRadius: 20)
-                            .fill(Color.white.opacity(0.1))
+                            .fill(AppColors.inputBackground(themeManager.colorScheme))
                     )
                     .overlay(
-                        // White indicator for selected option
                         GeometryReader { geometry in
                             RoundedRectangle(cornerRadius: 20)
-                                .fill(Color.white)
+                                .fill(AppColors.surface(themeManager.colorScheme))
                                 .frame(width: geometry.size.width / 2)
                                 .offset(x: pickerUnit == "kg" ? 0 : geometry.size.width / 2)
                                 .animation(.spring(response: 0.3, dampingFraction: 0.7), value: pickerUnit)
@@ -396,7 +395,7 @@ struct WeightPickerSheet: View {
                 .padding(.bottom, 40)
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(themeManager.colorScheme)
         .onAppear {
             // Initialize pickerUnit from weightUnit
             pickerUnit = weightUnit

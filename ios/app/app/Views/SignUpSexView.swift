@@ -36,7 +36,7 @@ struct SignUpSexView: View {
                             
                             Text("This helps us personalize your blood analytics.")
                                 .font(.custom("ProductSans-Regular", size: 16))
-                                .foregroundColor(.white.opacity(0.7))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                                 .opacity(headingOpacity)
                         }
                         .padding(.horizontal, 24)
@@ -64,7 +64,7 @@ struct SignUpSexView: View {
                                 Spacer()
                                 Text("Continue")
                                     .font(.custom("ProductSans-Bold", size: 16))
-                                    .foregroundColor(.white)
+                                    .foregroundColor(.white) // button text stays white on primary
                                 Spacer()
                             }
                             .frame(height: 56)
@@ -82,7 +82,6 @@ struct SignUpSexView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
         .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
@@ -97,7 +96,7 @@ struct SignUpSexView: View {
                         Text("Back")
                             .font(.custom("ProductSans-Regular", size: 17))
                     }
-                    .foregroundColor(.white)
+                    .foregroundColor(AppColors.text(themeManager.colorScheme))
                 }
             }
             ToolbarItem(placement: .principal) {
@@ -163,7 +162,7 @@ struct SexOptionCard: View {
     }
     
     var iconColor: Color {
-        isSelected ? Color(hex: "#B01328") : .white.opacity(0.7)
+        isSelected ? Color(hex: "#B01328") : AppColors.textSecondary(ThemeManager.shared.colorScheme)
     }
     
     var body: some View {
@@ -188,7 +187,7 @@ struct SexOptionCard: View {
                 // Text
                 Text(sex.displayName)
                     .font(.custom(isSelected ? "ProductSans-Bold" : "ProductSans-Regular", size: 17))
-                    .foregroundColor(.white)
+                    .foregroundColor(AppColors.text(ThemeManager.shared.colorScheme))
                 
                 Spacer()
                 
@@ -200,7 +199,7 @@ struct SexOptionCard: View {
                         .frame(width: 22, height: 22)
                         .background(
                             Circle()
-                                .fill(.white)
+                                .fill(AppColors.background(ThemeManager.shared.colorScheme))
                         )
                 }
             }
@@ -208,10 +207,10 @@ struct SexOptionCard: View {
             .padding(.vertical, 12)
             .background(
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.white.opacity(0.05))
+                    .fill(AppColors.inputBackground(ThemeManager.shared.colorScheme))
                     .overlay(
                         RoundedRectangle(cornerRadius: 16)
-                            .stroke(isSelected ? Color(hex: "#B01328") : Color.white.opacity(0.2), lineWidth: isSelected ? 2 : 1)
+                            .stroke(isSelected ? Color(hex: "#B01328") : AppColors.border(ThemeManager.shared.colorScheme), lineWidth: isSelected ? 2 : 1)
                     )
             )
         }
