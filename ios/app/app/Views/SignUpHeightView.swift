@@ -87,7 +87,7 @@ struct SignUpHeightView: View {
                                 .padding(.vertical, 18)
                                 .background(
                                     RoundedRectangle(cornerRadius: 12)
-                                        .fill(Color.white.opacity(0.1))
+                                        .fill(AppColors.inputBackground(themeManager.colorScheme))
                                 )
                             }
                             
@@ -101,7 +101,7 @@ struct SignUpHeightView: View {
                                     
                                     Text("Your data is private and secure")
                                         .font(.custom("ProductSans-Regular", size: 12))
-                                        .foregroundColor(.white.opacity(0.6))
+                                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                                 }
                                 Spacer()
                             }
@@ -128,11 +128,11 @@ struct SignUpHeightView: View {
                         }) {
                             Image(systemName: "arrow.left")
                                 .font(.system(size: 18, weight: .medium))
-                                .foregroundColor(.black)
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
                                 .frame(width: 44, height: 44)
                                 .background(
                                     Circle()
-                                        .fill(.white)
+                                        .fill(AppColors.surface(themeManager.colorScheme))
                                 )
                         }
                         //.buttonStyle(.glass)
@@ -163,7 +163,7 @@ struct SignUpHeightView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(themeManager.colorScheme)
         .navigationBarBackButtonHidden(true) // Hide top back button, use bottom button
         .toolbar {
             ToolbarItem(placement: .principal) {
@@ -255,7 +255,7 @@ struct HeightPickerSheet: View {
                         }) {
                             Text("cm")
                                 .font(.custom(heightUnit == "cm" ? "ProductSans-Bold" : "ProductSans-Regular", size: 15))
-                                .foregroundColor(heightUnit == "cm" ? Color.black : Color.white.opacity(0.7))
+                                .foregroundColor(heightUnit == "cm" ? AppColors.text(themeManager.colorScheme) : AppColors.textSecondary(themeManager.colorScheme))
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 8)
                                 .frame(minWidth: 60)
@@ -274,7 +274,7 @@ struct HeightPickerSheet: View {
                         }) {
                             Text("ft/in")
                                 .font(.custom(heightUnit == "ft/in" ? "ProductSans-Bold" : "ProductSans-Regular", size: 15))
-                                .foregroundColor(heightUnit == "ft/in" ? Color.black : Color.white.opacity(0.7))
+                                .foregroundColor(heightUnit == "ft/in" ? AppColors.text(themeManager.colorScheme) : AppColors.textSecondary(themeManager.colorScheme))
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 8)
                                 .frame(minWidth: 60)
@@ -282,121 +282,121 @@ struct HeightPickerSheet: View {
                     }
                     .background(
                         RoundedRectangle(cornerRadius: 20)
-                            .fill(Color.white.opacity(0.1))
+                            .fill(AppColors.inputBackground(themeManager.colorScheme))
                     )
                     .overlay(
-                        // White indicator for selected option
+                        // indicator for selected option
                         GeometryReader { geometry in
                             RoundedRectangle(cornerRadius: 20)
-                                .fill(Color.white)
+                                .fill(AppColors.surface(themeManager.colorScheme))
                                 .frame(width: geometry.size.width / 2)
                                 .offset(x: heightUnit == "cm" ? 0 : geometry.size.width / 2)
                                 .animation(.spring(response: 0.3, dampingFraction: 0.7), value: heightUnit)
                         }
                     )
-                    .clipShape(RoundedRectangle(cornerRadius: 20))
-                }
-                .padding(.horizontal, 24)
-                .padding(.top, 16)
-                .padding(.bottom, 24)
-                
-                // Picker
-                if heightUnit == "cm" {
-                    Picker("Height", selection: $tempCmHeight) {
-                        ForEach(Array(stride(from: 100.0, through: 250.0, by: 1.0)), id: \.self) { value in
-                            Text("\(Int(value)) cm")
-                                .tag(value)
-                        }
-                    }
-                    .pickerStyle(.wheel)
-                    .colorScheme(.dark)
-                    .accentColor(AppColors.primary)
-                    .padding(.horizontal, 24)
-                    // Use single-argument onChange for wider iOS compatibility
-                    .onChange(of: tempCmHeight) { newValue in
-                        // Update the binding in real-time as user scrolls
-                        selectedHeight = newValue
-                    }
-                } else {
-                    // Feet and Inches pickers
-                    HStack(spacing: 0) {
-                        Picker("Feet", selection: $selectedFeet) {
-                            ForEach(3..<8, id: \.self) { feet in
-                                Text("\(feet) ft")
-                                    .tag(feet)
-                            }
-                        }
-                        .pickerStyle(.wheel)
-                        .colorScheme(.dark)
-                        .accentColor(AppColors.primary)
-                        .frame(maxWidth: .infinity)
-                        .onChange(of: selectedFeet) { _ in
-                            updateHeightFromFeetInches()
-                        }
-                        
-                        Picker("Inches", selection: $selectedInches) {
-                            ForEach(0..<12, id: \.self) { inches in
-                                Text("\(inches) in")
-                                    .tag(inches)
-                            }
-                        }
-                        .pickerStyle(.wheel)
-                        .colorScheme(.dark)
-                        .accentColor(AppColors.primary)
-                        .frame(maxWidth: .infinity)
-                        .onChange(of: selectedInches) { _ in
-                            updateHeightFromFeetInches()
-                        }
-                    }
-                    .padding(.horizontal, 24)
-                }
-                
-                Spacer()
-                
-                // Done Button
-                Button(action: {
-                    let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                    impactFeedback.impactOccurred()
-                    // Explicitly update the height based on current mode
-                    if heightUnit == "ft/in" {
-                        updateHeightFromFeetInches()
-                    } else {
-                        // Ensure the binding is updated (should already be updated via onChange, but ensure it)
-                        selectedHeight = tempCmHeight
-                    }
-                    // Close the modal
-                    isPresented = false
-                }) {
-                    HStack {
-                        Spacer()
-                        Text("Done")
-                            .font(.custom("ProductSans-Bold", size: 17))
-                            .foregroundColor(.white)
-                        Spacer()
-                    }
-                    .padding(.vertical, 16)
-                    .background(
-                        RoundedRectangle(cornerRadius: 28)
-                            .fill(AppColors.primary)
-                    )
-                }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 40)
-            }
-        }
-        .preferredColorScheme(.dark)
-        .onAppear {
-            // Initialize tempCmHeight and feet/inches from current height
-            tempCmHeight = selectedHeight
-            let (feet, inches) = heightInFeetInches
-            selectedFeet = feet
-            selectedInches = inches
-        }
-    }
-    
-    private func updateHeightFromFeetInches() {
-        let totalInches = Double(selectedFeet * 12 + selectedInches)
-        selectedHeight = totalInches * 2.54
-    }
-}
+                     .clipShape(RoundedRectangle(cornerRadius: 20))
+                 }
+                 .padding(.horizontal, 24)
+                 .padding(.top, 16)
+                 .padding(.bottom, 24)
+                 
+                 // Picker
+                 if heightUnit == "cm" {
+                     Picker("Height", selection: $tempCmHeight) {
+                         ForEach(Array(stride(from: 100.0, through: 250.0, by: 1.0)), id: \.self) { value in
+                             Text("\(Int(value)) cm")
+                                 .tag(value)
+                         }
+                     }
+                     .pickerStyle(.wheel)
+                     .preferredColorScheme(themeManager.colorScheme)
+                     .accentColor(AppColors.primary)
+                     .padding(.horizontal, 24)
+                     // Use single-argument onChange for wider iOS compatibility
+                     .onChange(of: tempCmHeight) { newValue in
+                         // Update the binding in real-time as user scrolls
+                         selectedHeight = newValue
+                     }
+                 } else {
+                     // Feet and Inches pickers
+                     HStack(spacing: 0) {
+                         Picker("Feet", selection: $selectedFeet) {
+                             ForEach(3..<8, id: \.self) { feet in
+                                 Text("\(feet) ft")
+                                     .tag(feet)
+                             }
+                         }
+                         .pickerStyle(.wheel)
+                         .preferredColorScheme(themeManager.colorScheme)
+                         .accentColor(AppColors.primary)
+                         .frame(maxWidth: .infinity)
+                         .onChange(of: selectedFeet) { _ in
+                             updateHeightFromFeetInches()
+                         }
+                         
+                         Picker("Inches", selection: $selectedInches) {
+                             ForEach(0..<12, id: \.self) { inches in
+                                 Text("\(inches) in")
+                                     .tag(inches)
+                             }
+                         }
+                         .pickerStyle(.wheel)
+                         .preferredColorScheme(themeManager.colorScheme)
+                         .accentColor(AppColors.primary)
+                         .frame(maxWidth: .infinity)
+                         .onChange(of: selectedInches) { _ in
+                             updateHeightFromFeetInches()
+                         }
+                     }
+                     .padding(.horizontal, 24)
+                 }
+                 
+                 Spacer()
+                 
+                 // Done Button
+                 Button(action: {
+                     let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                     impactFeedback.impactOccurred()
+                     // Explicitly update the height based on current mode
+                     if heightUnit == "ft/in" {
+                         updateHeightFromFeetInches()
+                     } else {
+                         // Ensure the binding is updated (should already be updated via onChange, but ensure it)
+                         selectedHeight = tempCmHeight
+                     }
+                     // Close the modal
+                     isPresented = false
+                 }) {
+                     HStack {
+                         Spacer()
+                         Text("Done")
+                             .font(.custom("ProductSans-Bold", size: 17))
+                             .foregroundColor(.white)
+                         Spacer()
+                     }
+                     .padding(.vertical, 16)
+                     .background(
+                         RoundedRectangle(cornerRadius: 28)
+                             .fill(AppColors.primary)
+                     )
+                 }
+                 .padding(.horizontal, 24)
+                 .padding(.bottom, 40)
+             }
+         }
+         .preferredColorScheme(themeManager.colorScheme)
+         .onAppear {
+             // Initialize tempCmHeight and feet/inches from current height
+             tempCmHeight = selectedHeight
+             let (feet, inches) = heightInFeetInches
+             selectedFeet = feet
+             selectedInches = inches
+         }
+     }
+     
+     private func updateHeightFromFeetInches() {
+         let totalInches = Double(selectedFeet * 12 + selectedInches)
+         selectedHeight = totalInches * 2.54
+     }
+ }
 

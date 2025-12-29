@@ -92,7 +92,7 @@ struct SignUpAgeView: View {
                                 .padding(.vertical, 18)
                                 .background(
                                     RoundedRectangle(cornerRadius: 12)
-                                        .fill(Color.white.opacity(0.1))
+                                        .fill(AppColors.background(themeManager.colorScheme).opacity(0.1))
                                 )
                             }
                             
@@ -106,7 +106,7 @@ struct SignUpAgeView: View {
                                     
                                     Text("Your data is private and secure")
                                         .font(.custom("ProductSans-Regular", size: 12))
-                                        .foregroundColor(.white.opacity(0.6))
+                                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                                 }
                                 Spacer()
                             }
@@ -133,11 +133,11 @@ struct SignUpAgeView: View {
                         }) {
                             Image(systemName: "arrow.left")
                                 .font(.system(size: 18, weight: .medium))
-                                .foregroundColor(.black)
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
                                 .frame(width: 44, height: 44)
                                 .background(
                                     Circle()
-                                        .fill(.white)
+                                        .fill(AppColors.background(themeManager.colorScheme))
                                 )
                         }
                         //.buttonStyle(.glass)
@@ -158,9 +158,9 @@ struct SignUpAgeView: View {
                             .frame(height: 48)
                             .background(
                                 RoundedRectangle(cornerRadius: 22)
-                                    .fill(Color(hex: "#B01328"))
+                                    .fill(AppColors.primary)
                             )
-                            .shadow(color: Color(hex: "#BB3E4F").opacity(0.6), radius: 16, x: 0, y: 6)
+                            .shadow(color: AppColors.primary.opacity(0.6), radius: 16, x: 0, y: 6)
                         }
                     }
                     .padding(.trailing, 24)
@@ -168,8 +168,7 @@ struct SignUpAgeView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
-        .navigationBarBackButtonHidden(true) // Hide top back button, use bottom button
+        .navigationBarBackButtonHidden(true)
         .toolbar {
             ToolbarItem(placement: .principal) {
                 ProgressBar(currentStep: 2, totalSteps: 7)
@@ -189,6 +188,7 @@ struct SignUpAgeView: View {
             .environmentObject(themeManager)
             .presentationDetents([.fraction(0.4), .medium])
         }
+        .preferredColorScheme(themeManager.colorScheme)
     }
     
     private func startAnimations() {
@@ -260,12 +260,11 @@ struct DatePickerSheet: View {
                 )
                 .datePickerStyle(.wheel)
                 .labelsHidden()
-                .colorScheme(.dark)
                 .accentColor(AppColors.primary)
                 .padding(.horizontal, 24)
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(themeManager.colorScheme)
         .presentationDetents([.medium, .large])
     }
 }

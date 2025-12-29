@@ -913,12 +913,59 @@ struct ChatTabView: View {
             let uid = try await AuthService.shared.getCurrentUserId()
             userId = uid
 
-            // Load user name
-            if let client = SupabaseManager.shared.getClient() {
-                do {
-                    let session = try await client.auth.session
-                    userName = session.user.email?.components(separatedBy: "@").first?.capitalized
-                } catch {
+            // Try to fetch user profile (first_name / last_name) from Supabase REST first
+            do {
+                if let supabaseURL = SupabaseManager.shared.getURL(),
+                   let supabaseKey = SupabaseManager.shared.getAnonKey(),
+                   let url = URL(string: "\(supabaseURL)/rest/v1/users?id=eq.\(uid)&select=first_name,last_name") {
+
+                    let accessToken = try await AuthService.shared.getAccessToken()
+                    var request = URLRequest(url: url)
+                    request.httpMethod = "GET"
+                    request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+                    request.setValue(supabaseKey, forHTTPHeaderField: "apikey")
+                    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                    request.setValue("application/vnd.pgjson.object+json", forHTTPHeaderField: "Prefer")
+
+                    struct UserProfile: Codable { let first_name: String?; let last_name: String? }
+
+                    let (data, response) = try await URLSession.shared.data(for: request)
+                    if let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) {
+                        let decoder = JSONDecoder()
+                        if let profile = try? decoder.decode(UserProfile.self, from: data) {
+                            if let first = profile.first_name, !first.isEmpty {
+                                userName = first
+                            } else if let last = profile.last_name, !last.isEmpty {
+                                userName = last
+                            }
+                        } else if let array = try? decoder.decode([UserProfile].self, from: data), let first = array.first {
+                            if let firstName = first.first_name, !firstName.isEmpty {
+                                userName = firstName
+                            } else if let lastName = first.last_name, !lastName.isEmpty {
+                                userName = lastName
+                            }
+                        }
+                    }
+                }
+            } catch {
+                // ignore and fallback to email-based display name
+                print("Warning: could not fetch profile for chat header: \(error)")
+            }
+
+            // Fallback: derive display name from session email if profile not found
+            if userName == nil {
+                if let client = SupabaseManager.shared.getClient() {
+                    do {
+                        let session = try await client.auth.session
+                        if let email = session.user.email {
+                            userName = email.components(separatedBy: "@").first?.capitalized
+                        } else {
+                            userName = "User"
+                        }
+                    } catch {
+                        userName = "User"
+                    }
+                } else {
                     userName = "User"
                 }
             }
@@ -1230,7 +1277,7 @@ struct SettingsTabView: View {
                                 showEditInformation = true
                             }
 
-                            if !hasActiveSubscription {
+                            if (!hasActiveSubscription) {
                                 SettingsItem(icon: "star.fill", text: "Upgrade to Pro") {
                                     // Placeholder action - integrate purchase flow
                                 }
@@ -1363,80 +1410,95 @@ struct SettingsTabView: View {
 
 // MARK: - Analyse Modal View
 struct AnalyseModalView: View {
+    @EnvironmentObject var themeManager: ThemeManager
     @Binding var isPresented: Bool
     @State private var selectedFile: String? = nil
 
     var body: some View {
         NavigationView {
-            VStack(spacing: 24) {
+            VStack(spacing: 16) {
                 // Drag Handle
                 RoundedRectangle(cornerRadius: 2)
-                    .fill(Color(hex: "#333333"))
+                    .fill(Color.gray.opacity(0.5))
                     .frame(width: 40, height: 4)
+                    .padding(.top, 8)
 
-                Spacer()
-
-                if selectedFile == nil {
-                    VStack(spacing: 12) {
+                HStack {
+                    Spacer()
+                    VStack(spacing: 8) {
                         Text("Upload a file to analyse")
-                            .font(.custom("ProductSans-Bold", size: 18))
-                            .foregroundColor(.white)
+                            .font(.custom("ProductSans-Bold", size: 16))
+                            .foregroundColor(Color.black)
 
                         HStack(spacing: 16) {
                             uploadOption(icon: "photo", title: "Photo")
                             uploadOption(icon: "doc.fill", title: "PDF")
                         }
                     }
-                } else {
-                    Text("Selected: \(selectedFile ?? "")")
-                        .foregroundColor(.white)
+                    Spacer()
                 }
+                .padding(.horizontal, 24)
 
                 Spacer()
 
-                Button {
+                // Continue button styled like Get Started
+                Button(action: {
                     // Handle continue action
                     isPresented = false
-                } label: {
-                    Text("Continue")
-                        .font(.custom("ProductSans-Bold", size: 16))
-                        .foregroundColor(.white)
-                        .padding()
-                        .frame(maxWidth: .infinity)
-                        .background(Color.blue)
-                        .cornerRadius(12)
+                }) {
+                    HStack {
+                        Spacer()
+                        Text("Continue")
+                            .font(.custom("ProductSans-Bold", size: 16))
+                            .foregroundColor(Color.white)
+                        Spacer()
+                    }
+                    .frame(height: 56)
+                    .background(
+                        RoundedRectangle(cornerRadius: 28)
+                            .fill(AppColors.primary)
+                    )
+                    .shadow(color: Color(hex: "#BB3E4F").opacity(0.6), radius: 16, x: 0, y: 6)
                 }
-                .disabled(selectedFile == nil)
                 .padding(.horizontal, 24)
-                .padding(.bottom, 32)
+                .padding(.bottom, 16)
+                .disabled(selectedFile == nil)
             }
-            .background(Color(hex: "#1A1A1A"))
+            .frame(maxWidth: .infinity)
+            .frame(height: 300) // short modal
+            .background(Color.white)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button(action: { isPresented = false }) {
                         Text("Close")
-                            .foregroundColor(.white)
+                            .foregroundColor(Color.black)
                     }
                 }
             }
         }
+        // Make the navigation bar and sheet area opaque white
+        .toolbarBackground(Color.white, for: .navigationBar)
+        .toolbarColorScheme(.light, for: .navigationBar)
+        .background(Color.white.ignoresSafeArea())
+        // request a medium presentation detent when used as sheet
+        .presentationDetents([.medium])
     }
 
     private func uploadOption(icon: String, title: String) -> some View {
         VStack(spacing: 8) {
             Circle()
-                .fill(Color(hex: "#1A1A1A"))
+                .fill(Color.gray.opacity(0.12))
                 .frame(width: 64, height: 64)
                 .overlay(
                     Image(systemName: icon)
                         .font(.system(size: 24))
-                        .foregroundColor(.white)
+                        .foregroundColor(AppColors.primary)
                 )
 
             Text(title)
                 .font(.custom("ProductSans-Regular", size: 14))
-                .foregroundColor(.white)
+                .foregroundColor(Color.gray)
         }
     }
 }
@@ -1450,34 +1512,149 @@ struct HealthScoreInfoModal: View {
         NavigationView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("What is the health score")
+                    Text("How the Health Score is calculated")
                         .font(.custom("ProductSans-Bold", size: 20))
                         .foregroundColor(AppColors.text(themeManager.colorScheme))
 
-                    infoRow(marker: "Cholesterol", range: "0 - 200 mg/dL", weight: "High")
-                    infoRow(marker: "Blood Sugar", range: "70 - 99 mg/dL", weight: "Medium")
+                    Text("Summary")
+                        .font(.custom("ProductSans-Bold", size: 16))
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+
+                    Text("We analyse your uploaded blood tests and compute a score between 0 and 10 that reflects overall blood health. The score is a weighted combination of three components:")
+                        .font(.custom("ProductSans-Regular", size: 14))
+                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(alignment: .top) {
+                            Text("•")
+                                .font(.system(size: 14))
+                                .foregroundColor(AppColors.primary)
+                            VStack(alignment: .leading) {
+                                Text("Core Risk Biomarkers — 45%")
+                                    .font(.custom("ProductSans-Bold", size: 14))
+                                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+                                Text("Key biomarkers (e.g. Hemoglobin, RBC, WBC, Platelets, ESR, Neutrophils, Lymphocytes, MCH/MCHC/MCV/RDW) are scored against optimal ranges. Each marker contributes a weighted value based on how far it is from the optimal range.")
+                                    .font(.custom("ProductSans-Regular", size: 13))
+                                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            }
+                        }
+
+                        HStack(alignment: .top) {
+                            Text("•")
+                                .font(.system(size: 14))
+                                .foregroundColor(AppColors.primary)
+                            VStack(alignment: .leading) {
+                                Text("Optimal vs Normal — 17.5%")
+                                    .font(.custom("ProductSans-Bold", size: 14))
+                                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+                                Text("A broader check across all reported markers rewards values listed as 'normal' and gives partial credit for borderline values.")
+                                    .font(.custom("ProductSans-Regular", size: 13))
+                                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            }
+                        }
+
+                        HStack(alignment: .top) {
+                            Text("•")
+                                .font(.system(size: 14))
+                                .foregroundColor(AppColors.primary)
+                            VStack(alignment: .leading) {
+                                Text("Data Completeness — 5%")
+                                    .font(.custom("ProductSans-Bold", size: 14))
+                                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+                                Text("We reward reports that include a full set of expected markers (e.g. a complete CBC). Missing markers reduce the completeness score.")
+                                    .font(.custom("ProductSans-Regular", size: 13))
+                                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            }
+                        }
+                    }
+
+                    Divider()
+
+                    Text("Calculation details")
+                        .font(.custom("ProductSans-Bold", size: 16))
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("1) For each analysis we compute:")
+                            .font(.custom("ProductSans-Regular", size: 13))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+
+                        Text("   • coreRiskScore (0–1) — weighted sum of key biomarkers")
+                            .font(.custom("ProductSans-Regular", size: 13))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+
+                        Text("   • optimalRangeScore (0–1) — fraction of markers marked ‘normal’ (partial credit for borderline)")
+                            .font(.custom("ProductSans-Regular", size: 13))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+
+                        Text("   • completenessScore (0–1) — how complete the report is relative to expected markers")
+                            .font(.custom("ProductSans-Regular", size: 13))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+
+                        Text("2) Combine with weights:")
+                            .font(.custom("ProductSans-Regular", size: 13))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+
+                        Text("   finalScore = coreRiskScore * 0.45 + optimalRangeScore * 0.175 + completenessScore * 0.05")
+                            .font(.custom("ProductSans-Regular", size: 13))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+
+                        Text("3) Normalize to 0–10 scale and clamp values.")
+                            .font(.custom("ProductSans-Regular", size: 13))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                    }
+
+                    Divider()
+
+                    Text("Key markers and optimal ranges (examples)")
+                        .font(.custom("ProductSans-Bold", size: 16))
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+
+                    // Show a concise list of markers and ranges used in calculation
+                    VStack(alignment: .leading, spacing: 8) {
+                        Group {
+                            Text("Hemoglobin (Hb): 13.0 - 17.0")
+                            Text("Total RBC count: 4.5 - 5.5")
+                            Text("Packed Cell Volume (PCV): 40.0 - 50.0")
+                            Text("Total WBC count: 4000 - 11000")
+                            Text("Platelet Count: 150000 - 410000")
+                        }
+                        .font(.custom("ProductSans-Regular", size: 13))
+                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+
+                        Group {
+                            Text("ESR: 0 - 15")
+                            Text("Neutrophils: 50 - 62")
+                            Text("Lymphocytes: 20 - 40")
+                            Text("MCH / MCHC / MCV / RDW: see ranges in code")
+                        }
+                        .font(.custom("ProductSans-Regular", size: 13))
+                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                    }
+
+                    Spacer().frame(height: 24)
+
+                    Text("Notes")
+                        .font(.custom("ProductSans-Bold", size: 14))
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+
+                    Text("- The score is an overall indicator and does not replace a clinician's interpretation. If any marker is flagged, consult your doctor.")
+                        .font(.custom("ProductSans-Regular", size: 13))
+                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                 }
-                .padding()
+                .padding(16)
+                .background(AppColors.background(themeManager.colorScheme))
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: { isPresented = false }) { Text("Close") }
+                    Button(action: { isPresented = false }) {
+                        Text("Close")
+                            .foregroundColor(AppColors.text(themeManager.colorScheme))
+                    }
                 }
             }
         }
-    }
-
-    private func infoRow(marker: String, range: String, weight: String) -> some View {
-        HStack {
-            VStack(alignment: .leading) {
-                Text(marker).font(.custom("ProductSans-Bold", size: 16))
-                Text(range).font(.custom("ProductSans-Regular", size: 14)).foregroundColor(.gray)
-            }
-            Spacer()
-            Text(weight).font(.custom("ProductSans-Regular", size: 14))
-        }
-        .padding(.vertical, 8)
     }
 }
 
@@ -1537,8 +1714,7 @@ struct SettingsItem: View {
                     .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
             }
             .padding(12)
-            .background(AppColors.surface(themeManager.colorScheme))
-            .cornerRadius(12)
+            // Removed background and corner radius so items sit flat on the screen
         }
         .buttonStyle(PlainButtonStyle())
         .padding(.vertical, 6)

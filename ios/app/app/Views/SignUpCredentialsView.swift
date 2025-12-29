@@ -48,17 +48,17 @@ struct SignUpCredentialsView: View {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Your email")
                                     .font(.custom("ProductSans-Regular", size: 14))
-                                    .foregroundColor(.white.opacity(0.7))
+                                    .foregroundColor(AppColors.text(themeManager.colorScheme).opacity(0.7))
                                 
                                 ZStack(alignment: .leading) {
                                     TextField("", text: $email)
                                         .font(.custom("ProductSans-Regular", size: 17))
-                                        .foregroundColor(.white)
+                                        .foregroundColor(AppColors.text(themeManager.colorScheme))
                                         .keyboardType(.emailAddress)
                                         .autocapitalization(.none)
                                         .autocorrectionDisabled()
                                         .textContentType(.username)
-                                        .tint(.white)
+                                        .tint(AppColors.text(themeManager.colorScheme))
                                         .padding()
                                         .overlay(
                                             Group {
@@ -66,7 +66,7 @@ struct SignUpCredentialsView: View {
                                                     HStack {
                                                         Text("Your email")
                                                             .font(.custom("ProductSans-Regular", size: 17))
-                                                            .foregroundColor(.white.opacity(0.4))
+                                                            .foregroundColor(AppColors.text(themeManager.colorScheme).opacity(0.4))
                                                         Spacer()
                                                     }
                                                     .padding(.horizontal, 16)
@@ -78,7 +78,7 @@ struct SignUpCredentialsView: View {
                                 }
                                 .background(
                                     RoundedRectangle(cornerRadius: 12)
-                                        .fill(Color.white.opacity(0.1))
+                                        .fill(AppColors.background(themeManager.colorScheme).opacity(0.1))
                                 )
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 12)
@@ -97,12 +97,12 @@ struct SignUpCredentialsView: View {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Password")
                                     .font(.custom("ProductSans-Regular", size: 14))
-                                    .foregroundColor(.white.opacity(0.7))
+                                    .foregroundColor(AppColors.text(themeManager.colorScheme).opacity(0.7))
                                 
                                 ZStack(alignment: .leading) {
                                     SecureField("", text: $password)
                                         .font(.custom("ProductSans-Regular", size: 17))
-                                        .foregroundColor(.white)
+                                        .foregroundColor(AppColors.text(themeManager.colorScheme))
                                         .autocapitalization(.none)
                                         .autocorrectionDisabled()
                                         .textInputAutocapitalization(.never)
@@ -114,7 +114,7 @@ struct SignUpCredentialsView: View {
                                                     HStack {
                                                         Text("Enter your password")
                                                             .font(.custom("ProductSans-Regular", size: 17))
-                                                            .foregroundColor(.white.opacity(0.4))
+                                                            .foregroundColor(AppColors.text(themeManager.colorScheme).opacity(0.4))
                                                         Spacer()
                                                     }
                                                     .padding(.horizontal, 16)
@@ -126,7 +126,7 @@ struct SignUpCredentialsView: View {
                                 }
                                 .background(
                                     RoundedRectangle(cornerRadius: 12)
-                                        .fill(Color.white.opacity(0.1))
+                                        .fill(AppColors.background(themeManager.colorScheme).opacity(0.1))
                                 )
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 12)
@@ -145,12 +145,12 @@ struct SignUpCredentialsView: View {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Confirm Password")
                                     .font(.custom("ProductSans-Regular", size: 14))
-                                    .foregroundColor(.white.opacity(0.7))
+                                    .foregroundColor(AppColors.text(themeManager.colorScheme).opacity(0.7))
                                 
                                 ZStack(alignment: .leading) {
                                     SecureField("", text: $confirmPassword)
                                         .font(.custom("ProductSans-Regular", size: 17))
-                                        .foregroundColor(.white)
+                                        .foregroundColor(AppColors.text(themeManager.colorScheme))
                                         .autocapitalization(.none)
                                         .autocorrectionDisabled()
                                         .textInputAutocapitalization(.never)
@@ -162,7 +162,7 @@ struct SignUpCredentialsView: View {
                                                     HStack {
                                                         Text("Confirm your password")
                                                             .font(.custom("ProductSans-Regular", size: 17))
-                                                            .foregroundColor(.white.opacity(0.4))
+                                                            .foregroundColor(AppColors.text(themeManager.colorScheme).opacity(0.4))
                                                         Spacer()
                                                     }
                                                     .padding(.horizontal, 16)
@@ -174,7 +174,7 @@ struct SignUpCredentialsView: View {
                                 }
                                 .background(
                                     RoundedRectangle(cornerRadius: 12)
-                                        .fill(Color.white.opacity(0.1))
+                                        .fill(AppColors.background(themeManager.colorScheme).opacity(0.1))
                                 )
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 12)
@@ -210,11 +210,11 @@ struct SignUpCredentialsView: View {
                         }) {
                             Image(systemName: "arrow.left")
                                 .font(.system(size: 18, weight: .medium))
-                                .foregroundColor(.black)
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
                                 .frame(width: 44, height: 44)
                                 .background(
                                     Circle()
-                                        .fill(.white)
+                                        .fill(AppColors.background(themeManager.colorScheme))
                                 )
                         }
                         //.buttonStyle(.glass)
@@ -252,7 +252,7 @@ struct SignUpCredentialsView: View {
             }
             .ignoresSafeArea(.keyboard, edges: .bottom)
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(themeManager.colorScheme)
         .navigationBarBackButtonHidden(true) // Hide top back button, use bottom button
         .toolbar {
             ToolbarItem(placement: .principal) {
