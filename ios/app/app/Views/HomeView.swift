@@ -10,6 +10,9 @@ import Supabase
 import UIKit
 import UniformTypeIdentifiers
 import WebKit
+import UserNotifications
+import Photos
+import AVFoundation
 
 struct HomeView: View {
     @EnvironmentObject var themeManager: ThemeManager
@@ -1412,7 +1415,16 @@ struct SettingsTabView: View {
 struct AnalyseModalView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @Binding var isPresented: Bool
-    @State private var selectedFile: String? = nil
+    @State private var selectedFile: URL? = nil
+    @State private var selectedFileName: String? = nil
+    @State private var selectedFileType: String? = nil
+    @State private var showImagePicker = false
+    @State private var showCameraPicker = false
+    @State private var showDocumentPicker = false
+    @State private var showPermissionAlert = false
+    @State private var permissionAlertTitle = ""
+    @State private var permissionAlertMessage = ""
+    @State private var isUploading = false
 
     var body: some View {
         NavigationView {
@@ -1428,11 +1440,28 @@ struct AnalyseModalView: View {
                     VStack(spacing: 8) {
                         Text("Upload a file to analyse")
                             .font(.custom("ProductSans-Bold", size: 16))
-                            .foregroundColor(Color.black)
+                            .foregroundColor(AppColors.text(themeManager.colorScheme))
+                        
+                        if let fileName = selectedFileName {
+                            Text("Selected: \(fileName)")
+                                .font(.custom("ProductSans-Regular", size: 14))
+                                .foregroundColor(AppColors.primary)
+                                .padding(.top, 4)
+                        }
 
                         HStack(spacing: 16) {
                             uploadOption(icon: "photo", title: "Photo")
+                                .onTapGesture {
+                                    requestPhotoLibraryPermission()
+                                }
+                            uploadOption(icon: "camera", title: "Camera")
+                                .onTapGesture {
+                                    requestCameraPermission()
+                                }
                             uploadOption(icon: "doc.fill", title: "PDF")
+                                .onTapGesture {
+                                    showDocumentPicker = true
+                                }
                         }
                     }
                     Spacer()
@@ -1443,52 +1472,91 @@ struct AnalyseModalView: View {
 
                 // Continue button styled like Get Started
                 Button(action: {
-                    // Handle continue action
-                    isPresented = false
+                    handleContinue()
                 }) {
                     HStack {
                         Spacer()
-                        Text("Continue")
-                            .font(.custom("ProductSans-Bold", size: 16))
-                            .foregroundColor(Color.white)
+                        if isUploading {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        } else {
+                            Text("Continue")
+                                .font(.custom("ProductSans-Bold", size: 16))
+                                .foregroundColor(Color.white)
+                        }
                         Spacer()
                     }
                     .frame(height: 56)
                     .background(
                         RoundedRectangle(cornerRadius: 28)
-                            .fill(AppColors.primary)
+                            .fill(selectedFile != nil ? AppColors.primary : Color.gray.opacity(0.5))
                     )
-                    .shadow(color: Color(hex: "#BB3E4F").opacity(0.6), radius: 16, x: 0, y: 6)
+                    .shadow(color: selectedFile != nil ? Color(hex: "#BB3E4F").opacity(0.6) : Color.clear, radius: 16, x: 0, y: 6)
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 16)
-                .disabled(selectedFile == nil)
+                .disabled(selectedFile == nil || isUploading)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 300) // short modal
-            .background(Color.white)
+            .frame(height: 350)
+            .background(AppColors.modalBackground(themeManager.colorScheme))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button(action: { isPresented = false }) {
                         Text("Close")
-                            .foregroundColor(Color.black)
+                            .foregroundColor(AppColors.text(themeManager.colorScheme))
                     }
                 }
             }
+            .sheet(isPresented: $showImagePicker) {
+                ImagePickerView(sourceType: .photoLibrary) { url, fileName in
+                    if let url = url {
+                        selectedFile = url
+                        selectedFileName = fileName
+                        selectedFileType = "image"
+                    }
+                }
+            }
+            .sheet(isPresented: $showCameraPicker) {
+                ImagePickerView(sourceType: .camera) { url, fileName in
+                    if let url = url {
+                        selectedFile = url
+                        selectedFileName = fileName
+                        selectedFileType = "image"
+                    }
+                }
+            }
+            .sheet(isPresented: $showDocumentPicker) {
+                DocumentPickerView { url, fileName in
+                    if let url = url {
+                        selectedFile = url
+                        selectedFileName = fileName
+                        selectedFileType = "pdf"
+                    }
+                }
+            }
+            .alert(permissionAlertTitle, isPresented: $showPermissionAlert) {
+                Button("Cancel", role: .cancel) { }
+                Button("Open Settings") {
+                    if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(settingsURL)
+                    }
+                }
+            } message: {
+                Text(permissionAlertMessage)
+            }
         }
-        // Make the navigation bar and sheet area opaque white
-        .toolbarBackground(Color.white, for: .navigationBar)
-        .toolbarColorScheme(.light, for: .navigationBar)
-        .background(Color.white.ignoresSafeArea())
-        // request a medium presentation detent when used as sheet
+        .toolbarBackground(AppColors.modalBackground(themeManager.colorScheme), for: .navigationBar)
+        .toolbarColorScheme(themeManager.colorScheme == .dark ? .dark : .light, for: .navigationBar)
+        .background(AppColors.modalBackground(themeManager.colorScheme).ignoresSafeArea())
         .presentationDetents([.medium])
     }
 
     private func uploadOption(icon: String, title: String) -> some View {
         VStack(spacing: 8) {
             Circle()
-                .fill(Color.gray.opacity(0.12))
+                .fill(AppColors.inputBackground(themeManager.colorScheme))
                 .frame(width: 64, height: 64)
                 .overlay(
                     Image(systemName: icon)
@@ -1498,7 +1566,193 @@ struct AnalyseModalView: View {
 
             Text(title)
                 .font(.custom("ProductSans-Regular", size: 14))
-                .foregroundColor(Color.gray)
+                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+        }
+    }
+    
+    private func requestPhotoLibraryPermission() {
+        let status = PHPhotoLibrary.authorizationStatus()
+        
+        switch status {
+        case .authorized, .limited:
+            showImagePicker = true
+        case .notDetermined:
+            PHPhotoLibrary.requestAuthorization { newStatus in
+                DispatchQueue.main.async {
+                    if newStatus == .authorized || newStatus == .limited {
+                        showImagePicker = true
+                    } else {
+                        showPermissionDeniedAlert(for: "Photo Library")
+                    }
+                }
+            }
+        case .denied, .restricted:
+            showPermissionDeniedAlert(for: "Photo Library")
+        @unknown default:
+            showPermissionDeniedAlert(for: "Photo Library")
+        }
+    }
+    
+    private func requestCameraPermission() {
+        let status = AVCaptureDevice.authorizationStatus(for: .video)
+        
+        switch status {
+        case .authorized:
+            showCameraPicker = true
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                DispatchQueue.main.async {
+                    if granted {
+                        showCameraPicker = true
+                    } else {
+                        showPermissionDeniedAlert(for: "Camera")
+                    }
+                }
+            }
+        case .denied, .restricted:
+            showPermissionDeniedAlert(for: "Camera")
+        @unknown default:
+            showPermissionDeniedAlert(for: "Camera")
+        }
+    }
+    
+    private func showPermissionDeniedAlert(for feature: String) {
+        permissionAlertTitle = "\(feature) Access Required"
+        permissionAlertMessage = "Please enable \(feature) access in Settings to upload files."
+        showPermissionAlert = true
+    }
+    
+    private func handleContinue() {
+        guard let file = selectedFile else { return }
+        
+        isUploading = true
+        
+        // TODO: Implement actual file upload to backend
+        // For now, just simulate a delay and close
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            isUploading = false
+            isPresented = false
+            // In a real implementation, you would:
+            // 1. Upload file to backend API
+            // 2. Navigate to analysis results
+            print("Would upload file: \(file.absoluteString)")
+        }
+    }
+}
+
+// MARK: - Image Picker View
+struct ImagePickerView: UIViewControllerRepresentable {
+    enum SourceType {
+        case camera
+        case photoLibrary
+    }
+    
+    let sourceType: SourceType
+    let completion: (URL?, String?) -> Void
+    
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.delegate = context.coordinator
+        picker.sourceType = sourceType == .camera ? .camera : .photoLibrary
+        picker.allowsEditing = false
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(completion: completion)
+    }
+    
+    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let completion: (URL?, String?) -> Void
+        
+        init(completion: @escaping (URL?, String?) -> Void) {
+            self.completion = completion
+        }
+        
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+            picker.dismiss(animated: true)
+            
+            if let image = info[.originalImage] as? UIImage {
+                // Save to temporary directory
+                let fileName = "captured_image_\(Date().timeIntervalSince1970).jpg"
+                let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+                
+                if let imageData = image.jpegData(compressionQuality: 0.8) {
+                    try? imageData.write(to: tempURL)
+                    completion(tempURL, fileName)
+                } else {
+                    completion(nil, nil)
+                }
+            } else {
+                completion(nil, nil)
+            }
+        }
+        
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            picker.dismiss(animated: true)
+            completion(nil, nil)
+        }
+    }
+}
+
+// MARK: - Document Picker View
+struct DocumentPickerView: UIViewControllerRepresentable {
+    let completion: (URL?, String?) -> Void
+    
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.pdf])
+        picker.allowsMultipleSelection = false
+        picker.delegate = context.coordinator
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(completion: completion)
+    }
+    
+    class Coordinator: NSObject, UIDocumentPickerDelegate {
+        let completion: (URL?, String?) -> Void
+        
+        init(completion: @escaping (URL?, String?) -> Void) {
+            self.completion = completion
+        }
+        
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            guard let url = urls.first else {
+                completion(nil, nil)
+                return
+            }
+            
+            // Start accessing security-scoped resource
+            guard url.startAccessingSecurityScopedResource() else {
+                completion(nil, nil)
+                return
+            }
+            
+            defer { url.stopAccessingSecurityScopedResource() }
+            
+            // Copy to temporary directory
+            let fileName = url.lastPathComponent
+            let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+            
+            do {
+                if FileManager.default.fileExists(atPath: tempURL.path) {
+                    try FileManager.default.removeItem(at: tempURL)
+                }
+                try FileManager.default.copyItem(at: url, to: tempURL)
+                completion(tempURL, fileName)
+            } catch {
+                print("Error copying file: \(error)")
+                completion(nil, nil)
+            }
+        }
+        
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            completion(nil, nil)
         }
     }
 }
@@ -1723,29 +1977,383 @@ struct SettingsItem: View {
 
 // MARK: - Edit Information View
 struct EditInformationView: View {
+    @EnvironmentObject var themeManager: ThemeManager
     @Binding var isPresented: Bool
     @State private var firstName: String = ""
     @State private var lastName: String = ""
+    @State private var email: String = ""
+    @State private var biologicalSex: String = ""
+    @State private var dateOfBirth: Date = Date()
+    @State private var heightCm: String = ""
+    @State private var weightKg: String = ""
+    @State private var newPassword: String = ""
+    @State private var confirmPassword: String = ""
+    @State private var isLoadingProfile: Bool = true
+    @State private var isSavingProfile: Bool = false
+    @State private var isSavingPassword: Bool = false
+    @State private var showAlert: Bool = false
+    @State private var alertTitle: String = ""
+    @State private var alertMessage: String = ""
+    @State private var showDatePicker: Bool = false
 
     var body: some View {
         NavigationView {
-            Form {
-                Section(header: Text("Name")) {
-                    TextField("First name", text: $firstName)
-                    TextField("Last name", text: $lastName)
-                }
-
-                Section {
-                    Button("Save") {
-                        // Save action - hook into profile API
-                        isPresented = false
+            ZStack {
+                AppColors.background(themeManager.colorScheme)
+                    .ignoresSafeArea()
+                
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        // Title
+                        Text("Edit Information")
+                            .font(.custom("ProductSans-Bold", size: 32))
+                            .foregroundColor(AppColors.text(themeManager.colorScheme))
+                            .padding(.horizontal, 24)
+                            .padding(.top, 20)
+                        
+                        if isLoadingProfile {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: AppColors.primary))
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .padding(.top, 40)
+                        } else {
+                            // Profile Section
+                            VStack(alignment: .leading, spacing: 16) {
+                                Text("Profile")
+                                    .font(.custom("ProductSans-Bold", size: 16))
+                                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+                                
+                                CustomTextField(label: "First name", text: $firstName, placeholder: "First name")
+                                CustomTextField(label: "Last name", text: $lastName, placeholder: "Last name")
+                                CustomTextField(label: "Email", text: $email, placeholder: "you@example.com", keyboardType: .emailAddress)
+                                
+                                // Biological Sex
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Biological sex")
+                                        .font(.custom("ProductSans-Regular", size: 14))
+                                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                                    
+                                    Picker("", selection: $biologicalSex) {
+                                        Text("Male").tag("male")
+                                        Text("Female").tag("female")
+                                    }
+                                    .pickerStyle(SegmentedPickerStyle())
+                                    .disabled(isSavingProfile)
+                                }
+                                
+                                // Date of Birth
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Date of birth")
+                                        .font(.custom("ProductSans-Regular", size: 14))
+                                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                                    
+                                    Button(action: { showDatePicker.toggle() }) {
+                                        HStack {
+                                            Text(dateOfBirth, style: .date)
+                                                .font(.custom("ProductSans-Regular", size: 16))
+                                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+                                            Spacer()
+                                            Image(systemName: "calendar")
+                                                .foregroundColor(AppColors.primary)
+                                        }
+                                    }
+                                    .disabled(isSavingProfile)
+                                    
+                                    Rectangle()
+                                        .fill(AppColors.border(themeManager.colorScheme))
+                                        .frame(height: 1)
+                                }
+                                
+                                if showDatePicker {
+                                    DatePicker("", selection: $dateOfBirth, displayedComponents: .date)
+                                        .datePickerStyle(WheelDatePickerStyle())
+                                        .labelsHidden()
+                                }
+                                
+                                CustomTextField(label: "Height (cm)", text: $heightCm, placeholder: "170", keyboardType: .decimalPad)
+                                CustomTextField(label: "Weight (kg)", text: $weightKg, placeholder: "70", keyboardType: .decimalPad)
+                                
+                                Button(action: handleSaveProfile) {
+                                    HStack {
+                                        Spacer()
+                                        if isSavingProfile {
+                                            ProgressView()
+                                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                        } else {
+                                            Text("Save profile")
+                                                .font(.custom("ProductSans-Bold", size: 16))
+                                                .foregroundColor(.white)
+                                        }
+                                        Spacer()
+                                    }
+                                    .frame(height: 56)
+                                    .background(AppColors.primary)
+                                    .cornerRadius(28)
+                                }
+                                .disabled(isSavingProfile || isLoadingProfile)
+                            }
+                            .padding(24)
+                            .background(AppColors.surface(themeManager.colorScheme))
+                            .cornerRadius(16)
+                            .padding(.horizontal, 24)
+                            
+                            // Password Section
+                            VStack(alignment: .leading, spacing: 16) {
+                                Text("Password")
+                                    .font(.custom("ProductSans-Bold", size: 16))
+                                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+                                
+                                CustomTextField(label: "New password", text: $newPassword, placeholder: "Enter new password", isSecure: true)
+                                CustomTextField(label: "Confirm new password", text: $confirmPassword, placeholder: "Confirm new password", isSecure: true)
+                                
+                                Button(action: handleChangePassword) {
+                                    HStack {
+                                        Spacer()
+                                        if isSavingPassword {
+                                            ProgressView()
+                                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                        } else {
+                                            Text("Change password")
+                                                .font(.custom("ProductSans-Bold", size: 16))
+                                                .foregroundColor(.white)
+                                        }
+                                        Spacer()
+                                    }
+                                    .frame(height: 56)
+                                    .background(AppColors.primary)
+                                    .cornerRadius(28)
+                                }
+                                .disabled(isSavingPassword)
+                            }
+                            .padding(24)
+                            .background(AppColors.surface(themeManager.colorScheme))
+                            .cornerRadius(16)
+                            .padding(.horizontal, 24)
+                            .padding(.bottom, 40)
+                        }
                     }
                 }
             }
-            .navigationBarTitle("Edit Information", displayMode: .inline)
+            .navigationTitle("Edit Information")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") { isPresented = false }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        isPresented = false
+                    }
+                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+                }
+            }
+            .alert(alertTitle, isPresented: $showAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(alertMessage)
+            }
+            .onAppear {
+                Task { await loadProfile() }
+            }
+        }
+    }
+    
+    private func loadProfile() async {
+        isLoadingProfile = true
+        
+        do {
+            guard let client = SupabaseManager.shared.getClient() else {
+                throw NSError(domain: "EditInfo", code: 1, userInfo: [NSLocalizedDescriptionKey: "Supabase not configured"])
+            }
+            
+            let session = try await client.auth.session
+            let userId = session.user.id.uuidString
+            
+            // Fetch user profile from database
+            struct UserProfile: Codable {
+                let id: String
+                let first_name: String?
+                let last_name: String?
+                let email: String?
+                let biological_sex: String?
+                let date_of_birth: String?
+                let height_cm: Double?
+                let weight_kg: Double?
+            }
+            
+            let response: [UserProfile] = try await client.database
+                .from("users")
+                .select()
+                .eq("id", value: userId)
+                .execute()
+                .value
+            
+            if let profile = response.first {
+                await MainActor.run {
+                    firstName = profile.first_name ?? ""
+                    lastName = profile.last_name ?? ""
+                    email = profile.email ?? session.user.email ?? ""
+                    biologicalSex = profile.biological_sex ?? "male"
+                    
+                    if let dobString = profile.date_of_birth {
+                        let formatter = ISO8601DateFormatter()
+                        if let date = formatter.date(from: dobString) {
+                            dateOfBirth = date
+                        }
+                    }
+                    
+                    if let height = profile.height_cm {
+                        heightCm = String(format: "%.0f", height)
+                    }
+                    
+                    if let weight = profile.weight_kg {
+                        weightKg = String(format: "%.1f", weight)
+                    }
+                }
+            } else {
+                await MainActor.run {
+                    email = session.user.email ?? ""
+                }
+            }
+        } catch {
+            await MainActor.run {
+                alertTitle = "Error"
+                alertMessage = error.localizedDescription
+                showAlert = true
+            }
+        }
+        
+        await MainActor.run {
+            isLoadingProfile = false
+        }
+    }
+    
+    private func handleSaveProfile() {
+        guard !firstName.trimmingCharacters(in: .whitespaces).isEmpty,
+              !lastName.trimmingCharacters(in: .whitespaces).isEmpty,
+              !email.trimmingCharacters(in: .whitespaces).isEmpty else {
+            alertTitle = "Validation"
+            alertMessage = "First name, last name, and email are required."
+            showAlert = true
+            return
+        }
+        
+        guard let height = Double(heightCm), height > 0,
+              let weight = Double(weightKg), weight > 0 else {
+            alertTitle = "Validation"
+            alertMessage = "Please enter valid height and weight."
+            showAlert = true
+            return
+        }
+        
+        Task {
+            isSavingProfile = true
+            
+            do {
+                guard let client = SupabaseManager.shared.getClient() else {
+                    throw NSError(domain: "EditInfo", code: 1, userInfo: [NSLocalizedDescriptionKey: "Supabase not configured"])
+                }
+                
+                let session = try await client.auth.session
+                let userId = session.user.id.uuidString
+                
+                let isoFormatter = ISO8601DateFormatter()
+                isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                
+                struct UpdateProfile: Codable {
+                    let first_name: String
+                    let last_name: String
+                    let email: String
+                    let biological_sex: String
+                    let date_of_birth: String
+                    let height_cm: Double
+                    let weight_kg: Double
+                    let updated_at: String
+                }
+                
+                let updateData = UpdateProfile(
+                    first_name: firstName.trimmingCharacters(in: .whitespaces),
+                    last_name: lastName.trimmingCharacters(in: .whitespaces),
+                    email: email.trimmingCharacters(in: .whitespaces),
+                    biological_sex: biologicalSex,
+                    date_of_birth: isoFormatter.string(from: dateOfBirth),
+                    height_cm: height,
+                    weight_kg: weight,
+                    updated_at: isoFormatter.string(from: Date())
+                )
+                
+                try await client.database
+                    .from("users")
+                    .update(updateData)
+                    .eq("id", value: userId)
+                    .execute()
+                
+                // Update auth email if changed
+                if email != session.user.email {
+                    try await client.auth.update(user: UserAttributes(email: email))
+                }
+                
+                await MainActor.run {
+                    alertTitle = "Success"
+                    alertMessage = "Profile updated successfully."
+                    showAlert = true
+                    isSavingProfile = false
+                }
+            } catch {
+                await MainActor.run {
+                    alertTitle = "Error"
+                    alertMessage = error.localizedDescription
+                    showAlert = true
+                    isSavingProfile = false
+                }
+            }
+        }
+    }
+    
+    private func handleChangePassword() {
+        guard !newPassword.trimmingCharacters(in: .whitespaces).isEmpty,
+              !confirmPassword.trimmingCharacters(in: .whitespaces).isEmpty else {
+            alertTitle = "Validation"
+            alertMessage = "Please enter and confirm your new password."
+            showAlert = true
+            return
+        }
+        
+        guard newPassword == confirmPassword else {
+            alertTitle = "Validation"
+            alertMessage = "Passwords do not match."
+            showAlert = true
+            return
+        }
+        
+        guard newPassword.count >= 8 else {
+            alertTitle = "Validation"
+            alertMessage = "Password must be at least 8 characters."
+            showAlert = true
+            return
+        }
+        
+        Task {
+            isSavingPassword = true
+            
+            do {
+                guard let client = SupabaseManager.shared.getClient() else {
+                    throw NSError(domain: "EditInfo", code: 1, userInfo: [NSLocalizedDescriptionKey: "Supabase not configured"])
+                }
+                
+                try await client.auth.update(user: UserAttributes(password: newPassword))
+                
+                await MainActor.run {
+                    alertTitle = "Success"
+                    alertMessage = "Password updated successfully."
+                    showAlert = true
+                    newPassword = ""
+                    confirmPassword = ""
+                    isSavingPassword = false
+                }
+            } catch {
+                await MainActor.run {
+                    alertTitle = "Error"
+                    alertMessage = error.localizedDescription
+                    showAlert = true
+                    isSavingPassword = false
                 }
             }
         }
@@ -1758,6 +2366,9 @@ struct NotificationSettingsView: View {
     @Binding var isPresented: Bool
     @State private var notificationsEnabled: Bool = false
     @State private var isLoading: Bool = false
+    @State private var showAlert: Bool = false
+    @State private var alertTitle: String = ""
+    @State private var alertMessage: String = ""
     
     var body: some View {
         NavigationView {
@@ -1804,6 +2415,27 @@ struct NotificationSettingsView: View {
                         .cornerRadius(16)
                         .padding(.horizontal, 24)
                         .padding(.top, 20)
+                        
+                        // Info text
+                        Text("You can manage notification permissions in your device settings.")
+                            .font(.custom("ProductSans-Regular", size: 14))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            .padding(.horizontal, 24)
+                        
+                        // Button to open Settings
+                        Button(action: openAppSettings) {
+                            HStack {
+                                Spacer()
+                                Text("Open Settings")
+                                    .font(.custom("ProductSans-Bold", size: 16))
+                                    .foregroundColor(.white)
+                                Spacer()
+                            }
+                            .frame(height: 56)
+                            .background(AppColors.primary)
+                            .cornerRadius(28)
+                        }
+                        .padding(.horizontal, 24)
                         .padding(.bottom, 40)
                     }
                 }
@@ -1818,18 +2450,69 @@ struct NotificationSettingsView: View {
                     .foregroundColor(AppColors.text(themeManager.colorScheme))
                 }
             }
+            .alert(alertTitle, isPresented: $showAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(alertMessage)
+            }
+            .onAppear {
+                checkNotificationStatus()
+            }
             .onChange(of: notificationsEnabled) { newValue in
                 handleToggleNotifications(enabled: newValue)
             }
         }
     }
     
+    private func checkNotificationStatus() {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            DispatchQueue.main.async {
+                notificationsEnabled = settings.authorizationStatus == .authorized
+            }
+        }
+    }
+    
     private func handleToggleNotifications(enabled: Bool) {
-        // TODO: Implement notification permission request and storage
-        isLoading = true
-        // Simulate API call
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            isLoading = false
+        if enabled {
+            // Request notification permission
+            isLoading = true
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in
+                DispatchQueue.main.async {
+                    isLoading = false
+                    if let error = error {
+                        notificationsEnabled = false
+                        alertTitle = "Error"
+                        alertMessage = error.localizedDescription
+                        showAlert = true
+                    } else if !granted {
+                        notificationsEnabled = false
+                        alertTitle = "Permission Denied"
+                        alertMessage = "Please enable notifications in Settings to receive important updates."
+                        showAlert = true
+                    } else {
+                        notificationsEnabled = true
+                        // Register for remote notifications
+                        DispatchQueue.main.async {
+                            UIApplication.shared.registerForRemoteNotifications()
+                        }
+                    }
+                }
+            }
+        } else {
+            // User disabled - show message that they need to disable in Settings
+            alertTitle = "Notifications"
+            alertMessage = "To disable notifications, please go to Settings > Notifications > Lumo and turn off notifications."
+            showAlert = true
+            // Revert the toggle
+            notificationsEnabled = true
+        }
+    }
+    
+    private func openAppSettings() {
+        if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+            if UIApplication.shared.canOpenURL(settingsURL) {
+                UIApplication.shared.open(settingsURL)
+            }
         }
     }
 }

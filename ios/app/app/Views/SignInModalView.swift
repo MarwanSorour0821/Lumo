@@ -12,13 +12,16 @@ struct SignInModalView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @Binding var isPresented: Bool
     var onGoogleSignIn: (() -> Void)? = nil
+    var onAppleSignIn: (() -> Void)? = nil
     var isGoogleLoading: Bool = false
+    var isAppleLoading: Bool = false
     var onSignInSuccess: ((String, String?) -> Void)? = nil
     
     @State private var email: String = ""
     @State private var password: String = ""
     @State private var showPassword: Bool = false
     @State private var isLoading: Bool = false
+    @State private var isAppleLoadingLocal: Bool = false
     @State private var showTerms: Bool = false
     @State private var showPrivacy: Bool = false
     @State private var errorAlert: ErrorAlert?
@@ -81,6 +84,15 @@ struct SignInModalView: View {
                             handleGoogleSignIn()
                         },
                         loading: isGoogleLoading
+                    )
+                    .padding(.bottom, 10)
+                    
+                    // Apple Sign In Button
+                    AppleSignInButton(
+                        onPress: {
+                            handleAppleSignIn()
+                        },
+                        loading: isAppleLoading || isAppleLoadingLocal
                     )
                     .padding(.bottom, 10)
                     
@@ -287,11 +299,47 @@ struct SignInModalView: View {
         }
     }
     
+    private func handleAppleSignIn() {
+        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+        impactFeedback.impactOccurred()
+        
+        if let onAppleSignIn = onAppleSignIn {
+            onAppleSignIn()
+        } else {
+            // Fallback: Use AuthService directly
+            isAppleLoadingLocal = true
+            
+            Task {
+                let response = await AuthService.shared.signInWithApple()
+                
+                await MainActor.run {
+                    isAppleLoadingLocal = false
+                    
+                    if let error = response.error {
+                        // Only show error if not cancelled by user
+                        if error.message != "Sign in cancelled" {
+                            showErrorAlert(title: "Sign In Error", message: error.localizedDescription)
+                        }
+                    } else if let user = response.user {
+                        let notificationFeedback = UINotificationFeedbackGenerator()
+                        notificationFeedback.notificationOccurred(.success)
+                        
+                        if let onSignInSuccess = onSignInSuccess {
+                            onSignInSuccess(user.id, user.email)
+                        }
+                        isPresented = false
+                    }
+                }
+            }
+        }
+    }
+    
     private func resetForm() {
         email = ""
         password = ""
         showPassword = false
         isLoading = false
+        isAppleLoadingLocal = false
     }
 }
 
@@ -309,5 +357,6 @@ struct SafariView: UIViewControllerRepresentable {
 
 #Preview {
     SignInModalView(isPresented: .constant(true))
+        .environmentObject(ThemeManager.shared)
 }
 

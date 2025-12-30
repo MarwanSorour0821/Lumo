@@ -44,7 +44,7 @@ struct SignUpAgeView: View {
                         // Heading
                         VStack(alignment: .leading, spacing: 8) {
                             Text("When's your birthday?")
-                                .font(.custom("ProductSans-Regular", size: 30))
+                                .font(.custom("ProductSans-Regular", size: 40)) // Updated font size to match SignUpSexView
                                 .foregroundColor(AppColors.text(themeManager.colorScheme))
                                 .opacity(headingOpacity)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -145,7 +145,11 @@ struct SignUpAgeView: View {
                         .clipShape(Circle())
                         
                         // Next Button
-                        Button(action: handleContinue) {
+                        Button(action: {
+                            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                            impactFeedback.impactOccurred()
+                            handleContinue()
+                        }) {
                             HStack(spacing: 8) {
                                 Text("Next")
                                     .font(.custom("ProductSans-Bold", size: 16))
@@ -229,6 +233,8 @@ struct DatePickerSheet: View {
                 // Header
                 HStack {
                     Button("Cancel") {
+                        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                        impactFeedback.impactOccurred()
                         isPresented = false
                     }
                     .font(.custom("ProductSans-Regular", size: 17))
@@ -243,6 +249,8 @@ struct DatePickerSheet: View {
                     Spacer()
                     
                     Button("Done") {
+                        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                        impactFeedback.impactOccurred()
                         isPresented = false
                     }
                     .font(.custom("ProductSans-Bold", size: 17))

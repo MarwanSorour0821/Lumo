@@ -6,7 +6,10 @@ app_name = 'auth'
 urlpatterns = [
     path('google/', views.google_oauth_initiate, name='google_oauth_initiate'),
     path('google/callback/', views.google_oauth_callback, name='google_oauth_callback'),
+    path('apple/', views.apple_oauth_initiate, name='apple_oauth_initiate'),
+    path('apple/callback/', views.apple_oauth_callback, name='apple_oauth_callback'),
 ]
+
 
 
 
