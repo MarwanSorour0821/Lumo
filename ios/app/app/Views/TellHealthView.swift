@@ -139,7 +139,11 @@ struct TellHealthView: View {
         let impactFeedback = UIImpactFeedbackGenerator(style: .light)
         impactFeedback.impactOccurred()
         
-        // Store selected conditions and navigate
+        // Store selected conditions (convert Set to Array of raw values)
+        let conditionStrings = Array(selectedConditions).map { $0.rawValue }
+        coordinator.updateHealthConditions(conditionStrings)
+        
+        // Navigate to next step
         coordinator.nextStep()
         navigateToNext = true
     }

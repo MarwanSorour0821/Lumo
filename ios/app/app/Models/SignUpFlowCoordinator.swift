@@ -48,6 +48,10 @@ class SignUpFlowCoordinator: ObservableObject {
         signUpData.weightUnit = unit
     }
     
+    func updateHealthConditions(_ conditions: [String]) {
+        signUpData.healthConditions = conditions
+    }
+    
     func nextStep() {
         currentStep += 1
     }

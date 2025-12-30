@@ -24,4 +24,5 @@ urlpatterns = [
     path('api/chat/', include('chat.urls')),
     path('api/auth/', include('auth.urls')),
     path('api/subscriptions/', include('subscriptions.urls')),
+    path('api/credits/', include('credits.urls')),
 ]

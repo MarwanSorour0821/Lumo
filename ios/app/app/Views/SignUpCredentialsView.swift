@@ -10,6 +10,7 @@ import SwiftUI
 struct SignUpCredentialsView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var themeManager: ThemeManager
+    @EnvironmentObject var appState: AppState
     @ObservedObject var coordinator: SignUpFlowCoordinator
     @State private var email: String = ""
     @State private var password: String = ""
@@ -386,7 +387,8 @@ struct SignUpCredentialsView: View {
                     weightKg: weightKg,
                     firstName: coordinator.signUpData.firstName,
                     lastName: coordinator.signUpData.lastName,
-                    email: user.email
+                    email: user.email,
+                    healthConditions: coordinator.signUpData.healthConditions
                 )
                 
                 if let error = profileResponse.error {
@@ -398,12 +400,13 @@ struct SignUpCredentialsView: View {
                     return
                 }
                 
-                // Success - hide loading and navigate to Home (or dismiss)
+                // Success - update app state to logged in
                 print("✅ Account and profile created successfully!")
                 await MainActor.run {
                     isCreatingAccount = false
-                    // For now, just dismiss. You can add navigation to a home screen here.
-                    dismiss()
+                    // Update app state to reflect authentication
+                    appState.isAuthenticated = true
+                    // User will automatically be navigated to HomeView
                 }
             }
         }

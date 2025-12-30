@@ -1241,6 +1241,8 @@ struct SettingsTabView: View {
     @State private var isRefreshing = false
     @State private var hasActiveSubscription = false
     @State private var showAppearancePicker = false
+    @State private var creditBalance: Int = 0
+    @State private var showCreditsModal = false
 
     var body: some View {
         NavigationView {
@@ -1268,6 +1270,12 @@ struct SettingsTabView: View {
 
                         // Settings Items
                         VStack(spacing: 0) {
+                            // Credit Balance Card
+                            CreditBalanceCard(credits: creditBalance) {
+                                showCreditsModal = true
+                            }
+                            .padding(.bottom, 16)
+                            
                             SettingsItem(icon: "sun.max.fill", text: "Appearance") {
                                 showAppearancePicker = true
                             }
@@ -1278,16 +1286,6 @@ struct SettingsTabView: View {
 
                             SettingsItem(icon: "person.fill", text: "Edit information") {
                                 showEditInformation = true
-                            }
-
-                            if (!hasActiveSubscription) {
-                                SettingsItem(icon: "star.fill", text: "Upgrade to Pro") {
-                                    // Placeholder action - integrate purchase flow
-                                }
-                            } else {
-                                SettingsItem(icon: "creditcard.fill", text: "Manage Subscription") {
-                                    // Placeholder for subscription management
-                                }
                             }
 
                             SettingsItem(icon: "arrow.right.square.fill", text: "Sign Out") {
@@ -1316,6 +1314,12 @@ struct SettingsTabView: View {
         }
         .sheet(isPresented: $showNotificationSettings) {
             NotificationSettingsView(isPresented: $showNotificationSettings)
+        }
+        .sheet(isPresented: $showCreditsModal) {
+            CreditsModalView(isPresented: $showCreditsModal) {
+                // Refresh credits after purchase
+                Task { await refreshSettings() }
+            }
         }
         .alert("Sign Out", isPresented: $showSignOutAlert) {
             Button("Cancel", role: .cancel) { }
@@ -1354,8 +1358,17 @@ struct SettingsTabView: View {
 
     private func refreshSettings() async {
         isRefreshing = true
-        // TODO: Refresh subscription status
-        hasActiveSubscription = false
+        
+        // Fetch credit balance
+        do {
+            let credits = try await CreditService.shared.getCredits()
+            await MainActor.run {
+                creditBalance = credits
+            }
+        } catch {
+            print("Error fetching credits: \(error.localizedDescription)")
+        }
+        
         isRefreshing = false
     }
 
@@ -1425,6 +1438,8 @@ struct AnalyseModalView: View {
     @State private var permissionAlertTitle = ""
     @State private var permissionAlertMessage = ""
     @State private var isUploading = false
+    @State private var showCreditsModal = false
+    @State private var isCheckingCredits = false
 
     var body: some View {
         NavigationView {
@@ -1476,7 +1491,7 @@ struct AnalyseModalView: View {
                 }) {
                     HStack {
                         Spacer()
-                        if isUploading {
+                        if isUploading || isCheckingCredits {
                             ProgressView()
                                 .progressViewStyle(CircularProgressViewStyle(tint: .white))
                         } else {
@@ -1495,7 +1510,7 @@ struct AnalyseModalView: View {
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 16)
-                .disabled(selectedFile == nil || isUploading)
+                .disabled(selectedFile == nil || isUploading || isCheckingCredits)
             }
             .frame(maxWidth: .infinity)
             .frame(height: 350)
@@ -1545,6 +1560,14 @@ struct AnalyseModalView: View {
                 }
             } message: {
                 Text(permissionAlertMessage)
+            }
+            .sheet(isPresented: $showCreditsModal) {
+                CreditsModalView(isPresented: $showCreditsModal) {
+                    // On purchase complete, retry the upload
+                    if let file = selectedFile {
+                        performUpload(file: file)
+                    }
+                }
             }
         }
         .toolbarBackground(AppColors.modalBackground(themeManager.colorScheme), for: .navigationBar)
@@ -1625,6 +1648,35 @@ struct AnalyseModalView: View {
     private func handleContinue() {
         guard let file = selectedFile else { return }
         
+        isCheckingCredits = true
+        
+        Task {
+            do {
+                // Check if user has credits
+                let hasCredit = try await CreditService.shared.deductCredit()
+                
+                await MainActor.run {
+                    isCheckingCredits = false
+                    
+                    if hasCredit {
+                        // User has credits, proceed with upload
+                        performUpload(file: file)
+                    } else {
+                        // Insufficient credits, show purchase modal
+                        showCreditsModal = true
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    isCheckingCredits = false
+                    // On error, show credits modal as fallback
+                    showCreditsModal = true
+                }
+            }
+        }
+    }
+    
+    private func performUpload(file: URL) {
         isUploading = true
         
         // TODO: Implement actual file upload to backend
@@ -1940,6 +1992,60 @@ struct BiomarkerCard: View {
         .background(AppColors.surface(themeManager.colorScheme))
         .cornerRadius(12)
         .padding(.horizontal, 24)
+    }
+}
+
+// MARK: - Credit Balance Card
+struct CreditBalanceCard: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    let credits: Int
+    let onBuyCredits: () -> Void
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            // Credit icon and count
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(AppColors.primary.opacity(0.15))
+                        .frame(width: 48, height: 48)
+                    
+                    Image(systemName: "creditcard.fill")
+                        .font(.system(size: 22))
+                        .foregroundColor(AppColors.primary)
+                }
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(credits)")
+                        .font(.custom("ProductSans-Bold", size: 24))
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+                    
+                    Text("Credit\(credits == 1 ? "" : "s") Available")
+                        .font(.custom("ProductSans-Regular", size: 13))
+                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                }
+            }
+            
+            Spacer()
+            
+            // Buy button
+            Button(action: onBuyCredits) {
+                Text("Buy More")
+                    .font(.custom("ProductSans-Bold", size: 14))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 20)
+                            .fill(AppColors.primary)
+                    )
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(AppColors.inputBackground(themeManager.colorScheme))
+        )
     }
 }
 

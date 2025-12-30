@@ -36,6 +36,7 @@ struct SignUpData {
     var heightUnit: String?
     var weight: String?
     var weightUnit: String?
+    var healthConditions: [String]? // Store health conditions as array of strings
     
     // For OAuth sign-ins
     var userId: String?

@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'chat',
     'auth.apps.AuthConfig',  # Use the full app config path
     'subscriptions',
+    'credits',
 ]
 
 MIDDLEWARE = [
