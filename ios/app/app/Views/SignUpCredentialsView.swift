@@ -222,7 +222,11 @@ struct SignUpCredentialsView: View {
                         .clipShape(Circle())
                         
                         // Next Button
-                        Button(action: handleContinue) {
+                        Button(action: {
+                            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                            impactFeedback.impactOccurred()
+                            handleContinue()
+                        }) {
                             HStack(spacing: 8) {
                                 if isCreatingAccount {
                                     ProgressView()

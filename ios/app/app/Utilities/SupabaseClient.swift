@@ -549,6 +549,300 @@ class AuthService {
             ))
         }
     }
+    
+    // Sign in with Apple (OAuth) - using backend API
+    func signInWithApple() async -> SignInResponse {
+        // Get API URL from configuration
+        guard let apiURLString = SupabaseManager.shared.getAPIURL(),
+              let apiURL = URL(string: "\(apiURLString)/api/auth/apple/") else {
+            return SignInResponse(
+                user: nil,
+                error: AuthError(message: "API URL is not configured. Please set API_URL in Info.plist.")
+            )
+        }
+        
+        // Generate redirect URL for OAuth callback
+        let bundleId = Bundle.main.bundleIdentifier ?? "com.lumoblood.app"
+        let redirectURL = "\(bundleId)://auth/callback"
+        
+        // Step 1: Call backend to get OAuth URL
+        var request = URLRequest(url: apiURL)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let requestBody: [String: Any] = [
+            "redirect_url": redirectURL
+        ]
+        
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        } catch {
+            return SignInResponse(
+                user: nil,
+                error: AuthError(message: "Failed to create request: \(error.localizedDescription)")
+            )
+        }
+        
+        // Make request to backend
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                return SignInResponse(
+                    user: nil,
+                    error: AuthError(message: "Invalid response from server")
+                )
+            }
+            
+            guard (200...299).contains(httpResponse.statusCode) else {
+                let errorMessage = String(data: data, encoding: .utf8) ?? "Server error"
+                return SignInResponse(
+                    user: nil,
+                    error: AuthError(message: "Server error: \(errorMessage)")
+                )
+            }
+            
+            // Parse response to get OAuth URL
+            let responseString = String(data: data, encoding: .utf8) ?? "Unable to decode"
+            print("🔵 Apple Auth Backend response: \(responseString)")
+            
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let oauthURLString = json["url"] as? String,
+                  let oauthURL = URL(string: oauthURLString) else {
+                print("❌ Failed to parse response. Response: \(responseString)")
+                return SignInResponse(
+                    user: nil,
+                    error: AuthError(message: "Invalid response format from server. Response: \(responseString)")
+                )
+            }
+            
+            print("🔵 Apple OAuth URL: \(oauthURLString)")
+            
+            // Step 2: Open OAuth session
+            return await withCheckedContinuation { continuation in
+                var hasResumed = false
+                var timeoutTask: Task<Void, Never>?
+                
+                // Set a timeout to detect if callback never comes
+                timeoutTask = Task {
+                    try? await Task.sleep(nanoseconds: 60_000_000_000) // 60 seconds
+                    if !hasResumed {
+                        print("⏰ Apple OAuth timeout - callback never received")
+                        await MainActor.run {
+                            AuthService.shared.activeOAuthSession?.cancel()
+                            AuthService.shared.activeOAuthSession = nil
+                            if !hasResumed {
+                                hasResumed = true
+                                continuation.resume(returning: SignInResponse(
+                                    user: nil,
+                                    error: AuthError(message: "OAuth timeout - the browser may not have opened. Please check your device settings.")
+                                ))
+                            }
+                        }
+                    }
+                }
+                
+                let authSession = ASWebAuthenticationSession(
+                    url: oauthURL,
+                    callbackURLScheme: bundleId
+                ) { callbackURL, error in
+                    timeoutTask?.cancel()
+                    AuthService.shared.activeOAuthSession = nil
+                    hasResumed = true
+                    print("🔵 Apple OAuth callback received")
+                    
+                    if let error = error {
+                        print("❌ Apple OAuth error: \(error.localizedDescription)")
+                        let nsError = error as NSError
+                        if nsError.code == ASWebAuthenticationSessionError.canceledLogin.rawValue {
+                            if !hasResumed {
+                                hasResumed = true
+                                continuation.resume(returning: SignInResponse(
+                                    user: nil,
+                                    error: AuthError(message: "Sign in cancelled")
+                                ))
+                            }
+                        } else {
+                            if !hasResumed {
+                                hasResumed = true
+                                continuation.resume(returning: SignInResponse(
+                                    user: nil,
+                                    error: AuthError(message: "OAuth error: \(error.localizedDescription)")
+                                ))
+                            }
+                        }
+                        return
+                    }
+                    
+                    guard let callbackURL = callbackURL else {
+                        print("❌ No Apple callback URL received")
+                        if !hasResumed {
+                            hasResumed = true
+                            continuation.resume(returning: SignInResponse(
+                                user: nil,
+                                error: AuthError(message: "No callback URL received")
+                            ))
+                        }
+                        return
+                    }
+                    
+                    print("🔵 Apple Callback URL: \(callbackURL.absoluteString)")
+                    
+                    // Step 3: Send callback URL to backend to complete authentication
+                    Task {
+                        await AuthService.shared.completeAppleSignIn(callbackURL: callbackURL, continuation: continuation)
+                    }
+                }
+                
+                let provider = OAuthPresentationContextProvider.shared
+                authSession.presentationContextProvider = provider
+                authSession.prefersEphemeralWebBrowserSession = false
+                
+                // Retain the session before starting
+                AuthService.shared.activeOAuthSession = authSession
+                
+                print("🔵 Starting Apple OAuth session with callback scheme: \(bundleId)")
+                
+                DispatchQueue.main.async {
+                    guard AuthService.shared.activeOAuthSession === authSession else {
+                        print("❌ Apple session was deallocated before starting")
+                        if !hasResumed {
+                            hasResumed = true
+                            continuation.resume(returning: SignInResponse(
+                                user: nil,
+                                error: AuthError(message: "Session was deallocated. Please try again.")
+                            ))
+                        }
+                        return
+                    }
+                    
+                    let startResult = authSession.start()
+                    print("🔵 Apple authSession.start() returned: \(startResult)")
+                    
+                    if !startResult {
+                        print("❌ Failed to start Apple OAuth session")
+                        AuthService.shared.activeOAuthSession = nil
+                        if !hasResumed {
+                            hasResumed = true
+                            continuation.resume(returning: SignInResponse(
+                                user: nil,
+                                error: AuthError(message: "Failed to start OAuth session. Please check your URL scheme configuration.")
+                            ))
+                        }
+                    } else {
+                        print("✅ Apple OAuth session started successfully")
+                    }
+                }
+            }
+        } catch {
+            return SignInResponse(
+                user: nil,
+                error: AuthError(message: "Network error: \(error.localizedDescription)")
+            )
+        }
+    }
+    
+    // Complete Apple sign-in by sending callback URL to backend
+    private func completeAppleSignIn(callbackURL: URL, continuation: CheckedContinuation<SignInResponse, Never>) async {
+        print("🔵 Completing Apple sign-in with callback URL")
+        guard let apiURLString = SupabaseManager.shared.getAPIURL(),
+              let apiURL = URL(string: "\(apiURLString)/api/auth/apple/callback/") else {
+            print("❌ API URL not configured")
+            continuation.resume(returning: SignInResponse(
+                user: nil,
+                error: AuthError(message: "API URL is not configured")
+            ))
+            return
+        }
+        
+        var request = URLRequest(url: apiURL)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let requestBody: [String: Any] = [
+            "callback_url": callbackURL.absoluteString
+        ]
+        
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        } catch {
+            continuation.resume(returning: SignInResponse(
+                user: nil,
+                error: AuthError(message: "Failed to create request: \(error.localizedDescription)")
+            ))
+            return
+        }
+        
+        do {
+            print("🔵 Sending Apple callback URL to backend: \(apiURL.absoluteString)")
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                print("❌ Invalid response type")
+                continuation.resume(returning: SignInResponse(
+                    user: nil,
+                    error: AuthError(message: "Invalid response from server")
+                ))
+                return
+            }
+            
+            let responseString = String(data: data, encoding: .utf8) ?? "Unable to decode"
+            print("🔵 Apple Backend callback response (\(httpResponse.statusCode)): \(responseString)")
+            
+            guard (200...299).contains(httpResponse.statusCode) else {
+                print("❌ Server error: \(responseString)")
+                continuation.resume(returning: SignInResponse(
+                    user: nil,
+                    error: AuthError(message: "Server error: \(responseString)")
+                ))
+                return
+            }
+            
+            // Parse response to get user data
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                print("❌ Failed to parse JSON. Response: \(responseString)")
+                continuation.resume(returning: SignInResponse(
+                    user: nil,
+                    error: AuthError(message: "Invalid JSON response: \(responseString)")
+                ))
+                return
+            }
+            
+            print("🔵 Parsed Apple JSON: \(json)")
+            
+            guard let userData = json["user"] as? [String: Any],
+                  let userId = userData["id"] as? String else {
+                print("❌ Missing user data in Apple response. JSON: \(json)")
+                continuation.resume(returning: SignInResponse(
+                    user: nil,
+                    error: AuthError(message: "Invalid response format from server. Missing user data.")
+                ))
+                return
+            }
+            
+            let email = userData["email"] as? String
+            let firstName = userData["first_name"] as? String ?? userData["firstName"] as? String
+            let lastName = userData["last_name"] as? String ?? userData["lastName"] as? String
+            
+            print("✅ Apple Sign-in successful. User ID: \(userId), Email: \(email ?? "N/A")")
+            
+            continuation.resume(returning: SignInResponse(
+                user: User(
+                    id: userId,
+                    email: email,
+                    firstName: firstName,
+                    lastName: lastName
+                ),
+                error: nil
+            ))
+        } catch {
+            print("❌ Network error: \(error.localizedDescription)")
+            continuation.resume(returning: SignInResponse(
+                user: nil,
+                error: AuthError(message: "Network error: \(error.localizedDescription)")
+            ))
+        }
+    }
 }
 
 // MARK: - OAuth Presentation Context

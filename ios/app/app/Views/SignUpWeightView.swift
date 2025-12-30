@@ -46,11 +46,11 @@ struct SignUpWeightView: View {
                         // Heading
                         VStack(alignment: .leading, spacing: 8) {
                             Text("What's your weight?")
-                                .font(.custom("ProductSans-Regular", size: 30))
+                                .font(.custom("ProductSans-Regular", size: 40)) // Updated font size to match SignUpSexView
                                 .foregroundColor(AppColors.text(themeManager.colorScheme))
                                 .opacity(headingOpacity)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                            
+
                             Text("We use this to personalize your health metrics and goals. Your weight data is kept private and secure.")
                                 .font(.custom("ProductSans-Regular", size: 16))
                                 .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
@@ -153,7 +153,11 @@ struct SignUpWeightView: View {
                         .clipShape(Circle())
                         
                         // Next Button
-                        Button(action: handleContinue) {
+                        Button(action: {
+                            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                            impactFeedback.impactOccurred()
+                            handleContinue()
+                        }) {
                             HStack(spacing: 8) {
                                 Text("Next")
                                     .font(.custom("ProductSans-Bold", size: 16))
