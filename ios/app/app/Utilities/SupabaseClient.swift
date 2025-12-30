@@ -170,7 +170,8 @@ class AuthService {
         weightKg: Double,
         firstName: String? = nil,
         lastName: String? = nil,
-        email: String? = nil
+        email: String? = nil,
+        healthConditions: [String]? = nil
     ) async -> ProfileResponse {
         guard let client = SupabaseManager.shared.getClient() else {
             return ProfileResponse(
@@ -197,6 +198,7 @@ class AuthService {
                 let first_name: String?
                 let last_name: String?
                 let email: String?
+                let health_conditions: [String]?
             }
             
             let profile = UserProfile(
@@ -209,7 +211,8 @@ class AuthService {
                 updated_at: isoFormatter.string(from: Date()),
                 first_name: firstName?.trimmingCharacters(in: .whitespaces).isEmpty == false ? firstName?.trimmingCharacters(in: .whitespaces) : nil,
                 last_name: lastName?.trimmingCharacters(in: .whitespaces).isEmpty == false ? lastName?.trimmingCharacters(in: .whitespaces) : nil,
-                email: email?.trimmingCharacters(in: .whitespaces).isEmpty == false ? email?.trimmingCharacters(in: .whitespaces) : nil
+                email: email?.trimmingCharacters(in: .whitespaces).isEmpty == false ? email?.trimmingCharacters(in: .whitespaces) : nil,
+                health_conditions: healthConditions
             )
             
             // Use upsert to insert or update the profile
@@ -450,102 +453,95 @@ class AuthService {
     
     // Complete Google sign-in by sending callback URL to backend
     private func completeGoogleSignIn(callbackURL: URL, continuation: CheckedContinuation<SignInResponse, Never>) async {
-        print("🔵 Completing Google sign-in with callback URL")
-        guard let apiURLString = SupabaseManager.shared.getAPIURL(),
-              let apiURL = URL(string: "\(apiURLString)/api/auth/google/callback/") else {
-            print("❌ API URL not configured")
+        print("🔵 Completing Google sign-in with callback URL: \(callbackURL.absoluteString)")
+        
+        // STEP 1: Extract tokens from the callback URL
+        let parsed = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)
+        var accessToken: String?
+        var refreshToken: String?
+        
+        // Try fragment first (OAuth standard)
+        if let fragment = parsed?.fragment {
+            let params = fragment.components(separatedBy: "&")
+            for param in params {
+                let keyValue = param.components(separatedBy: "=")
+                if keyValue.count == 2 {
+                    if keyValue[0] == "access_token" {
+                        accessToken = keyValue[1]
+                    } else if keyValue[0] == "refresh_token" {
+                        refreshToken = keyValue[1]
+                    }
+                }
+            }
+        }
+        
+        // Try query params as fallback
+        if accessToken == nil, let query = parsed?.queryItems {
+            accessToken = query.first(where: { $0.name == "access_token" })?.value
+            refreshToken = query.first(where: { $0.name == "refresh_token" })?.value
+        }
+        
+        guard let token = accessToken else {
+            print("❌ No access token found in callback URL")
             continuation.resume(returning: SignInResponse(
                 user: nil,
-                error: AuthError(message: "API URL is not configured")
+                error: AuthError(message: "No access token in callback URL")
             ))
             return
         }
         
-        var request = URLRequest(url: apiURL)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        print("🔵 Extracted access token: \(token.prefix(20))...")
         
-        let requestBody: [String: Any] = [
-            "callback_url": callbackURL.absoluteString
-        ]
-        
-        do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
-        } catch {
+        // STEP 2: Set session in Supabase client
+        guard let client = SupabaseManager.shared.getClient() else {
+            print("❌ Supabase client not available")
             continuation.resume(returning: SignInResponse(
                 user: nil,
-                error: AuthError(message: "Failed to create request: \(error.localizedDescription)")
+                error: AuthError(message: "Supabase client not configured")
             ))
             return
         }
         
         do {
-            print("🔵 Sending callback URL to backend: \(apiURL.absoluteString)")
-            let (data, response) = try await URLSession.shared.data(for: request)
+            print("🔵 Setting session in Supabase client...")
+            let session = try await client.auth.setSession(
+                accessToken: token,
+                refreshToken: refreshToken ?? ""
+            )
             
-            guard let httpResponse = response as? HTTPURLResponse else {
-                print("❌ Invalid response type")
-                continuation.resume(returning: SignInResponse(
-                    user: nil,
-                    error: AuthError(message: "Invalid response from server")
-                ))
-                return
-            }
+            print("✅ Session set successfully! User ID: \(session.user.id)")
             
-            let responseString = String(data: data, encoding: .utf8) ?? "Unable to decode"
-            print("🔵 Backend callback response (\(httpResponse.statusCode)): \(responseString)")
+            // STEP 3: Extract user metadata
+            let user = session.user
+            let metadata = user.userMetadata
+            let fullName = metadata["full_name"] as? String ?? metadata["name"] as? String
             
-            guard (200...299).contains(httpResponse.statusCode) else {
-                print("❌ Server error: \(responseString)")
-                continuation.resume(returning: SignInResponse(
-                    user: nil,
-                    error: AuthError(message: "Server error: \(responseString)")
-                ))
-                return
-            }
+            let firstName = (
+                metadata["given_name"] as? String ??
+                (fullName?.components(separatedBy: " ").first)
+            )
             
-            // Parse response to get user data
-            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                print("❌ Failed to parse JSON. Response: \(responseString)")
-                continuation.resume(returning: SignInResponse(
-                    user: nil,
-                    error: AuthError(message: "Invalid JSON response: \(responseString)")
-                ))
-                return
-            }
+            let lastName = (
+                metadata["family_name"] as? String ??
+                (fullName.map { $0.components(separatedBy: " ").dropFirst().joined(separator: " ") })
+            )
             
-            print("🔵 Parsed JSON: \(json)")
-            
-            guard let userData = json["user"] as? [String: Any],
-                  let userId = userData["id"] as? String else {
-                print("❌ Missing user data in response. JSON: \(json)")
-                continuation.resume(returning: SignInResponse(
-                    user: nil,
-                    error: AuthError(message: "Invalid response format from server. Missing user data.")
-                ))
-                return
-            }
-            
-            let email = userData["email"] as? String
-            let firstName = userData["first_name"] as? String ?? userData["firstName"] as? String
-            let lastName = userData["last_name"] as? String ?? userData["lastName"] as? String
-            
-            print("✅ Sign-in successful. User ID: \(userId), Email: \(email ?? "N/A")")
+            print("✅ Google sign-in complete. User: \(user.email ?? "N/A")")
             
             continuation.resume(returning: SignInResponse(
                 user: User(
-                    id: userId,
-                    email: email,
+                    id: user.id.uuidString,
+                    email: user.email,
                     firstName: firstName,
-                    lastName: lastName
+                    lastName: lastName?.isEmpty == false ? lastName : nil
                 ),
                 error: nil
             ))
         } catch {
-            print("❌ Network error: \(error.localizedDescription)")
+            print("❌ Failed to set session: \(error.localizedDescription)")
             continuation.resume(returning: SignInResponse(
                 user: nil,
-                error: AuthError(message: "Network error: \(error.localizedDescription)")
+                error: AuthError(message: "Failed to set session: \(error.localizedDescription)")
             ))
         }
     }
@@ -744,102 +740,95 @@ class AuthService {
     
     // Complete Apple sign-in by sending callback URL to backend
     private func completeAppleSignIn(callbackURL: URL, continuation: CheckedContinuation<SignInResponse, Never>) async {
-        print("🔵 Completing Apple sign-in with callback URL")
-        guard let apiURLString = SupabaseManager.shared.getAPIURL(),
-              let apiURL = URL(string: "\(apiURLString)/api/auth/apple/callback/") else {
-            print("❌ API URL not configured")
+        print("🔵 Completing Apple sign-in with callback URL: \(callbackURL.absoluteString)")
+        
+        // STEP 1: Extract tokens from the callback URL
+        let parsed = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)
+        var accessToken: String?
+        var refreshToken: String?
+        
+        // Try fragment first (OAuth standard)
+        if let fragment = parsed?.fragment {
+            let params = fragment.components(separatedBy: "&")
+            for param in params {
+                let keyValue = param.components(separatedBy: "=")
+                if keyValue.count == 2 {
+                    if keyValue[0] == "access_token" {
+                        accessToken = keyValue[1]
+                    } else if keyValue[0] == "refresh_token" {
+                        refreshToken = keyValue[1]
+                    }
+                }
+            }
+        }
+        
+        // Try query params as fallback
+        if accessToken == nil, let query = parsed?.queryItems {
+            accessToken = query.first(where: { $0.name == "access_token" })?.value
+            refreshToken = query.first(where: { $0.name == "refresh_token" })?.value
+        }
+        
+        guard let token = accessToken else {
+            print("❌ No access token found in Apple callback URL")
             continuation.resume(returning: SignInResponse(
                 user: nil,
-                error: AuthError(message: "API URL is not configured")
+                error: AuthError(message: "No access token in callback URL")
             ))
             return
         }
         
-        var request = URLRequest(url: apiURL)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        print("🔵 Extracted Apple access token: \(token.prefix(20))...")
         
-        let requestBody: [String: Any] = [
-            "callback_url": callbackURL.absoluteString
-        ]
-        
-        do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
-        } catch {
+        // STEP 2: Set session in Supabase client
+        guard let client = SupabaseManager.shared.getClient() else {
+            print("❌ Supabase client not available")
             continuation.resume(returning: SignInResponse(
                 user: nil,
-                error: AuthError(message: "Failed to create request: \(error.localizedDescription)")
+                error: AuthError(message: "Supabase client not configured")
             ))
             return
         }
         
         do {
-            print("🔵 Sending Apple callback URL to backend: \(apiURL.absoluteString)")
-            let (data, response) = try await URLSession.shared.data(for: request)
+            print("🔵 Setting Apple session in Supabase client...")
+            let session = try await client.auth.setSession(
+                accessToken: token,
+                refreshToken: refreshToken ?? ""
+            )
             
-            guard let httpResponse = response as? HTTPURLResponse else {
-                print("❌ Invalid response type")
-                continuation.resume(returning: SignInResponse(
-                    user: nil,
-                    error: AuthError(message: "Invalid response from server")
-                ))
-                return
-            }
+            print("✅ Apple session set successfully! User ID: \(session.user.id)")
             
-            let responseString = String(data: data, encoding: .utf8) ?? "Unable to decode"
-            print("🔵 Apple Backend callback response (\(httpResponse.statusCode)): \(responseString)")
+            // STEP 3: Extract user metadata
+            let user = session.user
+            let metadata = user.userMetadata
+            let fullName = metadata["full_name"] as? String ?? metadata["name"] as? String
             
-            guard (200...299).contains(httpResponse.statusCode) else {
-                print("❌ Server error: \(responseString)")
-                continuation.resume(returning: SignInResponse(
-                    user: nil,
-                    error: AuthError(message: "Server error: \(responseString)")
-                ))
-                return
-            }
+            let firstName = (
+                metadata["given_name"] as? String ??
+                (fullName?.components(separatedBy: " ").first)
+            )
             
-            // Parse response to get user data
-            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                print("❌ Failed to parse JSON. Response: \(responseString)")
-                continuation.resume(returning: SignInResponse(
-                    user: nil,
-                    error: AuthError(message: "Invalid JSON response: \(responseString)")
-                ))
-                return
-            }
+            let lastName = (
+                metadata["family_name"] as? String ??
+                (fullName.map { $0.components(separatedBy: " ").dropFirst().joined(separator: " ") })
+            )
             
-            print("🔵 Parsed Apple JSON: \(json)")
-            
-            guard let userData = json["user"] as? [String: Any],
-                  let userId = userData["id"] as? String else {
-                print("❌ Missing user data in Apple response. JSON: \(json)")
-                continuation.resume(returning: SignInResponse(
-                    user: nil,
-                    error: AuthError(message: "Invalid response format from server. Missing user data.")
-                ))
-                return
-            }
-            
-            let email = userData["email"] as? String
-            let firstName = userData["first_name"] as? String ?? userData["firstName"] as? String
-            let lastName = userData["last_name"] as? String ?? userData["lastName"] as? String
-            
-            print("✅ Apple Sign-in successful. User ID: \(userId), Email: \(email ?? "N/A")")
+            print("✅ Apple sign-in complete. User: \(user.email ?? "N/A")")
             
             continuation.resume(returning: SignInResponse(
                 user: User(
-                    id: userId,
-                    email: email,
+                    id: user.id.uuidString,
+                    email: user.email,
                     firstName: firstName,
-                    lastName: lastName
+                    lastName: lastName?.isEmpty == false ? lastName : nil
                 ),
                 error: nil
             ))
         } catch {
-            print("❌ Network error: \(error.localizedDescription)")
+            print("❌ Failed to set Apple session: \(error.localizedDescription)")
             continuation.resume(returning: SignInResponse(
                 user: nil,
-                error: AuthError(message: "Network error: \(error.localizedDescription)")
+                error: AuthError(message: "Failed to set session: \(error.localizedDescription)")
             ))
         }
     }

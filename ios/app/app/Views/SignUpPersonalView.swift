@@ -28,11 +28,13 @@ enum TextInputAutocapitalization: Equatable {
 struct SignUpPersonalView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var themeManager: ThemeManager
+    @EnvironmentObject var appState: AppState
     @ObservedObject var coordinator: SignUpFlowCoordinator
     @State private var firstName: String = ""
     @State private var lastName: String = ""
     @State private var firstNameError: String?
     @State private var isGoogleLoading = false
+    @State private var isAppleLoading = false
     @State private var navigateToCredentials = false
     
     @State private var headingOpacity: Double = 0
@@ -153,6 +155,16 @@ struct SignUpPersonalView: View {
                             loading: isGoogleLoading
                         )
                         .opacity(buttonOpacity)
+                        .padding(.bottom, 10)
+                        
+                        // Apple Sign In Button
+                        AppleSignInButton(
+                            onPress: {
+                                handleAppleSignIn()
+                            },
+                            loading: isAppleLoading
+                        )
+                        .opacity(buttonOpacity)
                         .padding(.bottom, 16)
                     }
                     .padding(.horizontal, 24)
@@ -263,6 +275,14 @@ struct SignUpPersonalView: View {
     }
     
     private func handleGoogleSignIn() {
+        // Save the name data first
+        if !firstName.trimmingCharacters(in: .whitespaces).isEmpty {
+            coordinator.updateFirstName(firstName.trimmingCharacters(in: .whitespaces))
+        }
+        if !lastName.trimmingCharacters(in: .whitespaces).isEmpty {
+            coordinator.updateLastName(lastName.trimmingCharacters(in: .whitespaces))
+        }
+        
         isGoogleLoading = true
         
         Task {
@@ -276,8 +296,120 @@ struct SignUpPersonalView: View {
                         print("Google sign-in error: \(error.message)")
                     }
                 } else if let user = response.user {
-                    print("Google sign-in successful: \(user.id)")
-                    // TODO: Navigate to SignUpSexView with user data
+                    print("✅ Google sign-in successful: \(user.id)")
+                    
+                    // Store OAuth user info
+                    coordinator.signUpData.userId = user.id
+                    coordinator.signUpData.email = user.email
+                    coordinator.signUpData.isOAuthSignIn = true
+                    
+                    // Use OAuth name if user didn't provide one
+                    if coordinator.signUpData.firstName == nil && user.firstName != nil {
+                        coordinator.updateFirstName(user.firstName!)
+                    }
+                    if coordinator.signUpData.lastName == nil && user.lastName != nil {
+                        coordinator.updateLastName(user.lastName!)
+                    }
+                    
+                    // Now create the profile with collected signup data
+                    createOAuthProfile(userId: user.id, email: user.email)
+                }
+            }
+        }
+    }
+    
+    private func handleAppleSignIn() {
+        // Save the name data first
+        if !firstName.trimmingCharacters(in: .whitespaces).isEmpty {
+            coordinator.updateFirstName(firstName.trimmingCharacters(in: .whitespaces))
+        }
+        if !lastName.trimmingCharacters(in: .whitespaces).isEmpty {
+            coordinator.updateLastName(lastName.trimmingCharacters(in: .whitespaces))
+        }
+        
+        isAppleLoading = true
+        
+        Task {
+            let response = await AuthService.shared.signInWithApple()
+            
+            await MainActor.run {
+                isAppleLoading = false
+                
+                if let error = response.error {
+                    if error.message != "Sign in cancelled" {
+                        print("Apple sign-in error: \(error.message)")
+                    }
+                } else if let user = response.user {
+                    print("✅ Apple sign-in successful: \(user.id)")
+                    
+                    // Store OAuth user info
+                    coordinator.signUpData.userId = user.id
+                    coordinator.signUpData.email = user.email
+                    coordinator.signUpData.isOAuthSignIn = true
+                    
+                    // Use OAuth name if user didn't provide one
+                    if coordinator.signUpData.firstName == nil && user.firstName != nil {
+                        coordinator.updateFirstName(user.firstName!)
+                    }
+                    if coordinator.signUpData.lastName == nil && user.lastName != nil {
+                        coordinator.updateLastName(user.lastName!)
+                    }
+                    
+                    // Now create the profile with collected signup data
+                    createOAuthProfile(userId: user.id, email: user.email)
+                }
+            }
+        }
+    }
+    
+    private func createOAuthProfile(userId: String, email: String?) {
+        Task {
+            // Check if we have all required data
+            guard let sex = coordinator.signUpData.sex,
+                  let ageString = coordinator.signUpData.age,
+                  let age = Int(ageString),
+                  let heightString = coordinator.signUpData.height,
+                  let height = Double(heightString),
+                  let weightString = coordinator.signUpData.weight,
+                  let weight = Double(weightString) else {
+                print("❌ Missing required signup data for OAuth profile")
+                return
+            }
+            
+            // Calculate date of birth from age
+            let calendar = Calendar.current
+            let today = Date()
+            let birthYear = calendar.component(.year, from: today) - age
+            let dateOfBirth = calendar.date(from: DateComponents(year: birthYear, month: calendar.component(.month, from: today), day: calendar.component(.day, from: today))) ?? today
+            
+            let heightCm = height
+            
+            // Convert weight to kg if needed
+            var weightKg = weight
+            if coordinator.signUpData.weightUnit == "lbs" {
+                weightKg = weightKg * 0.453592
+            }
+            
+            print("🔵 Creating OAuth user profile...")
+            let profileResponse = await AuthService.shared.createUserProfile(
+                userId: userId,
+                biologicalSex: sex.rawValue,
+                dateOfBirth: dateOfBirth,
+                heightCm: heightCm,
+                weightKg: weightKg,
+                firstName: coordinator.signUpData.firstName,
+                lastName: coordinator.signUpData.lastName,
+                email: email,
+                healthConditions: coordinator.signUpData.healthConditions
+            )
+            
+            await MainActor.run {
+                if let error = profileResponse.error {
+                    print("❌ OAuth profile creation failed: \(error.message)")
+                } else {
+                    print("✅ OAuth profile created successfully!")
+                    // Update app state to reflect authentication
+                    appState.isAuthenticated = true
                 }
             }
         }

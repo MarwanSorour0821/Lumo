@@ -362,6 +362,8 @@ struct OnboardingView: View {
                 } else if let user = response.user {
                     print("✅ Google sign-in successful! User ID: \(user.id), Email: \(user.email ?? "N/A")")
                     isSignedIn = true
+                    // Update app state to reflect authentication
+                    appState.isAuthenticated = true
                 }
             }
         }

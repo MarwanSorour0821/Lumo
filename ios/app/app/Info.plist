@@ -10,6 +10,7 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>com.lumoblood.app</string>
+				<string>lumo</string>
 			</array>
 		</dict>
 	</array>
