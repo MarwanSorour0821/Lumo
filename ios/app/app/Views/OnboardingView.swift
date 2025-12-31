@@ -92,6 +92,10 @@ struct OnboardingView: View {
                         isSignedIn = true
                         // Update app state to reflect authentication
                         appState.isAuthenticated = true
+                        // Load user data after sign-in
+                        Task {
+                            await UserDataViewModel.shared.loadAllUserData()
+                        }
                     }
                 )
                 .environmentObject(themeManager)
@@ -364,6 +368,10 @@ struct OnboardingView: View {
                     isSignedIn = true
                     // Update app state to reflect authentication
                     appState.isAuthenticated = true
+                    // Load user data after sign-in
+                    Task {
+                        await UserDataViewModel.shared.loadAllUserData()
+                    }
                 }
             }
         }

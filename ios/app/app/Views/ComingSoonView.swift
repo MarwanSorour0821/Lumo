@@ -7,8 +7,16 @@ struct ComingSoonView: View {
     
     var body: some View {
         ZStack {
-            AppColors.background(themeManager.colorScheme)
-                .ignoresSafeArea()
+            // Adaptive gradient background
+            LinearGradient(
+                colors: [
+                    AppColors.gradientStart(themeManager.colorScheme),
+                    AppColors.gradientEnd(themeManager.colorScheme)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
             
             VStack(spacing: 24) {
                 Spacer()
@@ -18,19 +26,21 @@ struct ComingSoonView: View {
                     .foregroundColor(AppColors.text(themeManager.colorScheme))
                     .multilineTextAlignment(.center)
                 
+                Text("You'll be able to see individual trends \nfor each biomarker here soon!")
+                    .font(.custom("ProductSans-Regular", size: 20))
+                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                    .multilineTextAlignment(.center)
+                
                 Spacer()
             }
             .padding(.horizontal, 24)
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                Button(action: {
-                    dismiss()
-                }) {
-                    Image(systemName: "chevron.left")
-                        .foregroundColor(AppColors.text(themeManager.colorScheme))
-                }
+            ToolbarItem(placement: .principal) {
+                Text("Your Trends")
+                    .font(.custom("ProductSans-Bold", size: 18))
+                    .foregroundColor(AppColors.text(themeManager.colorScheme))
             }
         }
     }

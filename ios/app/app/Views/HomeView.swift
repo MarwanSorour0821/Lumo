@@ -13,6 +13,7 @@ import WebKit
 import UserNotifications
 import Photos
 import AVFoundation
+import Combine
 
 struct HomeView: View {
     @EnvironmentObject var themeManager: ThemeManager
@@ -112,19 +113,8 @@ struct HomeView: View {
 // MARK: - Home Tab View
 struct HomeTabView: View {
     @EnvironmentObject var themeManager: ThemeManager
-    @State private var healthScore: Double = 0.0
-    @State private var isLoading: Bool = true
-    @State private var errorMessage: String? = nil
+    @StateObject private var userData = UserDataViewModel.shared
     @State private var showInfoModal: Bool = false
-    @State private var animatedProgress: Double = 0.0
-    @State private var userName: String? = nil
-    @State private var topBiomarkers: [HealthScoreService.BiomarkerAttention] = []
-    @State private var hasAnalyses: Bool = false
-    
-    // Calculate progress from score (0-10 scale)
-    private var progress: Double {
-        min(max(healthScore / 10.0, 0.0), 1.0)
-    }
     
     var body: some View {
         NavigationView {
@@ -156,17 +146,17 @@ struct HomeTabView: View {
                             
                             // Progress fill (adaptive color, partial - cut off at bottom) - animated
                             Circle()
-                                .trim(from: 0.125, to: 0.125 + (animatedProgress * 0.75)) // Fill based on animated progress
-                                .stroke(themeManager.colorScheme == .light ? Color.black : Color.white, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                                .trim(from: 0.125, to: 0.125 + (userData.animatedProgress * 0.75)) // Fill based on animated progress
+                                .stroke(AppColors.text(themeManager.colorScheme), style: StrokeStyle(lineWidth: 8, lineCap: .round))
                                 .frame(width: 280, height: 280)
                                 .rotationEffect(.degrees(90)) // Rotate so gap is at bottom
-                                .animation(.easeInOut(duration: 1.5), value: animatedProgress)
+                                .animation(.easeInOut(duration: 1.5), value: userData.animatedProgress)
                             
                             // Center score display
-                            if isLoading {
+                            if userData.isLoadingHealthScore {
                                 ProgressView()
                                     .progressViewStyle(CircularProgressViewStyle(tint: AppColors.text(themeManager.colorScheme)))
-                            } else if let error = errorMessage {
+                            } else if let error = userData.healthScoreError {
                                 VStack(spacing: 4) {
                                     Text("Error")
                                         .font(.system(size: 24, weight: .bold))
@@ -177,7 +167,7 @@ struct HomeTabView: View {
                                 }
                             } else {
                                 VStack(spacing: 4) {
-                                    Text(String(format: "%.1f", healthScore))
+                                    Text(String(format: "%.1f", userData.healthScore))
                                         .font(.system(size: 72, weight: .bold))
                                         .foregroundColor(AppColors.text(themeManager.colorScheme))
                                     
@@ -207,10 +197,10 @@ struct HomeTabView: View {
                             NavigationLink(destination: ComingSoonView()) {
                                 Text("Your trends")
                                     .font(.custom("ProductSans-Bold", size: 16))
-                                    .foregroundColor(themeManager.colorScheme == .light ? .white : .black)
+                                    .foregroundColor(AppColors.background(themeManager.colorScheme))
                                     .padding(.horizontal, 32)
                                     .padding(.vertical, 12)
-                                    .background(themeManager.colorScheme == .light ? Color.black : Color.white)
+                                    .background(AppColors.text(themeManager.colorScheme))
                                     .cornerRadius(25) // Pill shape
                             }
                             .simultaneousGesture(TapGesture().onEnded {
@@ -227,7 +217,7 @@ struct HomeTabView: View {
                     .padding(.top, 20)
                     
                     // Top Biomarkers Section
-                    if hasAnalyses {
+                    if userData.hasAnalyses {
                         VStack(alignment: .leading, spacing: 16) {
                             HStack(spacing: 0) {
                                 Text("What Needs ")
@@ -240,8 +230,8 @@ struct HomeTabView: View {
                             }
                             .padding(.horizontal, 24)
                             
-                            if !topBiomarkers.isEmpty {
-                                ForEach(topBiomarkers) { biomarker in
+                            if !userData.topBiomarkers.isEmpty {
+                                ForEach(userData.topBiomarkers) { biomarker in
                                     BiomarkerCard(biomarker: biomarker)
                                 }
                             } else {
@@ -279,7 +269,7 @@ struct HomeTabView: View {
                     Button(action: {
                         // Do nothing
                     }) {
-                        if let name = userName {
+                        if let name = userData.userName {
                             Text(name)
                                 .font(.custom("ProductSans-Bold", size: 18))
                                 .foregroundColor(AppColors.text(themeManager.colorScheme))
@@ -293,166 +283,10 @@ struct HomeTabView: View {
             }
         }
         .onAppear {
-            loadUserProfile()
-            loadHealthScore()
-        }
-        .onChange(of: healthScore) { newValue in
-            // Animate progress when score changes
-            withAnimation(.easeInOut(duration: 1.5)) {
-                animatedProgress = progress
-            }
+            // Data is loaded centrally, no need to reload here
         }
         .sheet(isPresented: $showInfoModal) {
             HealthScoreInfoModal(isPresented: $showInfoModal)
-        }
-    }
-    
-    // MARK: - Load User Profile
-    private func loadUserProfile() {
-        Task {
-            do {
-                let userId = try await AuthService.shared.getCurrentUserId()
-                print("🔵 Loading user profile for userId: \(userId)")
-                
-                // Get Supabase URL and auth token
-                guard let supabaseURL = SupabaseManager.shared.getURL(),
-                      let supabaseKey = SupabaseManager.shared.getAnonKey(),
-                      let url = URL(string: "\(supabaseURL)/rest/v1/users?id=eq.\(userId)&select=first_name,last_name") else {
-                    print("❌ Supabase configuration missing")
-                    return
-                }
-                
-                print("🔵 Request URL: \(url.absoluteString)")
-                
-                // Get auth token from AuthService
-                let accessToken = try await AuthService.shared.getAccessToken()
-                
-                // Make request to Supabase REST API
-                var request = URLRequest(url: url)
-                request.httpMethod = "GET"
-                request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-                request.setValue(supabaseKey, forHTTPHeaderField: "apikey")
-                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                request.setValue("application/vnd.pgjson.object+json", forHTTPHeaderField: "Prefer")
-                
-                struct UserProfile: Codable {
-                    let first_name: String?
-                    let last_name: String?
-                }
-                
-                let (data, response) = try await URLSession.shared.data(for: request)
-                
-                guard let httpResponse = response as? HTTPURLResponse else {
-                    print("❌ Invalid response type")
-                    return
-                }
-                
-                print("🔵 Response status: \(httpResponse.statusCode)")
-                
-                guard (200...299).contains(httpResponse.statusCode) else {
-                    let errorString = String(data: data, encoding: .utf8) ?? "Unknown error"
-                    print("❌ HTTP error: \(errorString)")
-                    return
-                }
-                
-                // Log raw response
-                if let responseString = String(data: data, encoding: .utf8) {
-                    print("🔵 Raw response: \(responseString)")
-                }
-                
-                let decoder = JSONDecoder()
-                
-                // Try to decode as single object first, then as array
-                var userProfile: UserProfile?
-                
-                if let singleProfile = try? decoder.decode(UserProfile.self, from: data) {
-                    userProfile = singleProfile
-                    print("✅ Decoded user profile as single object - first_name: \(singleProfile.first_name ?? "nil"), last_name: \(singleProfile.last_name ?? "nil")")
-                } else if let array = try? decoder.decode([UserProfile].self, from: data) {
-                    print("🔵 Decoded as array with \(array.count) items")
-                    if let firstProfile = array.first {
-                        userProfile = firstProfile
-                        print("✅ Using first element - first_name: \(firstProfile.first_name ?? "nil"), last_name: \(firstProfile.last_name ?? "nil")")
-                    } else {
-                        print("⚠️ Array is empty")
-                    }
-                } else {
-                    let dataString = String(data: data, encoding: .utf8) ?? "Unable to decode"
-                    print("❌ Failed to decode user profile. Response: \(String(dataString.prefix(200)))")
-                }
-                
-                await MainActor.run {
-                    if let profile = userProfile {
-                        if let firstName = profile.first_name, !firstName.isEmpty {
-                            self.userName = firstName
-                            print("✅ Set userName to: \(firstName)")
-                        } else if let lastName = profile.last_name, !lastName.isEmpty {
-                            self.userName = lastName
-                            print("✅ Set userName to: \(lastName)")
-                        } else {
-                            print("⚠️ User profile has no first_name or last_name - both are nil or empty")
-                        }
-                    } else {
-                        print("⚠️ User profile is nil after decoding attempt")
-                    }
-                }
-            } catch {
-                print("❌ Error loading user profile: \(error.localizedDescription)")
-                if let decodingError = error as? DecodingError {
-                    print("❌ Decoding error: \(decodingError)")
-                }
-            }
-        }
-    }
-    
-    // MARK: - Load Health Score
-    private func loadHealthScore() {
-        Task {
-            isLoading = true
-            errorMessage = nil
-            
-            do {
-                // Get current user ID
-                let userId = try await AuthService.shared.getCurrentUserId()
-                print("🔵 Fetching analyses for user: \(userId)")
-                
-                // Fetch analyses
-                let analyses = try await HealthScoreService.shared.fetchAnalyses(userId: userId)
-                print("🔵 Fetched \(analyses.count) analyses")
-                
-                // Calculate score
-                let score = HealthScoreService.shared.calculateHealthScore(analyses: analyses)
-                print("🔵 Calculated health score: \(score)")
-                
-                // Get top biomarkers
-                let biomarkers = HealthScoreService.shared.getTopBiomarkers(analyses: analyses, limit: 4)
-                print("🔵 Found \(biomarkers.count) biomarkers needing attention")
-                
-                await MainActor.run {
-                    self.healthScore = score
-                    self.topBiomarkers = biomarkers
-                    self.hasAnalyses = !analyses.isEmpty
-                    self.isLoading = false
-                    // Animate progress bar
-                    withAnimation(.easeInOut(duration: 1.5)) {
-                        self.animatedProgress = min(max(score / 10.0, 0.0), 1.0)
-                    }
-                    print("✅ Health score set to: \(score)")
-                }
-            } catch {
-                print("❌ Error loading health score: \(error.localizedDescription)")
-                await MainActor.run {
-                    // Show user-friendly error or default to 0
-                    if error.localizedDescription.contains("format") || error.localizedDescription.contains("decode") {
-                        self.errorMessage = "Unable to parse health data"
-                    } else {
-                        self.errorMessage = error.localizedDescription
-                    }
-                    self.isLoading = false
-                    // Default to 0 if no data
-                    self.healthScore = 0.0
-                }
-            }
         }
     }
 }
@@ -460,9 +294,7 @@ struct HomeTabView: View {
 // MARK: - History Tab View
 struct HistoryTabView: View {
     @EnvironmentObject var themeManager: ThemeManager
-    @State private var analyses: [Analysis] = []
-    @State private var isLoading: Bool = true
-    @State private var errorMessage: String? = nil
+    @StateObject private var userData = UserDataViewModel.shared
     @State private var selectedAnalysis: Analysis? = nil
     @State private var showDetail: Bool = false
 
@@ -472,10 +304,10 @@ struct HistoryTabView: View {
                 AppColors.background(themeManager.colorScheme)
                     .ignoresSafeArea()
 
-                if isLoading {
+                if userData.isLoadingAnalyses {
                     ProgressView()
                         .progressViewStyle(CircularProgressViewStyle(tint: AppColors.primary))
-                } else if let error = errorMessage {
+                } else if let error = userData.analysesError {
                     VStack(spacing: 12) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.system(size: 36))
@@ -489,7 +321,7 @@ struct HistoryTabView: View {
                             .multilineTextAlignment(.center)
                     }
                     .padding(24)
-                } else if analyses.isEmpty {
+                } else if userData.analyses.isEmpty {
                     VStack(spacing: 12) {
                         Image(systemName: "tray")
                             .font(.system(size: 44))
@@ -505,55 +337,66 @@ struct HistoryTabView: View {
                     .padding(24)
                 } else {
                     ScrollView {
-                        LazyVStack(spacing: 12) {
-                            ForEach(analyses, id: \ .id) { analysis in
+                        LazyVGrid(columns: [
+                            GridItem(.flexible(), spacing: 12),
+                            GridItem(.flexible(), spacing: 12)
+                        ], spacing: 12) {
+                            ForEach(userData.analyses, id: \.id) { analysis in
                                 Button(action: {
                                     selectedAnalysis = analysis
                                     showDetail = true
                                 }) {
-                                    HStack(spacing: 12) {
-                                        VStack(alignment: .leading, spacing: 6) {
-                                            Text(listTitle(for: analysis))
-                                                .font(.custom("ProductSans-Bold", size: 16))
-                                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+                                    GeometryReader { geometry in
+                                        VStack(alignment: .leading, spacing: 0) {
+                                            // Top section with icon
+                                            HStack {
+                                                Spacer()
+                                                Image(systemName: "arrow.up.forward.app")
+                                                    .font(.system(size: 18))
+                                                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                                            }
+                                            .padding(12)
+                                            
+                                            Spacer()
+                                            
+                                            // Bottom section with info
+                                            VStack(alignment: .leading, spacing: 6) {
+                                                Text(listTitle(for: analysis))
+                                                    .font(.custom("ProductSans-Bold", size: 16))
+                                                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+                                                    .lineLimit(2)
 
-                                            Text(listSubtitle(for: analysis))
-                                                .font(.custom("ProductSans-Regular", size: 14))
-                                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                                                .lineLimit(2)
+                                                Text(listSubtitle(for: analysis))
+                                                    .font(.custom("ProductSans-Regular", size: 13))
+                                                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                                                    .lineLimit(1)
+                                                
+                                                Text(formattedDate(analysis.created_at))
+                                                    .font(.custom("ProductSans-Regular", size: 11))
+                                                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                                                    .lineLimit(1)
+                                            }
+                                            .padding(12)
                                         }
-
-                                        Spacer()
-
-                                        VStack(alignment: .trailing, spacing: 6) {
-                                            Text(formattedDate(analysis.created_at))
-                                                .font(.custom("ProductSans-Regular", size: 12))
-                                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-
-                                            Image(systemName: "chevron.right")
-                                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                                        }
+                                        .frame(width: geometry.size.width, height: geometry.size.width)
+                                        .background(AppColors.surface(themeManager.colorScheme))
+                                        .cornerRadius(16)
+                                        .shadow(color: Color.black.opacity(themeManager.colorScheme == .light ? 0.05 : 0.0), radius: 2, x: 0, y: 1)
                                     }
-                                    .padding(12)
-                                    .background(AppColors.surface(themeManager.colorScheme))
-                                    .cornerRadius(12)
-                                    .shadow(color: Color.black.opacity(themeManager.colorScheme == .light ? 0.03 : 0.0), radius: 1, x: 0, y: 1)
-                                    .padding(.horizontal, 16)
+                                    .aspectRatio(1, contentMode: .fit)
                                 }
                                 .buttonStyle(PlainButtonStyle())
                             }
                         }
+                        .padding(.horizontal, 16)
                         .padding(.vertical, 20)
                     }
                     .refreshable {
-                        await loadAnalyses()
+                        await userData.refreshAnalyses()
                     }
                 }
             }
             .navigationBarTitle("History", displayMode: .inline)
-            .onAppear {
-                Task { await loadAnalyses() }
-            }
             .sheet(isPresented: $showDetail) {
                 if let analysis = selectedAnalysis {
                     AnalysisDetailView(analysis: analysis)
@@ -564,31 +407,36 @@ struct HistoryTabView: View {
     }
 
     // MARK: - Helpers
-    private func loadAnalyses() async {
-        await MainActor.run { isLoading = true; errorMessage = nil }
-        do {
-            let uid = try await AuthService.shared.getCurrentUserId()
-            let fetched = try await HealthScoreService.shared.fetchAnalyses(userId: uid)
-            await MainActor.run {
-                self.analyses = fetched
-                self.isLoading = false
-            }
-        } catch {
-            await MainActor.run {
-                self.errorMessage = error.localizedDescription
-                self.isLoading = false
-            }
-        }
-    }
-
     private func formattedDate(_ iso: String) -> String {
         let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        
         if let date = formatter.date(from: iso) {
-            let out = DateFormatter()
-            out.dateStyle = .medium
-            out.timeStyle = .none
-            return out.string(from: date)
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd"
+            let dateString = dateFormatter.string(from: date)
+            
+            let timeFormatter = DateFormatter()
+            timeFormatter.dateFormat = "HH:mm"
+            let timeString = timeFormatter.string(from: date)
+            
+            return "\(dateString) at \(timeString)"
         }
+        
+        // Try without fractional seconds
+        formatter.formatOptions = [.withInternetDateTime]
+        if let date = formatter.date(from: iso) {
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd"
+            let dateString = dateFormatter.string(from: date)
+            
+            let timeFormatter = DateFormatter()
+            timeFormatter.dateFormat = "HH:mm"
+            let timeString = timeFormatter.string(from: date)
+            
+            return "\(dateString) at \(timeString)"
+        }
+        
         return iso
     }
 
@@ -708,17 +556,15 @@ struct AnalysisDetailView: View {
 // MARK: - Chat Tab View
 struct ChatTabView: View {
     @EnvironmentObject var themeManager: ThemeManager
-    @State private var messages: [ChatMessageDTO] = []
+    @StateObject private var userData = UserDataViewModel.shared
     @State private var messageText: String = ""
     @State private var userId: String? = nil
-    @State private var userName: String? = nil
     @State private var selectedImage: UIImage? = nil
     @State private var selectedDocumentURL: URL? = nil
     @State private var showImagePicker: Bool = false
     @State private var showDocumentPicker: Bool = false
     @State private var showAttachmentActionSheet: Bool = false
     @State private var scrollProxyId = UUID()
-    @State private var isInitialLoading: Bool = false
     @State private var isTyping: Bool = false
     @State private var isUploading: Bool = false
 
@@ -742,13 +588,13 @@ struct ChatTabView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: 12) {
-                            if isInitialLoading {
+                            if userData.isLoadingChat {
                                 ProgressView()
                                     .progressViewStyle(CircularProgressViewStyle(tint: AppColors.primary))
                                     .padding(.top, 40)
-                            } else if messages.isEmpty {
+                            } else if userData.chatMessages.isEmpty {
                                 VStack(spacing: 8) {
-                                    Text("Hello \(userName ?? "")")
+                                    Text("Hello \(userData.userName ?? "")")
                                         .font(.custom("ProductSans-Bold", size: 28))
                                         .foregroundColor(AppColors.text(themeManager.colorScheme))
                                     Text("How may I assist you?")
@@ -758,7 +604,7 @@ struct ChatTabView: View {
                                 .frame(maxWidth: .infinity, minHeight: 200)
                                 .padding(.top, 40)
                             } else {
-                                ForEach(messages) { msg in
+                                ForEach(userData.chatMessages) { msg in
                                     MessageRow(message: msg)
                                         .id(msg.id)
                                         .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -771,11 +617,11 @@ struct ChatTabView: View {
                         }
                         .padding(.horizontal, 16)
                         .padding(.top, 12)
-                        .animation(.spring(response: 0.45, dampingFraction: 0.8, blendDuration: 0), value: messages.count)
-                        .onChange(of: messages.count) { _ in
+                        .animation(.spring(response: 0.45, dampingFraction: 0.8, blendDuration: 0), value: userData.chatMessages.count)
+                        .onChange(of: userData.chatMessages.count) { _ in
                             // Scroll to bottom when new messages arrive
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: {
-                                if let last = messages.last {
+                                if let last = userData.chatMessages.last {
                                     proxy.scrollTo(last.id, anchor: .bottom)
                                 }
                             })
@@ -917,77 +763,11 @@ struct ChatTabView: View {
 
     // MARK: - Actions
     private func initializeChat() async {
-        isInitialLoading = true
         do {
             let uid = try await AuthService.shared.getCurrentUserId()
             userId = uid
-
-            // Try to fetch user profile (first_name / last_name) from Supabase REST first
-            do {
-                if let supabaseURL = SupabaseManager.shared.getURL(),
-                   let supabaseKey = SupabaseManager.shared.getAnonKey(),
-                   let url = URL(string: "\(supabaseURL)/rest/v1/users?id=eq.\(uid)&select=first_name,last_name") {
-
-                    let accessToken = try await AuthService.shared.getAccessToken()
-                    var request = URLRequest(url: url)
-                    request.httpMethod = "GET"
-                    request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-                    request.setValue(supabaseKey, forHTTPHeaderField: "apikey")
-                    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                    request.setValue("application/vnd.pgjson.object+json", forHTTPHeaderField: "Prefer")
-
-                    struct UserProfile: Codable { let first_name: String?; let last_name: String? }
-
-                    let (data, response) = try await URLSession.shared.data(for: request)
-                    if let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) {
-                        let decoder = JSONDecoder()
-                        if let profile = try? decoder.decode(UserProfile.self, from: data) {
-                            if let first = profile.first_name, !first.isEmpty {
-                                userName = first
-                            } else if let last = profile.last_name, !last.isEmpty {
-                                userName = last
-                            }
-                        } else if let array = try? decoder.decode([UserProfile].self, from: data), let first = array.first {
-                            if let firstName = first.first_name, !firstName.isEmpty {
-                                userName = firstName
-                            } else if let lastName = first.last_name, !lastName.isEmpty {
-                                userName = lastName
-                            }
-                        }
-                    }
-                }
-            } catch {
-                // ignore and fallback to email-based display name
-                print("Warning: could not fetch profile for chat header: \(error)")
-            }
-
-            // Fallback: derive display name from session email if profile not found
-            if userName == nil {
-                if let client = SupabaseManager.shared.getClient() {
-                    do {
-                        let session = try await client.auth.session
-                        if let email = session.user.email {
-                            userName = email.components(separatedBy: "@").first?.capitalized
-                        } else {
-                            userName = "User"
-                        }
-                    } catch {
-                        userName = "User"
-                    }
-                } else {
-                    userName = "User"
-                }
-            }
-
-            // Load history
-            let history = try await ChatService.shared.getChatHistory(userId: uid)
-            await MainActor.run {
-                self.messages = history
-                self.isInitialLoading = false
-            }
         } catch {
-            print("Error initializing chat: \(error)")
-            await MainActor.run { self.isInitialLoading = false }
+            print("Error getting user ID: \(error)")
         }
     }
 
@@ -1016,7 +796,7 @@ struct ChatTabView: View {
 
             await MainActor.run {
                 withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
-                    self.messages.append(tempMsg)
+                    userData.addChatMessage(tempMsg)
                 }
                 self.messageText = ""
                 self.isUploading = (self.selectedImage != nil || self.selectedDocumentURL != nil)
@@ -1036,7 +816,7 @@ struct ChatTabView: View {
                         let assistantMsg = ChatMessageDTO(id: Int(Date().timeIntervalSince1970 * 1000) + 1, role: "assistant", content: assistant, message_type: "text", file_name: nil, file_size: nil, created_at: ISO8601DateFormatter().string(from: Date()))
                         await MainActor.run {
                             withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
-                                self.messages.append(assistantMsg)
+                                userData.addChatMessage(assistantMsg)
                             }
                         }
                     }
@@ -1047,7 +827,7 @@ struct ChatTabView: View {
                         let assistantMsg = ChatMessageDTO(id: Int(Date().timeIntervalSince1970 * 1000) + 1, role: "assistant", content: assistant, message_type: "text", file_name: nil, file_size: nil, created_at: ISO8601DateFormatter().string(from: Date()))
                         await MainActor.run {
                             withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
-                                self.messages.append(assistantMsg)
+                                userData.addChatMessage(assistantMsg)
                             }
                         }
                     }
@@ -1058,7 +838,7 @@ struct ChatTabView: View {
                         let assistantMsg = ChatMessageDTO(id: Int(Date().timeIntervalSince1970 * 1000) + 1, role: "assistant", content: response, message_type: "text", file_name: nil, file_size: nil, created_at: ISO8601DateFormatter().string(from: Date()))
                         await MainActor.run {
                             withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
-                                self.messages.append(assistantMsg)
+                                userData.addChatMessage(assistantMsg)
                             }
                         }
                     }
@@ -1107,9 +887,7 @@ struct ChatTabView: View {
                                 .cornerRadius(12)
                                 .transition(.asymmetric(insertion: .move(edge: .leading).combined(with: .opacity), removal: .opacity))
                         } else {
-                            Text(message.content)
-                                .font(.custom("ProductSans-Regular", size: 16))
-                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+                            FormattedTextView(message.content, textColor: AppColors.text(themeManager.colorScheme), fontSize: 16)
                                 .padding(12)
                                 .background(AppColors.surface(themeManager.colorScheme))
                                 .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -1160,18 +938,48 @@ struct ChatTabView: View {
         .animation(.spring(response: 0.45, dampingFraction: 0.8), value: UUID())
     }
 
-    private func TypingIndicatorView() -> some View {
+        private func TypingIndicatorView() -> some View {
         HStack {
-            if true { Spacer() }
-            HStack(spacing: 6) {
-                Circle().frame(width: 8, height: 8).foregroundColor(AppColors.textSecondary(themeManager.colorScheme)).opacity(0.6)
-                Circle().frame(width: 8, height: 8).foregroundColor(AppColors.textSecondary(themeManager.colorScheme)).opacity(0.4)
-                Circle().frame(width: 8, height: 8).foregroundColor(AppColors.textSecondary(themeManager.colorScheme)).opacity(0.6)
-            }
-            .padding(10)
-            .background(AppColors.surface(themeManager.colorScheme))
-            .cornerRadius(16)
-            if true { Spacer() }
+            AnimatedTypingDots()
+                .padding(10)
+                .background(AppColors.surface(themeManager.colorScheme))
+                .cornerRadius(16)
+            
+            Spacer()
+        }
+        .padding(.leading, 8)
+    }
+}
+
+// MARK: - Animated Typing Dots
+struct AnimatedTypingDots: View {
+    @State private var animationPhase: Int = 0
+    
+    let timer = Timer.publish(every: 0.3, on: .main, in: .common).autoconnect()
+    
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .frame(width: 8, height: 8)
+                .foregroundColor(Color.gray)
+                .opacity(animationPhase == 0 ? 1.0 : 0.4)
+                .scaleEffect(animationPhase == 0 ? 1.2 : 1.0)
+            
+            Circle()
+                .frame(width: 8, height: 8)
+                .foregroundColor(Color.gray)
+                .opacity(animationPhase == 1 ? 1.0 : 0.4)
+                .scaleEffect(animationPhase == 1 ? 1.2 : 1.0)
+            
+            Circle()
+                .frame(width: 8, height: 8)
+                .foregroundColor(Color.gray)
+                .opacity(animationPhase == 2 ? 1.0 : 0.4)
+                .scaleEffect(animationPhase == 2 ? 1.2 : 1.0)
+        }
+        .animation(.easeInOut(duration: 0.3), value: animationPhase)
+        .onReceive(timer) { _ in
+            animationPhase = (animationPhase + 1) % 3
         }
     }
 }
@@ -1383,7 +1191,11 @@ struct SettingsTabView: View {
             do {
                 guard let client = SupabaseManager.shared.getClient() else { return }
                 try await client.auth.signOut()
-                await MainActor.run { appState.isAuthenticated = false }
+                await MainActor.run {
+                    // Clear all user data
+                    UserDataViewModel.shared.clearAllData()
+                    appState.isAuthenticated = false
+                }
             } catch {
                 await MainActor.run { print("Error signing out: \(error.localizedDescription)") }
             }
@@ -2719,6 +2531,170 @@ private func isLaTeX(_ text: String) -> Bool {
     let backslashCount = trimmed.filter { $0 == "\\" }.count
     if backslashCount >= 3 { return true }
     return false
+}
+
+// MARK: - Formatted Text View (Markdown Support)
+struct FormattedTextView: View {
+    let text: String
+    let textColor: Color
+    let fontSize: CGFloat
+    
+    init(_ text: String, textColor: Color = .primary, fontSize: CGFloat = 16) {
+        self.text = text
+        self.textColor = textColor
+        self.fontSize = fontSize
+    }
+    
+    var body: some View {
+        Text(parseMarkdown(text))
+            .font(.custom("ProductSans-Regular", size: fontSize))
+            .foregroundColor(textColor)
+    }
+    
+    private func parseMarkdown(_ input: String) -> AttributedString {
+        var result = AttributedString()
+        let lines = input.components(separatedBy: "\n")
+        
+        for (lineIndex, line) in lines.enumerated() {
+            let parsedLine = parseLine(line)
+            result.append(parsedLine)
+            
+            if lineIndex < lines.count - 1 {
+                result.append(AttributedString("\n"))
+            }
+        }
+        
+        return result
+    }
+    
+    private func parseLine(_ line: String) -> AttributedString {
+        var result = AttributedString()
+        
+        // Handle bullet points
+        let trimmedLine = line.trimmingCharacters(in: .whitespaces)
+        var prefix = AttributedString()
+        var contentLine = line
+        
+        if trimmedLine.hasPrefix("- ") || trimmedLine.hasPrefix("• ") {
+            prefix = AttributedString("• ")
+            if let range = line.range(of: trimmedLine.hasPrefix("- ") ? "- " : "• ") {
+                let leadingSpaces = String(line[..<range.lowerBound])
+                contentLine = leadingSpaces + String(line[range.upperBound...])
+            }
+        } else if let match = trimmedLine.range(of: #"^\d+\.\s"#, options: .regularExpression) {
+            let numberPart = String(trimmedLine[match])
+            prefix = AttributedString(numberPart)
+            if let lineMatch = line.range(of: numberPart) {
+                let leadingSpaces = String(line[..<lineMatch.lowerBound])
+                contentLine = leadingSpaces + String(line[lineMatch.upperBound...])
+            }
+        }
+        
+        result.append(prefix)
+        result.append(parseInlineFormatting(contentLine))
+        
+        return result
+    }
+    
+    private func parseInlineFormatting(_ text: String) -> AttributedString {
+        var result = AttributedString()
+        var currentIndex = text.startIndex
+        
+        // Regex patterns for markdown
+        let boldPattern = #"\*\*(.+?)\*\*"#
+        let italicPattern = #"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)"#
+        let boldItalicPattern = #"\*\*\*(.+?)\*\*\*"#
+        
+        // Find all matches and sort by position
+        var matches: [(range: Range<String.Index>, text: String, style: TextStyle)] = []
+        
+        // Bold italic (must check first since it contains bold and italic patterns)
+        if let regex = try? NSRegularExpression(pattern: boldItalicPattern, options: []) {
+            let nsRange = NSRange(text.startIndex..., in: text)
+            for match in regex.matches(in: text, options: [], range: nsRange) {
+                if let range = Range(match.range, in: text),
+                   let contentRange = Range(match.range(at: 1), in: text) {
+                    matches.append((range, String(text[contentRange]), .boldItalic))
+                }
+            }
+        }
+        
+        // Bold
+        if let regex = try? NSRegularExpression(pattern: boldPattern, options: []) {
+            let nsRange = NSRange(text.startIndex..., in: text)
+            for match in regex.matches(in: text, options: [], range: nsRange) {
+                if let range = Range(match.range, in: text),
+                   let contentRange = Range(match.range(at: 1), in: text) {
+                    // Check if this range overlaps with existing matches
+                    let overlaps = matches.contains { existingMatch in
+                        range.overlaps(existingMatch.range)
+                    }
+                    if !overlaps {
+                        matches.append((range, String(text[contentRange]), .bold))
+                    }
+                }
+            }
+        }
+        
+        // Italic (single asterisks, not part of bold)
+        if let regex = try? NSRegularExpression(pattern: italicPattern, options: []) {
+            let nsRange = NSRange(text.startIndex..., in: text)
+            for match in regex.matches(in: text, options: [], range: nsRange) {
+                if let range = Range(match.range, in: text),
+                   let contentRange = Range(match.range(at: 1), in: text) {
+                    // Check if this range overlaps with existing matches
+                    let overlaps = matches.contains { existingMatch in
+                        range.overlaps(existingMatch.range)
+                    }
+                    if !overlaps {
+                        matches.append((range, String(text[contentRange]), .italic))
+                    }
+                }
+            }
+        }
+        
+        // Sort matches by start position
+        matches.sort { $0.range.lowerBound < $1.range.lowerBound }
+        
+        // Build result
+        for match in matches {
+            // Add text before this match
+            if currentIndex < match.range.lowerBound {
+                var plainText = AttributedString(String(text[currentIndex..<match.range.lowerBound]))
+                plainText.font = .custom("ProductSans-Regular", size: fontSize)
+                result.append(plainText)
+            }
+            
+            // Add styled text
+            var styledText = AttributedString(match.text)
+            switch match.style {
+            case .bold:
+                styledText.font = .custom("ProductSans-Bold", size: fontSize)
+            case .italic:
+                styledText.font = .custom("ProductSans-Regular", size: fontSize).italic()
+            case .boldItalic:
+                styledText.font = .custom("ProductSans-Bold", size: fontSize).italic()
+            }
+            result.append(styledText)
+            
+            currentIndex = match.range.upperBound
+        }
+        
+        // Add remaining text
+        if currentIndex < text.endIndex {
+            var plainText = AttributedString(String(text[currentIndex...]))
+            plainText.font = .custom("ProductSans-Regular", size: fontSize)
+            result.append(plainText)
+        }
+        
+        return result
+    }
+    
+    private enum TextStyle {
+        case bold
+        case italic
+        case boldItalic
+    }
 }
 
 #Preview {
