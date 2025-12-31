@@ -204,11 +204,7 @@ struct HomeTabView: View {
                         
                         // Your Trends Button with Icon
                         HStack(spacing: 12) {
-                            Button(action: {
-                                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                                impactFeedback.impactOccurred()
-                                // TODO: Navigate to trends view
-                            }) {
+                            NavigationLink(destination: ComingSoonView()) {
                                 Text("Your trends")
                                     .font(.custom("ProductSans-Bold", size: 16))
                                     .foregroundColor(themeManager.colorScheme == .light ? .white : .black)
@@ -217,6 +213,10 @@ struct HomeTabView: View {
                                     .background(themeManager.colorScheme == .light ? Color.black : Color.white)
                                     .cornerRadius(25) // Pill shape
                             }
+                            .simultaneousGesture(TapGesture().onEnded {
+                                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                                impactFeedback.impactOccurred()
+                            })
                             
                             Image(systemName: "chart.xyaxis.line")
                                 .font(.system(size: 20))
@@ -229,10 +229,16 @@ struct HomeTabView: View {
                     // Top Biomarkers Section
                     if hasAnalyses {
                         VStack(alignment: .leading, spacing: 16) {
-                            Text("What Needs Attention")
-                                .font(.custom("ProductSans-Bold", size: 24))
-                                .foregroundColor(AppColors.text(themeManager.colorScheme))
-                                .padding(.horizontal, 24)
+                            HStack(spacing: 0) {
+                                Text("What Needs ")
+                                    .font(.custom("ProductSans-Bold", size: 24))
+                                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+                                
+                                Text("Attention")
+                                    .font(.custom("InstrumentSerif-Italic", size: 24))
+                                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+                            }
+                            .padding(.horizontal, 24)
                             
                             if !topBiomarkers.isEmpty {
                                 ForEach(topBiomarkers) { biomarker in
@@ -706,15 +712,15 @@ struct ChatTabView: View {
     @State private var messageText: String = ""
     @State private var userId: String? = nil
     @State private var userName: String? = nil
-    @State private var isInitialLoading: Bool = true
-    @State private var isTyping: Bool = false
-    @State private var isUploading: Bool = false
     @State private var selectedImage: UIImage? = nil
     @State private var selectedDocumentURL: URL? = nil
     @State private var showImagePicker: Bool = false
     @State private var showDocumentPicker: Bool = false
     @State private var showAttachmentActionSheet: Bool = false
     @State private var scrollProxyId = UUID()
+    @State private var isInitialLoading: Bool = false
+    @State private var isTyping: Bool = false
+    @State private var isUploading: Bool = false
 
     var body: some View {
         NavigationView {
@@ -2061,7 +2067,7 @@ struct SettingsItem: View {
             HStack(spacing: 12) {
                 Image(systemName: icon)
                     .font(.system(size: 20))
-                    .foregroundColor(AppColors.primary)
+                    .foregroundColor(themeManager.colorScheme == .dark ? Color.white : Color.black)
                     .frame(width: 28)
 
                 Text(text)
@@ -2718,3 +2724,4 @@ private func isLaTeX(_ text: String) -> Bool {
 #Preview {
     HomeView()
 }
+
