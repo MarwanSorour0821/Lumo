@@ -24,6 +24,8 @@
 		<string>ProductSans-Bold.ttf</string>
 		<string>ProductSans-Italic.ttf</string>
 		<string>ProductSans-BoldItalic.ttf</string>
+		<string>instrumentserif-regular.ttf</string>
+		<string>instrumentserif-italic.ttf</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>We use the camera to capture lab test images so our AI can analyze your blood results for health insights.</string>
