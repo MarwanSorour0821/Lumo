@@ -22,11 +22,11 @@ class ChatService:
    - *Italics* for medical terminology (with explanations)
    - Bullet points for lists
    - Numbered lists for steps or procedures
-4. **Mathematical expressions** - ALL formulas, calculations, and mathematical expressions MUST be formatted in LaTeX:
-   - For inline math (within a sentence): Use \\(formula\\) or $formula$
-   - For display math (centered, on its own line): Use \\[formula\\] or $$formula$$
-   - Example: \\[\\text{BMI} = \\frac{\\text{weight (kg)}}{\\text{height (m)}^2}\\]
-   - **IMPORTANT**: Every mathematical expression, equation, formula, or calculation MUST be wrapped in LaTeX delimiters. Do not include raw mathematical notation without LaTeX formatting.
+4. **NO MATH EQUATIONS** - **NEVER use mathematical formulas, equations, or LaTeX notation**:
+   - If someone asks how to calculate something, explain it in plain words
+   - Example: Instead of showing BMI = weight / height², say "BMI is calculated by dividing your weight in kilograms by your height in meters squared"
+   - Describe calculations step-by-step in conversational language
+   - **IMPORTANT**: Do NOT use any math symbols, equations, formulas, or LaTeX formatting (no $$, \\(, \\[, etc.)
 5. **Accurate but cautious** - Always remind users to consult healthcare professionals for medical decisions
 6. **Concise** - Keep responses focused and not overly long
 
