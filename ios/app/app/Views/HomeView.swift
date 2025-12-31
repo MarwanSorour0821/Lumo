@@ -1446,6 +1446,10 @@ struct AnalyseModalView: View {
     @State private var isUploading = false
     @State private var showCreditsModal = false
     @State private var isCheckingCredits = false
+    @State private var showErrorAlert = false
+    @State private var errorMessage = ""
+    @State private var analysisResult: AnalysisData? = nil
+    @State private var showAnalysisResults = false
 
     var body: some View {
         NavigationView {
@@ -1575,6 +1579,19 @@ struct AnalyseModalView: View {
                     }
                 }
             }
+            .alert("Analysis Failed", isPresented: $showErrorAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(errorMessage)
+            }
+            .fullScreenCover(isPresented: $showAnalysisResults) {
+                if let analysisData = analysisResult {
+                    NavigationView {
+                        AnalysisResultsView(analysisData: analysisData)
+                            .environmentObject(themeManager)
+                    }
+                }
+            }
         }
         .toolbarBackground(AppColors.modalBackground(themeManager.colorScheme), for: .navigationBar)
         .toolbarColorScheme(themeManager.colorScheme == .dark ? .dark : .light, for: .navigationBar)
@@ -1685,15 +1702,47 @@ struct AnalyseModalView: View {
     private func performUpload(file: URL) {
         isUploading = true
         
-        // TODO: Implement actual file upload to backend
-        // For now, just simulate a delay and close
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            isUploading = false
-            isPresented = false
-            // In a real implementation, you would:
-            // 1. Upload file to backend API
-            // 2. Navigate to analysis results
-            print("Would upload file: \(file.absoluteString)")
+        Task {
+            do {
+                print("🔵 Starting blood test analysis...")
+                
+                // Step 1: Analyze the blood test with AI
+                // This calls /api/ai/analyze/ - same as React Native analyzeBloodTest()
+                let analyzeResult = try await AnalysisService.shared.analyzeBloodTest(fileURL: file)
+                
+                print("🔵 Analysis complete, saving to database...")
+                
+                // Step 2: Save the analysis to the database
+                // This calls /api/analyses/ - same as React Native saveAnalysis()
+                let savedResult = try await AnalysisService.shared.saveAnalysis(
+                    parsedData: analyzeResult.parsed_data,
+                    structuredAnalysis: analyzeResult.structured_analysis
+                )
+                
+                // Step 3: Convert to view model
+                let analysisData = AnalysisService.shared.convertToAnalysisData(
+                    analyzeResponse: analyzeResult,
+                    savedResponse: savedResult
+                )
+                
+                await MainActor.run {
+                    print("✅ Upload complete! Navigating to results...")
+                    isUploading = false
+                    selectedFile = nil
+                    selectedFileName = nil
+                    analysisResult = analysisData
+                    isPresented = false
+                    showAnalysisResults = true
+                }
+                
+            } catch {
+                await MainActor.run {
+                    print("❌ Upload failed: \(error.localizedDescription)")
+                    isUploading = false
+                    errorMessage = error.localizedDescription
+                    showErrorAlert = true
+                }
+            }
         }
     }
 }
