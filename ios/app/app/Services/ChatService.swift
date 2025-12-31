@@ -132,6 +132,8 @@ actor ChatService {
 
         // file part
         let fileData = try Data(contentsOf: fileUrl)
+        print("📤 Uploading file: \(fileName), size: \(fileData.count) bytes, mimeType: \(mimeType)")
+        
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
         let disposition = "Content-Disposition: form-data; name=\"file\"; filename=\"\(fileName)\"\r\n"
         body.append(disposition.data(using: .utf8)!)
@@ -141,9 +143,19 @@ actor ChatService {
 
         body.append("--\(boundary)--\r\n".data(using: .utf8)!)
 
+        print("📤 Request body size: \(body.count) bytes")
+        
         let (data, response) = try await URLSession.shared.upload(for: request, from: body)
-        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+        
+        guard let http = response as? HTTPURLResponse else {
+            throw NSError(domain: "ChatService", code: 5, userInfo: [NSLocalizedDescriptionKey: "Invalid response"])
+        }
+        
+        print("📥 Response status: \(http.statusCode)")
+        
+        guard (200...299).contains(http.statusCode) else {
             let txt = String(data: data, encoding: .utf8) ?? ""
+            print("❌ File upload failed with status \(http.statusCode): \(txt)")
             throw NSError(domain: "ChatService", code: 5, userInfo: [NSLocalizedDescriptionKey: "File upload failed: \(txt)"])
         }
 

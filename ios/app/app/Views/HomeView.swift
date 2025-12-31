@@ -48,6 +48,11 @@ struct HomeView: View {
                     }
             }
             .accentColor(AppColors.primary)
+            .onChange(of: selectedTab) { _ in
+                // Trigger haptic feedback when switching tabs
+                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                impactFeedback.impactOccurred()
+            }
             .onAppear {
                 // Customize tab bar appearance for even spacing
                 let appearance = UITabBarAppearance()
@@ -626,6 +631,10 @@ struct ChatTabView: View {
                                 }
                             })
                         }
+                    }
+                    .onTapGesture {
+                        // Dismiss keyboard when tapping on chat messages
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                     }
                 }
 
