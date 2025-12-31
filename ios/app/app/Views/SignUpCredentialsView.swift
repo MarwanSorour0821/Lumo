@@ -406,8 +406,9 @@ struct SignUpCredentialsView: View {
                     isCreatingAccount = false
                     // Update app state to reflect authentication
                     appState.isAuthenticated = true
-                    // User will automatically be navigated to HomeView
                 }
+                // Load user data after sign-up
+                await UserDataViewModel.shared.loadAllUserData()
             }
         }
     }

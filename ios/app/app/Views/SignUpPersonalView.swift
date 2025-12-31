@@ -412,6 +412,11 @@ struct SignUpPersonalView: View {
                     appState.isAuthenticated = true
                 }
             }
+            
+            // Load user data after profile creation
+            if profileResponse.error == nil {
+                await UserDataViewModel.shared.loadAllUserData()
+            }
         }
     }
 }

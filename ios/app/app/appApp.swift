@@ -55,10 +55,17 @@ class AppState: ObservableObject {
                 // Try to get the current session
                 let session = try? await client.auth.session
                 
+                let hasSession = (session != nil)
+                
                 await MainActor.run {
-                    self.isAuthenticated = (session != nil)
+                    self.isAuthenticated = hasSession
                     self.isLoading = false
                     print("🔵 Authentication check: \(self.isAuthenticated ? "Authenticated" : "Not authenticated")")
+                }
+                
+                // Load user data if authenticated
+                if hasSession {
+                    await UserDataViewModel.shared.loadAllUserData()
                 }
             } catch {
                 await MainActor.run {
@@ -76,6 +83,8 @@ class AppState: ObservableObject {
                 guard let client = SupabaseManager.shared.getClient() else { return }
                 try await client.auth.signOut()
                 await MainActor.run {
+                    // Clear all user data
+                    UserDataViewModel.shared.clearAllData()
                     self.isAuthenticated = false
                 }
             } catch {
