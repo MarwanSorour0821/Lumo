@@ -76,6 +76,12 @@ struct ParsedBloodTestData: Codable {
         testResults = try container.decodeIfPresent([BloodTestResult].self, forKey: .testResults) ?? []
     }
     
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(patientInfo, forKey: .patientInfo)
+        try container.encode(testResults, forKey: .testResults)
+    }
+    
     init(patientInfo: PatientInfo?, testResults: [BloodTestResult]) {
         self.patientInfo = patientInfo
         self.testResults = testResults

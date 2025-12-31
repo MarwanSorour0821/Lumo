@@ -172,17 +172,17 @@ struct ParsedData: Codable {
         case patientInfo = "patient_info"
         case testResults = "test_results"
     }
-}
-
-struct PatientInfo: Codable {
-    let age: String?
-    let sex: String?
-    let name: String?
-    let testDate: String?
     
-    enum CodingKeys: String, CodingKey {
-        case age, sex, name
-        case testDate = "test_date"
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        patientInfo = try container.decodeIfPresent(PatientInfo.self, forKey: .patientInfo)
+        testResults = try container.decodeIfPresent([TestResult].self, forKey: .testResults) ?? []
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(patientInfo, forKey: .patientInfo)
+        try container.encode(testResults, forKey: .testResults)
     }
 }
 
