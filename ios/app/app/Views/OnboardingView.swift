@@ -30,6 +30,7 @@ struct BiomarkerBurst: Identifiable {
 struct OnboardingView: View {
     @EnvironmentObject var appState: AppState
     @EnvironmentObject var themeManager: ThemeManager
+    @Environment(\.colorScheme) private var colorScheme
     @State private var isSignInModalVisible = false
     @State private var isGoogleLoading = false
     @State private var navigateToOpeningMoment = false
@@ -72,9 +73,7 @@ struct OnboardingView: View {
         }
         .onAppear {
             startAnimations()
-            initializeParticles()
-            startParticleAnimation()
-            startBurstAnimation()
+            // Removed particle initialization and timers - using static onboarding image instead
         }
         .onDisappear {
             particleTimer?.invalidate()
@@ -112,36 +111,41 @@ struct OnboardingView: View {
             .ignoresSafeArea()
     }
     
-    // MARK: - Particle View
+    // MARK: - Particle View (replaced with static onboarding images)
     var particleView: some View {
-        ZStack {
-            // Floating particles
-            ForEach(particles) { particle in
-                Circle()
-                    .fill(particle.color)
-                    .frame(width: particle.size, height: particle.size)
-                    .opacity(particle.opacity)
-                    .position(x: particle.x, y: particle.y)
+        VStack {
+            // Show a single image depending on system color scheme
+            if colorScheme == .light {
+                imageFromAssets(["Group6"]) // light-mode image variants
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: screenWidth * 0.8)
+                    .padding(.top, 100)
+            } else {
+                imageFromAssets(["Group7"]) // dark-mode image variants
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: screenWidth * 0.8)
+                    .padding(.top, 100)
             }
-            
-            // Biomarker burst text
-            if let burst = currentBurst {
-                Text(burst.text)
-                    .font(.custom("ProductSans-Bold", size: 14))
-                    .foregroundColor(AppColors.text(themeManager.colorScheme))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(AppColors.surface(themeManager.colorScheme))
-                            .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
-                    )
-                    .position(x: burst.x, y: burst.y)
-                    .opacity(burstOpacity)
-            }
+
+            Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .ignoresSafeArea()
+        .ignoresSafeArea(edges: .top)
+    }
+
+    // Helper to load UIImage by trying multiple possible asset names and return a SwiftUI Image
+    private func imageFromAssets(_ names: [String]) -> Image {
+        for name in names {
+            if let ui = UIImage(named: name) {
+                return Image(uiImage: ui)
+                    .renderingMode(.original)
+            }
+        }
+        // Final fallback to a neutral placeholder Image (must return Image type)
+        return Image(systemName: "photo")
+            .renderingMode(.template)
     }
     
     // MARK: - Bottom Section
