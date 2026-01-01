@@ -653,23 +653,43 @@ class HealthScoreService {
         let attentionScore: Double
     }
     
-    // MARK: - Get Top Biomarkers Needing Attention
+    // MARK: - Get Top Biomarkers Needing Attention (Based on Latest Value of Each Biomarker)
     func getTopBiomarkers(analyses: [Analysis], limit: Int = 4) -> [BiomarkerAttention] {
         guard analyses.count > 0 else { return [] }
         
-        // Get latest and previous analyses (if available)
+        // Sort all analyses by date (newest first)
         let sortedAnalyses = analyses.sorted { analysis1, analysis2 in
             let date1 = ISO8601DateFormatter().date(from: analysis1.created_at) ?? Date.distantPast
             let date2 = ISO8601DateFormatter().date(from: analysis2.created_at) ?? Date.distantPast
             return date1 > date2
         }
         
-        guard let latestAnalysis = sortedAnalyses.first,
-              let latestParsedData = latestAnalysis.getParsedData() else {
-            return []
-        }
+        // Build a dictionary to track the LATEST value of EACH biomarker across all tests
+        var latestBiomarkerValues: [String: (value: Double, date: Date, status: String, analysis: Analysis)] = [:]
+        var previousBiomarkerValues: [String: Double] = [:]
         
-        let previousParsedData: ParsedData? = sortedAnalyses.count > 1 ? sortedAnalyses[1].getParsedData() : nil
+        for analysis in sortedAnalyses {
+            guard let parsedData = analysis.getParsedData() else { continue }
+            let analysisDate = ISO8601DateFormatter().date(from: analysis.created_at) ?? Date.distantPast
+            
+            for result in parsedData.testResults {
+                guard let value = parseValue(result.value, unit: result.unit) else { continue }
+                
+                let marker = result.marker
+                
+                // If this is the first time seeing this marker, or this test is newer
+                if latestBiomarkerValues[marker] == nil {
+                    latestBiomarkerValues[marker] = (value: value, date: analysisDate, status: result.status, analysis: analysis)
+                } else if let existing = latestBiomarkerValues[marker], analysisDate > existing.date {
+                    // Found a newer value for this marker
+                    previousBiomarkerValues[marker] = existing.value // Store old value for trend
+                    latestBiomarkerValues[marker] = (value: value, date: analysisDate, status: result.status, analysis: analysis)
+                } else if previousBiomarkerValues[marker] == nil {
+                    // This is an older value, store it as previous for trend calculation
+                    previousBiomarkerValues[marker] = value
+                }
+            }
+        }
         
         // Biomarker definitions with optimal ranges and weights
         struct BiomarkerDef {
@@ -759,22 +779,26 @@ class HealthScoreService {
         
         var biomarkerScores: [BiomarkerAttention] = []
         
-        // Process each test result from latest analysis
-        for result in latestParsedData.testResults {
-            guard let def = biomarkerDefs[result.marker],
-                  let currentValue = parseValue(result.value, unit: result.unit) else {
+        // Process each biomarker's latest value
+        for (marker, latest) in latestBiomarkerValues {
+            guard let def = biomarkerDefs[marker] else {
                 continue
             }
             
-            // Determine status
+            let currentValue = latest.value
+            let currentStatus = latest.status
+            
+            // Determine status based on value and optimal ranges
             let status: String
             if currentValue >= def.optimalLow && currentValue <= def.optimalHigh {
                 status = "Optimal"
             } else if let bl = def.borderlineLow, let bh = def.borderlineHigh,
                       currentValue >= bl && currentValue <= bh {
                 status = "Borderline"
+            } else if currentValue < def.optimalLow {
+                status = "Low"
             } else {
-                status = "Elevated"
+                status = "High"
             }
             
             // Calculate severity score (distance from optimal)
@@ -789,16 +813,13 @@ class HealthScoreService {
             var trend = "→"
             var trendPenalty: Double = 0.0
             
-            if let previousData = previousParsedData,
-               let previousResult = previousData.testResults.first(where: { $0.marker == result.marker }),
-               let previousValue = parseValue(previousResult.value, unit: previousResult.unit) {
-                
+            if let previousValue = previousBiomarkerValues[marker] {
                 let delta = currentValue - previousValue
                 let threshold = def.trendThreshold
                 
                 if delta > threshold {
                     trend = "↑"
-                    // Worsening trend adds penalty
+                    // Worsening trend adds penalty if marker is not optimal
                     if status != "Optimal" {
                         trendPenalty = 0.3
                     }
@@ -814,8 +835,8 @@ class HealthScoreService {
             // Only include biomarkers that need attention (not optimal)
             if status != "Optimal" {
                 biomarkerScores.append(BiomarkerAttention(
-                    id: result.marker,
-                    name: result.marker,
+                    id: marker,
+                    name: marker,
                     status: status,
                     trend: trend,
                     reason: def.reason,

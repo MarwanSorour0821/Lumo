@@ -282,6 +282,9 @@ struct HomeTabView: View {
                 .padding(.bottom, 40)
             }
             }
+            .refreshable {
+                await userData.refreshHealthScore()
+            }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
