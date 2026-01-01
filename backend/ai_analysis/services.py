@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import logging
 from openai import OpenAI
 from .textract_utils import parse_document_with_textract
@@ -199,6 +200,12 @@ After the second JSON block, you may include additional detailed analysis text i
         # Parse the response to extract JSON data, structured analysis, and remaining text
         parsed_data, structured_analysis, analysis_text = self._parse_gpt_response(output_text)
         
+        # Process biomarker_insights to extract sources from recommendations
+        if structured_analysis and 'biomarker_insights' in structured_analysis:
+            structured_analysis['biomarker_insights'] = self._process_biomarker_insights(
+                structured_analysis['biomarker_insights']
+            )
+        
         logger.info("")
         logger.info("="*60)
         logger.info("✅ GPT-5.1 EXTRACTION & ANALYSIS COMPLETE (with web search)")
@@ -213,6 +220,70 @@ After the second JSON block, you may include additional detailed analysis text i
             "analysis": analysis_text,
             "structured_analysis": structured_analysis
         }
+    
+    def _extract_urls_from_text(self, text):
+        """
+        Extract URLs from markdown-style links and return clean text + list of sources.
+        Handles formats like: ([domain](url)) or [domain](url)
+        """
+        sources = []
+        
+        # Pattern to match markdown links with optional parentheses: ([text](url)) or [text](url)
+        # This captures the URL from patterns like ([nhlbi.nih.gov](https://...))
+        pattern = r'\(?\[([^\]]+)\]\((https?://[^\)]+)\)\)?'
+        
+        def extract_and_remove(match):
+            domain = match.group(1)
+            url = match.group(2)
+            # Clean up the URL (remove utm params for cleaner display)
+            clean_url = url.split('?')[0] if '?' in url else url
+            sources.append({
+                'domain': domain,
+                'url': url  # Keep full URL for linking
+            })
+            return ''  # Remove the link from text
+        
+        # Extract URLs and clean the text
+        clean_text = re.sub(pattern, extract_and_remove, text)
+        
+        # Clean up extra spaces and punctuation artifacts
+        clean_text = re.sub(r'\s+', ' ', clean_text)  # Multiple spaces to single
+        clean_text = re.sub(r'\s+([.,;:!?])', r'\1', clean_text)  # Space before punctuation
+        clean_text = re.sub(r'([.,;:!?])\s*([.,;:!?])', r'\1', clean_text)  # Double punctuation
+        clean_text = clean_text.strip()
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_sources = []
+        for source in sources:
+            if source['url'] not in seen:
+                seen.add(source['url'])
+                unique_sources.append(source)
+        
+        return clean_text, unique_sources
+    
+    def _process_biomarker_insights(self, biomarker_insights):
+        """
+        Process all biomarker insights to extract sources from recommendations.
+        """
+        processed = {}
+        for marker, insight in biomarker_insights.items():
+            processed[marker] = {
+                'general': insight.get('general', ''),
+                'specific': insight.get('specific', '')
+            }
+            
+            # Process recommendations to extract sources
+            recommendations = insight.get('recommendations', '')
+            if recommendations:
+                clean_text, sources = self._extract_urls_from_text(recommendations)
+                processed[marker]['recommendations'] = clean_text
+                processed[marker]['recommendation_sources'] = sources
+            else:
+                processed[marker]['recommendations'] = ''
+                processed[marker]['recommendation_sources'] = []
+        
+        return processed
     
     def _format_textract_for_gpt(self, structured):
         """

@@ -283,6 +283,33 @@ struct BiomarkerInfoModal: View {
                                     .foregroundColor(AppColors.text(themeManager.colorScheme))
                                     .lineSpacing(5)
                                     .fixedSize(horizontal: false, vertical: true)
+                                
+                                // Source links
+                                if let sources = insight?.recommendationSources, !sources.isEmpty {
+                                    HStack(spacing: 12) {
+                                        ForEach(sources.prefix(4), id: \.url) { source in
+                                            Button(action: {
+                                                if let url = URL(string: source.url) {
+                                                    UIApplication.shared.open(url)
+                                                }
+                                            }) {
+                                                HStack(spacing: 4) {
+                                                    Image(systemName: "link")
+                                                        .font(.system(size: 12))
+                                                    Text(source.domain)
+                                                        .font(.custom("ProductSans-Regular", size: 11))
+                                                        .lineLimit(1)
+                                                }
+                                                .foregroundColor(Color(hex: "#3b82f6"))
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 4)
+                                                .background(Color(hex: "#3b82f6").opacity(0.1))
+                                                .cornerRadius(12)
+                                            }
+                                        }
+                                    }
+                                    .padding(.top, 8)
+                                }
                             }
                         }
                     }
@@ -907,6 +934,33 @@ struct BiomarkerInfoModalFullScreen: View {
                                     .foregroundColor(AppColors.text(themeManager.colorScheme))
                                     .lineSpacing(5)
                                     .fixedSize(horizontal: false, vertical: true)
+                                
+                                // Source links
+                                if let sources = insight?.recommendationSources, !sources.isEmpty {
+                                    HStack(spacing: 12) {
+                                        ForEach(sources.prefix(4), id: \.url) { source in
+                                            Button(action: {
+                                                if let url = URL(string: source.url) {
+                                                    UIApplication.shared.open(url)
+                                                }
+                                            }) {
+                                                HStack(spacing: 4) {
+                                                    Image(systemName: "link")
+                                                        .font(.system(size: 12))
+                                                    Text(source.domain)
+                                                        .font(.custom("ProductSans-Regular", size: 11))
+                                                        .lineLimit(1)
+                                                }
+                                                .foregroundColor(Color(hex: "#3b82f6"))
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 4)
+                                                .background(Color(hex: "#3b82f6").opacity(0.1))
+                                                .cornerRadius(12)
+                                            }
+                                        }
+                                    }
+                                    .padding(.top, 8)
+                                }
                             }
                         }
                     }

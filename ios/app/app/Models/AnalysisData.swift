@@ -115,16 +115,29 @@ struct AnalysisSection: Codable, Identifiable {
     }
 }
 
+// MARK: - Recommendation Source
+struct RecommendationSource: Codable {
+    let domain: String
+    let url: String
+}
+
 // MARK: - Biomarker Insight
 struct BiomarkerInsight: Codable {
     let general: String?
     let specific: String?
     let recommendations: String?
+    let recommendationSources: [RecommendationSource]?
     
-    init(general: String? = nil, specific: String? = nil, recommendations: String? = nil) {
+    init(general: String? = nil, specific: String? = nil, recommendations: String? = nil, recommendationSources: [RecommendationSource]? = nil) {
         self.general = general
         self.specific = specific
         self.recommendations = recommendations
+        self.recommendationSources = recommendationSources
+    }
+    
+    enum CodingKeys: String, CodingKey {
+        case general, specific, recommendations
+        case recommendationSources = "recommendation_sources"
     }
 }
 

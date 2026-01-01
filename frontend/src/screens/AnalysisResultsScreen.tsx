@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Pressable, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
@@ -10,6 +10,12 @@ import { BloodTestAnalysisResponse } from '../lib/api';
 import { RootStackParamList } from '../types';
 import BackButton from '../../components/BackButton';
 
+// Type for recommendation sources
+interface RecommendationSource {
+  domain: string;
+  url: string;
+}
+
 // Biomarker Info Modal Component
 const BiomarkerInfoModal = ({ 
   visible, 
@@ -18,6 +24,7 @@ const BiomarkerInfoModal = ({
   generalInfo, 
   specificInfo,
   recommendations,
+  recommendationSources,
   value,
   unit,
   status,
@@ -29,6 +36,7 @@ const BiomarkerInfoModal = ({
   generalInfo: string;
   specificInfo: string;
   recommendations?: string;
+  recommendationSources?: RecommendationSource[];
   value?: string;
   unit?: string;
   status?: string;
@@ -104,6 +112,22 @@ const BiomarkerInfoModal = ({
                   <Text style={[modalStyles.sectionTitle, { color: '#f59e0b' }]}>Our Recommendations</Text>
                 </View>
                 <Text style={modalStyles.sectionText}>{recommendations}</Text>
+                
+                {/* Source Links */}
+                {recommendationSources && recommendationSources.length > 0 && (
+                  <View style={modalStyles.sourcesContainer}>
+                    {recommendationSources.slice(0, 4).map((source, index) => (
+                      <TouchableOpacity 
+                        key={index} 
+                        style={modalStyles.sourceLink}
+                        onPress={() => Linking.openURL(source.url)}
+                      >
+                        <Ionicons name="link-outline" size={12} color="#3b82f6" />
+                        <Text style={modalStyles.sourceLinkText}>{source.domain}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
               </View>
             )}
           </ScrollView>
@@ -189,6 +213,26 @@ const modalStyles = StyleSheet.create({
     fontSize: 15,
     color: '#ccc',
     lineHeight: 22,
+  },
+  sourcesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 12,
+    gap: 8,
+  },
+  sourceLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    gap: 4,
+  },
+  sourceLinkText: {
+    fontSize: 11,
+    color: '#3b82f6',
+    fontWeight: '500',
   },
 });
 
@@ -432,14 +476,15 @@ export function AnalysisResultsScreen({ navigation, route }: AnalysisResultsScre
 
   // Get insight for selected biomarker
   const getSelectedBiomarkerInsight = () => {
-    if (!selectedBiomarker) return { general: '', specific: '', recommendations: '' };
+    if (!selectedBiomarker) return { general: '', specific: '', recommendations: '', recommendation_sources: [] };
     const insight = biomarkerInsights[selectedBiomarker.marker];
     if (insight) return insight;
     // Fallback for old data without biomarker_insights
     return {
       general: `${selectedBiomarker.marker} is a biomarker measured in blood tests.`,
       specific: `Your ${selectedBiomarker.marker} value is ${selectedBiomarker.value} ${selectedBiomarker.unit}${selectedBiomarker.status ? `, which is ${selectedBiomarker.status}` : ''}.`,
-      recommendations: ''
+      recommendations: '',
+      recommendation_sources: []
     };
   };
 
@@ -453,6 +498,7 @@ export function AnalysisResultsScreen({ navigation, route }: AnalysisResultsScre
         generalInfo={getSelectedBiomarkerInsight().general}
         specificInfo={getSelectedBiomarkerInsight().specific}
         recommendations={getSelectedBiomarkerInsight().recommendations}
+        recommendationSources={getSelectedBiomarkerInsight().recommendation_sources}
         value={selectedBiomarker?.value}
         unit={selectedBiomarker?.unit}
         status={selectedBiomarker?.status}

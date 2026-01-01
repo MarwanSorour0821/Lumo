@@ -36,10 +36,16 @@ struct TestResultResponse: Codable {
     let status: String?
 }
 
+struct RecommendationSourceResponse: Codable {
+    let domain: String
+    let url: String
+}
+
 struct BiomarkerInsightResponse: Codable {
     let general: String?
     let specific: String?
     let recommendations: String?
+    let recommendation_sources: [RecommendationSourceResponse]?
 }
 
 struct StructuredAnalysisResponse: Codable {
@@ -263,7 +269,16 @@ class AnalysisService {
             var biomarkerInsights: [String: BiomarkerInsight]? = nil
             if let insights = structuredResponse.biomarker_insights {
                 biomarkerInsights = insights.mapValues { response in
-                    BiomarkerInsight(general: response.general, specific: response.specific, recommendations: response.recommendations)
+                    // Convert recommendation sources
+                    let sources = response.recommendation_sources?.map { source in
+                        RecommendationSource(domain: source.domain, url: source.url)
+                    }
+                    return BiomarkerInsight(
+                        general: response.general,
+                        specific: response.specific,
+                        recommendations: response.recommendations,
+                        recommendationSources: sources
+                    )
                 }
                 print("✅ Converted \(insights.count) biomarker insights for the view")
             }
