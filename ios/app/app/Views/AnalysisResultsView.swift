@@ -300,10 +300,10 @@ struct BiomarkerInfoModal: View {
                                                         .font(.custom("ProductSans-Regular", size: 11))
                                                         .lineLimit(1)
                                                 }
-                                                .foregroundColor(Color(hex: "#3b82f6"))
+                                                .foregroundColor(AppColors.primary)
                                                 .padding(.horizontal, 8)
                                                 .padding(.vertical, 4)
-                                                .background(Color(hex: "#3b82f6").opacity(0.1))
+                                                .background(AppColors.primary.opacity(0.1))
                                                 .cornerRadius(12)
                                             }
                                         }
@@ -951,10 +951,10 @@ struct BiomarkerInfoModalFullScreen: View {
                                                         .font(.custom("ProductSans-Regular", size: 11))
                                                         .lineLimit(1)
                                                 }
-                                                .foregroundColor(Color(hex: "#3b82f6"))
+                                                .foregroundColor(AppColors.primary)
                                                 .padding(.horizontal, 8)
                                                 .padding(.vertical, 4)
-                                                .background(Color(hex: "#3b82f6").opacity(0.1))
+                                                .background(AppColors.primary.opacity(0.1))
                                                 .cornerRadius(12)
                                             }
                                         }
