@@ -18,6 +18,8 @@ struct HomeView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @State private var showAnalyseModal = false
     @State private var selectedTab: Int = 0
+    @State private var analysisResultForDisplay: AnalysisData? = nil
+    @State private var showAnalysisResultsFromHome = false
     
     var body: some View {
         ZStack {
@@ -104,7 +106,19 @@ struct HomeView: View {
             }
         }
         .sheet(isPresented: $showAnalyseModal) {
-            AnalyseModalView(isPresented: $showAnalyseModal)
+            AnalyseModalView(isPresented: $showAnalyseModal) { analysisData in
+                // Callback when analysis is complete - show results from HomeView
+                self.analysisResultForDisplay = analysisData
+                self.showAnalysisResultsFromHome = true
+            }
+        }
+        .fullScreenCover(isPresented: $showAnalysisResultsFromHome) {
+            if let analysisData = analysisResultForDisplay {
+                NavigationView {
+                    AnalysisResultsView(analysisData: analysisData)
+                        .environmentObject(themeManager)
+                }
+            }
         }
     }
 }
@@ -1434,6 +1448,7 @@ struct SettingsTabView: View {
 struct AnalyseModalView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @Binding var isPresented: Bool
+    var onAnalysisComplete: ((AnalysisData) -> Void)?
     @State private var selectedFile: URL? = nil
     @State private var selectedFileName: String? = nil
     @State private var selectedFileType: String? = nil
@@ -1448,8 +1463,12 @@ struct AnalyseModalView: View {
     @State private var isCheckingCredits = false
     @State private var showErrorAlert = false
     @State private var errorMessage = ""
-    @State private var analysisResult: AnalysisData? = nil
-    @State private var showAnalysisResults = false
+    
+    // Initializer with callback
+    init(isPresented: Binding<Bool>, onAnalysisComplete: ((AnalysisData) -> Void)? = nil) {
+        self._isPresented = isPresented
+        self.onAnalysisComplete = onAnalysisComplete
+    }
 
     var body: some View {
         NavigationView {
@@ -1584,14 +1603,6 @@ struct AnalyseModalView: View {
             } message: {
                 Text(errorMessage)
             }
-            .fullScreenCover(isPresented: $showAnalysisResults) {
-                if let analysisData = analysisResult {
-                    NavigationView {
-                        AnalysisResultsView(analysisData: analysisData)
-                            .environmentObject(themeManager)
-                    }
-                }
-            }
         }
         .toolbarBackground(AppColors.modalBackground(themeManager.colorScheme), for: .navigationBar)
         .toolbarColorScheme(themeManager.colorScheme == .dark ? .dark : .light, for: .navigationBar)
@@ -1725,14 +1736,25 @@ struct AnalyseModalView: View {
                     savedResponse: savedResult
                 )
                 
+                // DEBUG: Log what we got
+                print("🔍 DEBUG: analyzeResult.structured_analysis sections count: \(analyzeResult.structured_analysis?.sections?.count ?? -1)")
+                print("🔍 DEBUG: analysisData.sections count: \(analysisData.sections.count)")
+                print("🔍 DEBUG: analysisData.testOverview: \(analysisData.testOverview ?? "nil")")
+                if let sections = analyzeResult.structured_analysis?.sections {
+                    for (i, section) in sections.enumerated() {
+                        print("🔍 DEBUG: Section \(i): \(section.category ?? "no category") - biomarkers: \(section.biomarkers ?? [])")
+                    }
+                }
+                
                 await MainActor.run {
                     print("✅ Upload complete! Navigating to results...")
                     isUploading = false
                     selectedFile = nil
                     selectedFileName = nil
-                    analysisResult = analysisData
-                    isPresented = false
-                    showAnalysisResults = true
+                    isPresented = false  // Close the modal first
+                    
+                    // Use callback to show results from parent (HomeView)
+                    onAnalysisComplete?(analysisData)
                 }
                 
             } catch {

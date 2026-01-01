@@ -124,6 +124,12 @@ struct StructuredAnalysis: Codable {
         case testOverview = "test_overview"
         case sections
     }
+    
+    // Manual initializer for programmatic creation
+    init(testOverview: String? = nil, sections: [AnalysisSection]? = nil) {
+        self.testOverview = testOverview
+        self.sections = sections
+    }
 }
 
 // MARK: - Analysis Data (Full Response)
@@ -246,6 +252,12 @@ struct AnalysisData: Codable, Identifiable {
 struct StructuredAnalysisWrapper: Codable {
     let structuredAnalysis: StructuredAnalysis?
     let legacyText: String?
+    
+    // Manual initializer for programmatic creation
+    init(structuredAnalysis: StructuredAnalysis?, legacyText: String? = nil) {
+        self.structuredAnalysis = structuredAnalysis
+        self.legacyText = legacyText
+    }
     
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()

@@ -367,6 +367,10 @@ struct AnalysisResultsView: View {
     let analysisData: AnalysisData
     
     var body: some View {
+        let _ = print("🔍 AnalysisResultsView - sections count: \(analysisData.sections.count)")
+        let _ = print("🔍 AnalysisResultsView - testResults count: \(analysisData.testResults.count)")
+        let _ = print("🔍 AnalysisResultsView - testOverview: \(analysisData.testOverview ?? "nil")")
+        
         ZStack {
             // Background
             AppColors.background(themeManager.colorScheme)
