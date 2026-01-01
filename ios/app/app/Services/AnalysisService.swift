@@ -36,9 +36,22 @@ struct TestResultResponse: Codable {
     let status: String?
 }
 
+struct RecommendationSourceResponse: Codable {
+    let domain: String
+    let url: String
+}
+
+struct BiomarkerInsightResponse: Codable {
+    let general: String?
+    let specific: String?
+    let recommendations: String?
+    let recommendation_sources: [RecommendationSourceResponse]?
+}
+
 struct StructuredAnalysisResponse: Codable {
     let test_overview: String?
     let sections: [SectionResponse]?
+    let biomarker_insights: [String: BiomarkerInsightResponse]?
 }
 
 struct SectionResponse: Codable {
@@ -79,6 +92,7 @@ class AnalysisService {
         let boundary = UUID().uuidString
         var request = URLRequest(url: apiURL)
         request.httpMethod = "POST"
+        request.timeoutInterval = 300 // 5 minutes - AI analysis with web search can take a while
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         
@@ -139,9 +153,19 @@ class AnalysisService {
         
         // Parse response
         let decoder = JSONDecoder()
+        
+        // DEBUG: Print raw response
+        if let rawString = String(data: data, encoding: .utf8) {
+            print("🔍 DEBUG: Raw API response (first 2000 chars):")
+            print(String(rawString.prefix(2000)))
+        }
+        
         let result = try decoder.decode(AnalyzeResponse.self, from: data)
         
         print("✅ Analysis complete! Found \(result.parsed_data.test_results?.count ?? 0) biomarkers")
+        print("🔍 DEBUG: structured_analysis present: \(result.structured_analysis != nil)")
+        print("🔍 DEBUG: structured_analysis.sections count: \(result.structured_analysis?.sections?.count ?? -1)")
+        print("🔍 DEBUG: structured_analysis.test_overview: \(result.structured_analysis?.test_overview?.prefix(100) ?? "nil")")
         
         return result
     }
@@ -226,11 +250,59 @@ class AnalysisService {
             testResults: testResults
         )
         
-        // Create analysis data
+        // Convert structured analysis sections (this is the key part for category sections!)
+        var analysisWrapper: StructuredAnalysisWrapper? = nil
+        
+        if let structuredResponse = analyzeResponse.structured_analysis {
+            // Convert sections from API response to model
+            let sections: [AnalysisSection] = (structuredResponse.sections ?? []).map { section in
+                AnalysisSection(
+                    category: section.category,
+                    icon: section.icon,
+                    summary: section.summary,
+                    details: section.details,
+                    biomarkers: section.biomarkers
+                )
+            }
+            
+            // Convert biomarker insights
+            var biomarkerInsights: [String: BiomarkerInsight]? = nil
+            if let insights = structuredResponse.biomarker_insights {
+                biomarkerInsights = insights.mapValues { response in
+                    // Convert recommendation sources
+                    let sources = response.recommendation_sources?.map { source in
+                        RecommendationSource(domain: source.domain, url: source.url)
+                    }
+                    return BiomarkerInsight(
+                        general: response.general,
+                        specific: response.specific,
+                        recommendations: response.recommendations,
+                        recommendationSources: sources
+                    )
+                }
+                print("✅ Converted \(insights.count) biomarker insights for the view")
+            }
+            
+            let structuredAnalysis = StructuredAnalysis(
+                testOverview: structuredResponse.test_overview,
+                sections: sections,
+                biomarkerInsights: biomarkerInsights
+            )
+            
+            analysisWrapper = StructuredAnalysisWrapper(structuredAnalysis: structuredAnalysis)
+            
+            print("✅ Converted \(sections.count) analysis sections for the view")
+        } else if let legacyText = analyzeResponse.analysis {
+            // Handle legacy text analysis
+            analysisWrapper = StructuredAnalysisWrapper(structuredAnalysis: nil, legacyText: legacyText)
+            print("📝 Using legacy text analysis")
+        }
+        
+        // Create analysis data with sections
         return AnalysisData(
             id: savedResponse.id,
             parsedData: parsedData,
-            analysis: nil, // The structured analysis is already processed
+            analysis: analysisWrapper,
             createdAt: savedResponse.created_at
         )
     }

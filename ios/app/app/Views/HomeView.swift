@@ -18,6 +18,8 @@ struct HomeView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @State private var showAnalyseModal = false
     @State private var selectedTab: Int = 0
+    @State private var analysisResultForDisplay: AnalysisData? = nil
+    @State private var showAnalysisResultsFromHome = false
     
     var body: some View {
         ZStack {
@@ -104,7 +106,19 @@ struct HomeView: View {
             }
         }
         .sheet(isPresented: $showAnalyseModal) {
-            AnalyseModalView(isPresented: $showAnalyseModal)
+            AnalyseModalView(isPresented: $showAnalyseModal) { analysisData in
+                // Callback when analysis is complete - show results from HomeView
+                self.analysisResultForDisplay = analysisData
+                self.showAnalysisResultsFromHome = true
+            }
+        }
+        .fullScreenCover(isPresented: $showAnalysisResultsFromHome) {
+            if let analysisData = analysisResultForDisplay {
+                NavigationView {
+                    AnalysisResultsView(analysisData: analysisData)
+                        .environmentObject(themeManager)
+                }
+            }
         }
     }
 }
@@ -463,8 +477,6 @@ struct HistoryTabView: View {
     @State private var analyses: [Analysis] = []
     @State private var isLoading: Bool = true
     @State private var errorMessage: String? = nil
-    @State private var selectedAnalysis: Analysis? = nil
-    @State private var showDetail: Bool = false
 
     var body: some View {
         NavigationView {
@@ -507,9 +519,14 @@ struct HistoryTabView: View {
                     ScrollView {
                         LazyVStack(spacing: 12) {
                             ForEach(analyses, id: \ .id) { analysis in
-                                Button(action: {
-                                    selectedAnalysis = analysis
-                                    showDetail = true
+                                NavigationLink(destination: {
+                                    if let analysisData = analysis.toAnalysisData() {
+                                        AnalysisResultsView(analysisData: analysisData)
+                                            .environmentObject(themeManager)
+                                    } else {
+                                        Text("Unable to load analysis")
+                                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                                    }
                                 }) {
                                     HStack(spacing: 12) {
                                         VStack(alignment: .leading, spacing: 6) {
@@ -553,12 +570,6 @@ struct HistoryTabView: View {
             .navigationBarTitle("History", displayMode: .inline)
             .onAppear {
                 Task { await loadAnalyses() }
-            }
-            .sheet(isPresented: $showDetail) {
-                if let analysis = selectedAnalysis {
-                    AnalysisDetailView(analysis: analysis)
-                        .environmentObject(themeManager)
-                }
             }
         }
     }
@@ -654,7 +665,7 @@ struct AnalysisDetailView: View {
                                         Text(result.marker)
                                             .font(.custom("ProductSans-Bold", size: 14))
                                             .foregroundColor(AppColors.text(themeManager.colorScheme))
-                                        Text(result.referenceRange)
+                                        Text(result.referenceRange ?? "N/A")
                                             .font(.custom("ProductSans-Regular", size: 12))
                                             .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                                     }
@@ -662,10 +673,10 @@ struct AnalysisDetailView: View {
                                     Spacer()
 
                                     VStack(alignment: .trailing) {
-                                        Text(result.value + " " + result.unit)
+                                        Text(result.value + " " + (result.unit ?? ""))
                                             .font(.custom("ProductSans-Bold", size: 14))
                                             .foregroundColor(AppColors.primary)
-                                        Text(result.status)
+                                        Text(result.status ?? "N/A")
                                             .font(.custom("ProductSans-Regular", size: 12))
                                             .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                                     }
@@ -1434,6 +1445,7 @@ struct SettingsTabView: View {
 struct AnalyseModalView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @Binding var isPresented: Bool
+    var onAnalysisComplete: ((AnalysisData) -> Void)?
     @State private var selectedFile: URL? = nil
     @State private var selectedFileName: String? = nil
     @State private var selectedFileType: String? = nil
@@ -1448,8 +1460,12 @@ struct AnalyseModalView: View {
     @State private var isCheckingCredits = false
     @State private var showErrorAlert = false
     @State private var errorMessage = ""
-    @State private var analysisResult: AnalysisData? = nil
-    @State private var showAnalysisResults = false
+    
+    // Initializer with callback
+    init(isPresented: Binding<Bool>, onAnalysisComplete: ((AnalysisData) -> Void)? = nil) {
+        self._isPresented = isPresented
+        self.onAnalysisComplete = onAnalysisComplete
+    }
 
     var body: some View {
         NavigationView {
@@ -1584,14 +1600,6 @@ struct AnalyseModalView: View {
             } message: {
                 Text(errorMessage)
             }
-            .fullScreenCover(isPresented: $showAnalysisResults) {
-                if let analysisData = analysisResult {
-                    NavigationView {
-                        AnalysisResultsView(analysisData: analysisData)
-                            .environmentObject(themeManager)
-                    }
-                }
-            }
         }
         .toolbarBackground(AppColors.modalBackground(themeManager.colorScheme), for: .navigationBar)
         .toolbarColorScheme(themeManager.colorScheme == .dark ? .dark : .light, for: .navigationBar)
@@ -1725,14 +1733,25 @@ struct AnalyseModalView: View {
                     savedResponse: savedResult
                 )
                 
+                // DEBUG: Log what we got
+                print("🔍 DEBUG: analyzeResult.structured_analysis sections count: \(analyzeResult.structured_analysis?.sections?.count ?? -1)")
+                print("🔍 DEBUG: analysisData.sections count: \(analysisData.sections.count)")
+                print("🔍 DEBUG: analysisData.testOverview: \(analysisData.testOverview ?? "nil")")
+                if let sections = analyzeResult.structured_analysis?.sections {
+                    for (i, section) in sections.enumerated() {
+                        print("🔍 DEBUG: Section \(i): \(section.category ?? "no category") - biomarkers: \(section.biomarkers ?? [])")
+                    }
+                }
+                
                 await MainActor.run {
                     print("✅ Upload complete! Navigating to results...")
                     isUploading = false
                     selectedFile = nil
                     selectedFileName = nil
-                    analysisResult = analysisData
-                    isPresented = false
-                    showAnalysisResults = true
+                    isPresented = false  // Close the modal first
+                    
+                    // Use callback to show results from parent (HomeView)
+                    onAnalysisComplete?(analysisData)
                 }
                 
             } catch {

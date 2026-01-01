@@ -67,26 +67,40 @@ struct RangeBarView: View {
         }
     }
     
+    // Use the actual status to determine which zone to light up
+    private var activeZone: String {
+        switch status.lowercased() {
+        case "normal":
+            return "normal"
+        case "low":
+            return "low"
+        case "high":
+            return "high"
+        default:
+            return "normal"
+        }
+    }
+    
     var body: some View {
         VStack(spacing: 8) {
             // Range bar track
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
-                    // Track with zones
+                    // Track with zones - light up based on actual status
                     HStack(spacing: 0) {
-                        // Low zone
+                        // Low zone (left 20%)
                         Rectangle()
-                            .fill(Color(hex: "#ef4444").opacity(0.3))
+                            .fill(Color(hex: "#f59e0b").opacity(activeZone == "low" ? 1.0 : 0.3))
                             .frame(width: geometry.size.width * 0.2)
                         
-                        // Normal zone
+                        // Normal zone (middle 60%)
                         Rectangle()
-                            .fill(Color(hex: "#10b981").opacity(0.3))
+                            .fill(Color(hex: "#10b981").opacity(activeZone == "normal" ? 1.0 : 0.3))
                             .frame(width: geometry.size.width * 0.6)
                         
-                        // High zone
+                        // High zone (right 20%)
                         Rectangle()
-                            .fill(Color(hex: "#ef4444").opacity(0.3))
+                            .fill(Color(hex: "#ef4444").opacity(activeZone == "high" ? 1.0 : 0.3))
                             .frame(width: geometry.size.width * 0.2)
                     }
                     .frame(height: 8)
@@ -135,11 +149,11 @@ struct StatusBadge: View {
     private var backgroundColor: Color {
         switch status.lowercased() {
         case "normal":
-            return Color(hex: "#10b981").opacity(0.2)
+            return Color(hex: "#10b981")
         case "low":
-            return Color(hex: "#f59e0b").opacity(0.2)
+            return Color(hex: "#f59e0b")
         default:
-            return Color(hex: "#ef4444").opacity(0.2)
+            return Color(hex: "#ef4444")
         }
     }
     
@@ -154,10 +168,200 @@ struct StatusBadge: View {
     }
 }
 
+// MARK: - Biomarker Info Modal (Bottom Sheet Style)
+struct BiomarkerInfoModal: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    @Binding var isPresented: Bool
+    let biomarkerName: String
+    let insight: BiomarkerInsight?
+    
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            // Background overlay
+            Color.black.opacity(0.5)
+                .ignoresSafeArea(.all)
+                .onTapGesture {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                        isPresented = false
+                    }
+                }
+            
+            // Bottom sheet content
+            VStack(spacing: 0) {
+                // Drag indicator
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(Color.gray.opacity(0.4))
+                    .frame(width: 40, height: 5)
+                    .padding(.top, 12)
+                    .padding(.bottom, 16)
+                
+                // Header
+                HStack {
+                    Text(biomarkerName)
+                        .font(.custom("ProductSans-Bold", size: 22))
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                            isPresented = false
+                        }
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 28))
+                            .foregroundColor(Color.gray.opacity(0.5))
+                    }
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 20)
+                
+                // Scrollable content
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        // General section
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "info.circle.fill")
+                                    .font(.system(size: 18))
+                                    .foregroundColor(AppColors.primary)
+                                
+                                Text("General Information")
+                                    .font(.custom("ProductSans-Bold", size: 17))
+                                    .foregroundColor(AppColors.primary)
+                            }
+                            
+                            Text(insight?.general ?? "No general information available for this biomarker.")
+                                .font(.custom("ProductSans-Regular", size: 15))
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+                                .lineSpacing(5)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        
+                        Divider()
+                            .background(AppColors.border(themeManager.colorScheme))
+                            .padding(.vertical, 4)
+                        
+                        // Specific section
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "person.fill")
+                                    .font(.system(size: 18))
+                                    .foregroundColor(Color(hex: "#10b981"))
+                                
+                                Text("Your Result")
+                                    .font(.custom("ProductSans-Bold", size: 17))
+                                    .foregroundColor(Color(hex: "#10b981"))
+                            }
+                            
+                            Text(insight?.specific ?? "No specific insights available for your result.")
+                                .font(.custom("ProductSans-Regular", size: 15))
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+                                .lineSpacing(5)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        
+                        // Recommendations section (only show if available)
+                        if let recommendations = insight?.recommendations, !recommendations.isEmpty {
+                            Divider()
+                                .background(AppColors.border(themeManager.colorScheme))
+                                .padding(.vertical, 4)
+                            
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "lightbulb.fill")
+                                        .font(.system(size: 18))
+                                        .foregroundColor(Color(hex: "#f59e0b"))
+                                    
+                                    Text("Our Recommendations")
+                                        .font(.custom("ProductSans-Bold", size: 17))
+                                        .foregroundColor(Color(hex: "#f59e0b"))
+                                }
+                                
+                                Text(recommendations)
+                                    .font(.custom("ProductSans-Regular", size: 15))
+                                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+                                    .lineSpacing(5)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                
+                                // Source links
+                                if let sources = insight?.recommendationSources, !sources.isEmpty {
+                                    HStack(spacing: 12) {
+                                        ForEach(sources.prefix(4), id: \.url) { source in
+                                            Button(action: {
+                                                if let url = URL(string: source.url) {
+                                                    UIApplication.shared.open(url)
+                                                }
+                                            }) {
+                                                HStack(spacing: 4) {
+                                                    Image(systemName: "link")
+                                                        .font(.system(size: 12))
+                                                    Text(source.domain)
+                                                        .font(.custom("ProductSans-Regular", size: 11))
+                                                        .lineLimit(1)
+                                                }
+                                                .foregroundColor(AppColors.primary)
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 4)
+                                                .background(AppColors.primary.opacity(0.1))
+                                                .cornerRadius(12)
+                                            }
+                                        }
+                                    }
+                                    .padding(.top, 8)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 60)
+                }
+            }
+            .frame(height: UIScreen.main.bounds.height * 0.75)
+            .frame(maxWidth: .infinity)
+            .background(AppColors.modalBackground(themeManager.colorScheme))
+            .cornerRadius(24, corners: [.topLeft, .topRight])
+        }
+        .ignoresSafeArea(.all)
+    }
+}
+
+// MARK: - Corner Radius Extension for Specific Corners
+extension View {
+    func cornerRadius(_ radius: CGFloat, corners: UIRectCorner) -> some View {
+        clipShape(RoundedCorner(radius: radius, corners: corners))
+    }
+}
+
+struct RoundedCorner: Shape {
+    var radius: CGFloat = .infinity
+    var corners: UIRectCorner = .allCorners
+
+    func path(in rect: CGRect) -> Path {
+        let path = UIBezierPath(roundedRect: rect, byRoundingCorners: corners, cornerRadii: CGSize(width: radius, height: radius))
+        return Path(path.cgPath)
+    }
+}
+
 // MARK: - Result Card Component
 struct ResultCardView: View {
     @EnvironmentObject var themeManager: ThemeManager
     let result: BloodTestResult
+    let insight: BiomarkerInsight?
+    var onInfoPressed: (() -> Void)?
+    
+    // Convenience initializer for backward compatibility
+    init(result: BloodTestResult) {
+        self.result = result
+        self.insight = nil
+        self.onInfoPressed = nil
+    }
+    
+    init(result: BloodTestResult, insight: BiomarkerInsight?, onInfoPressed: (() -> Void)?) {
+        self.result = result
+        self.insight = insight
+        self.onInfoPressed = onInfoPressed
+    }
     
     private var parsedRange: ReferenceRange? {
         ReferenceRange.parse(result.referenceRange)
@@ -171,9 +375,20 @@ struct ResultCardView: View {
         VStack(alignment: .leading, spacing: 16) {
             // Header
             HStack {
-                Text(result.marker)
-                    .font(.custom("ProductSans-Bold", size: 16))
-                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+                HStack(spacing: 6) {
+                    Text(result.marker)
+                        .font(.custom("ProductSans-Bold", size: 16))
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+                    
+                    // Info button
+                    if onInfoPressed != nil {
+                        Button(action: { onInfoPressed?() }) {
+                            Image(systemName: "info.circle")
+                                .font(.system(size: 16))
+                                .foregroundColor(Color.gray.opacity(0.6))
+                        }
+                    }
+                }
                 
                 Spacer()
                 
@@ -251,6 +466,8 @@ struct CategorySectionView: View {
     let section: AnalysisSection
     let testResults: [BloodTestResult]
     let index: Int
+    let biomarkerInsights: [String: BiomarkerInsight]?
+    var onBiomarkerInfoPressed: ((BloodTestResult) -> Void)?
     
     @State private var isExpanded: Bool = false
     
@@ -260,15 +477,23 @@ struct CategorySectionView: View {
         return testResults.filter { biomarkers.contains($0.marker) }
     }
     
-    // Icon mapping
+    // Icon mapping - matches React Native Ionicons to SF Symbols
     private var iconName: String {
         switch section.icon {
         case "medical-outline":
             return "cross.case"
+        case "body-outline":
+            return "figure.stand"
         case "water-outline":
             return "drop"
         case "heart-outline":
             return "heart"
+        case "pulse-outline":
+            return "waveform.path.ecg"
+        case "flask-outline":
+            return "flask"
+        case "speedometer-outline":
+            return "speedometer"
         case "information-circle-outline":
             return "info.circle"
         default:
@@ -345,7 +570,11 @@ struct CategorySectionView: View {
                     .background(AppColors.border(themeManager.colorScheme))
                 
                 ForEach(categoryResults) { result in
-                    ResultCardView(result: result)
+                    ResultCardView(
+                        result: result,
+                        insight: biomarkerInsights?[result.marker],
+                        onInfoPressed: { onBiomarkerInfoPressed?(result) }
+                    )
                 }
             }
         }
@@ -366,7 +595,19 @@ struct AnalysisResultsView: View {
     
     let analysisData: AnalysisData
     
+    @State private var showBiomarkerInfo: Bool = false
+    @State private var selectedBiomarker: BloodTestResult? = nil
+    
+    private var selectedBiomarkerInsight: BiomarkerInsight? {
+        guard let biomarker = selectedBiomarker else { return nil }
+        return analysisData.biomarkerInsights?[biomarker.marker]
+    }
+    
     var body: some View {
+        let _ = print("🔍 AnalysisResultsView - sections count: \(analysisData.sections.count)")
+        let _ = print("🔍 AnalysisResultsView - testResults count: \(analysisData.testResults.count)")
+        let _ = print("🔍 AnalysisResultsView - testOverview: \(analysisData.testOverview ?? "nil")")
+        
         ZStack {
             // Background
             AppColors.background(themeManager.colorScheme)
@@ -503,7 +744,12 @@ struct AnalysisResultsView: View {
                                 CategorySectionView(
                                     section: section,
                                     testResults: analysisData.testResults,
-                                    index: index
+                                    index: index,
+                                    biomarkerInsights: analysisData.biomarkerInsights,
+                                    onBiomarkerInfoPressed: { result in
+                                        selectedBiomarker = result
+                                        showBiomarkerInfo = true
+                                    }
                                 )
                             }
                         }
@@ -516,7 +762,14 @@ struct AnalysisResultsView: View {
                             
                             if !analysisData.testResults.isEmpty {
                                 ForEach(analysisData.testResults) { result in
-                                    ResultCardView(result: result)
+                                    ResultCardView(
+                                        result: result,
+                                        insight: analysisData.biomarkerInsights?[result.marker],
+                                        onInfoPressed: {
+                                            selectedBiomarker = result
+                                            showBiomarkerInfo = true
+                                        }
+                                    )
                                 }
                             } else {
                                 // No results available
@@ -549,6 +802,193 @@ struct AnalysisResultsView: View {
                     dismiss()
                 }
             }
+        }
+        .fullScreenCover(isPresented: $showBiomarkerInfo) {
+            // Biomarker Info Modal (Bottom Sheet) - presented as fullScreenCover to cover tab bar
+            if let biomarker = selectedBiomarker {
+                BiomarkerInfoModalFullScreen(
+                    isPresented: $showBiomarkerInfo,
+                    biomarkerName: biomarker.marker,
+                    insight: selectedBiomarkerInsight
+                )
+                .environmentObject(themeManager)
+                .presentationBackground(.clear)
+            }
+        }
+        .transaction { transaction in
+            transaction.disablesAnimations = true
+        }
+    }
+}
+
+// MARK: - Biomarker Info Modal Full Screen Wrapper
+struct BiomarkerInfoModalFullScreen: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    @Binding var isPresented: Bool
+    let biomarkerName: String
+    let insight: BiomarkerInsight?
+    
+    @State private var sheetOffset: CGFloat = UIScreen.main.bounds.height
+    
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            // Background overlay
+            Color.black.opacity(sheetOffset == 0 ? 0.5 : 0)
+                .ignoresSafeArea(.all)
+                .onTapGesture {
+                    dismissSheet()
+                }
+            
+            // Bottom sheet content
+            VStack(spacing: 0) {
+                // Drag indicator
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(Color.gray.opacity(0.4))
+                    .frame(width: 40, height: 5)
+                    .padding(.top, 12)
+                    .padding(.bottom, 16)
+                
+                // Header
+                HStack {
+                    Text(biomarkerName)
+                        .font(.custom("ProductSans-Bold", size: 22))
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        dismissSheet()
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 28))
+                            .foregroundColor(Color.gray.opacity(0.5))
+                    }
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 20)
+                
+                // Scrollable content
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        // General section
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "info.circle.fill")
+                                    .font(.system(size: 18))
+                                    .foregroundColor(AppColors.primary)
+                                
+                                Text("General Information")
+                                    .font(.custom("ProductSans-Bold", size: 17))
+                                    .foregroundColor(AppColors.primary)
+                            }
+                            
+                            Text(insight?.general ?? "No general information available for this biomarker.")
+                                .font(.custom("ProductSans-Regular", size: 15))
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+                                .lineSpacing(5)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        
+                        Divider()
+                            .background(AppColors.border(themeManager.colorScheme))
+                            .padding(.vertical, 4)
+                        
+                        // Specific section
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "person.fill")
+                                    .font(.system(size: 18))
+                                    .foregroundColor(Color(hex: "#10b981"))
+                                
+                                Text("Your Result")
+                                    .font(.custom("ProductSans-Bold", size: 17))
+                                    .foregroundColor(Color(hex: "#10b981"))
+                            }
+                            
+                            Text(insight?.specific ?? "No specific insights available for your result.")
+                                .font(.custom("ProductSans-Regular", size: 15))
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+                                .lineSpacing(5)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        
+                        // Recommendations section (only show if available)
+                        if let recommendations = insight?.recommendations, !recommendations.isEmpty {
+                            Divider()
+                                .background(AppColors.border(themeManager.colorScheme))
+                                .padding(.vertical, 4)
+                            
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "lightbulb.fill")
+                                        .font(.system(size: 18))
+                                        .foregroundColor(Color(hex: "#f59e0b"))
+                                    
+                                    Text("Our Recommendations")
+                                        .font(.custom("ProductSans-Bold", size: 17))
+                                        .foregroundColor(Color(hex: "#f59e0b"))
+                                }
+                                
+                                Text(recommendations)
+                                    .font(.custom("ProductSans-Regular", size: 15))
+                                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+                                    .lineSpacing(5)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                
+                                // Source links
+                                if let sources = insight?.recommendationSources, !sources.isEmpty {
+                                    HStack(spacing: 12) {
+                                        ForEach(sources.prefix(4), id: \.url) { source in
+                                            Button(action: {
+                                                if let url = URL(string: source.url) {
+                                                    UIApplication.shared.open(url)
+                                                }
+                                            }) {
+                                                HStack(spacing: 4) {
+                                                    Image(systemName: "link")
+                                                        .font(.system(size: 12))
+                                                    Text(source.domain)
+                                                        .font(.custom("ProductSans-Regular", size: 11))
+                                                        .lineLimit(1)
+                                                }
+                                                .foregroundColor(AppColors.primary)
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 4)
+                                                .background(AppColors.primary.opacity(0.1))
+                                                .cornerRadius(12)
+                                            }
+                                        }
+                                    }
+                                    .padding(.top, 8)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 60)
+                }
+            }
+            .frame(height: UIScreen.main.bounds.height * 0.75)
+            .frame(maxWidth: .infinity)
+            .background(AppColors.modalBackground(themeManager.colorScheme))
+            .cornerRadius(24, corners: [.topLeft, .topRight])
+            .offset(y: sheetOffset)
+        }
+        .ignoresSafeArea(.all)
+        .background(Color.clear)
+        .onAppear {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                sheetOffset = 0
+            }
+        }
+    }
+    
+    private func dismissSheet() {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+            sheetOffset = UIScreen.main.bounds.height
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            isPresented = false
         }
     }
 }

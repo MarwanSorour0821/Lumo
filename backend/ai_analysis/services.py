@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import logging
 from openai import OpenAI
 from .textract_utils import parse_document_with_textract
@@ -120,34 +121,76 @@ THEN, after the JSON block, provide a SECOND JSON block with structured analysis
   "test_overview": "A high-level summary paragraph (2-4 sentences) that provides an overall interpretation of ALL biomarkers in this test. This should give a general health picture, highlighting key patterns, areas of concern, and positive aspects. Write naturally and clearly.",
   "sections": [
     {{
-      "category": "Category Name (e.g., 'Cholesterol Balance', 'Liver Function', 'Blood Cell Analysis', 'Kidney Function')",
+      "category": "Category Name (e.g., 'Red Blood Cell Status & Anemia Assessment', 'White Blood Cells & Immune Function', 'Platelet Function & Clotting Readiness')",
       "icon": "medical-outline",
       "biomarkers": ["Hemoglobin", "RBC"],
-      "summary": "A brief one-line summary (max 100 characters) of what this section covers",
-      "details": "Detailed explanation (2-4 paragraphs) covering ALL biomarkers in this category. For EACH biomarker in the category, explain: 1) What it measures, 2) What the current value indicates for THAT specific biomarker, 3) Health implications, 4) Any recommendations. Be specific about each biomarker mentioned in the 'biomarkers' array."
+      "summary": "A brief one-line summary (max 100 characters) of what this section covers"
     }}
-  ]
+  ],
+  "biomarker_insights": {{
+    "Hemoglobin": {{
+      "general": "A 2-3 sentence explanation of what this biomarker is and what it measures in general terms. Write as if explaining to someone who doesn't know what it is.",
+      "specific": "A 2-4 sentence interpretation of THIS patient's specific result. Include the value, whether it's normal/high/low, and what this means for their health. Include any relevant recommendations or context.",
+      "recommendations": "2-4 actionable health recommendations based on this specific result. You MUST use web search to find evidence-based advice from reputable medical sources and CITE THEM using markdown link format like [source.com](https://full-url). Be specific and practical."
+    }},
+    "RBC": {{
+      "general": "General explanation of this biomarker...",
+      "specific": "Specific interpretation of the patient's result...",
+      "recommendations": "Evidence-based recommendations with citations in markdown link format..."
+    }}
+  }}
 }}
 ```
 
-IMPORTANT ANALYSIS RULES:
-- Group biomarkers logically by function/system (e.g., all cholesterol markers together, all liver markers together, all blood cell counts together)
-- Create sections dynamically based on what categories of biomarkers are present in the test
-- The test_overview should synthesize ALL biomarkers into one cohesive summary
-- Each section MUST include a "biomarkers" array listing the exact biomarker names (e.g., ["Hemoglobin", "RBC", "WBC"]) that belong to that section
-- In the "details" field, explain EACH biomarker individually - what it measures, what the value means, implications
-- Each section should focus on biomarkers that belong to the same physiological system or function
-- Use clear, non-technical language. When using medical terms, explain them
-- Icons should be from Ionicons: 'medical-outline', 'heart-outline', 'water-outline', 'pulse-outline', 'flask-outline', 'body-outline', 'speedometer-outline'
-- Choose icons that match the category (heart for cardiovascular, water for kidney/fluid, etc.)
-- Be thorough - every biomarker in test_results should be mentioned in at least one section
+⚠️ CRITICAL ANALYSIS RULES - MUST FOLLOW EXACTLY:
+
+1. **SECTION SEPARATION IS MANDATORY**: Create SEPARATE sections for EACH physiological system or functional category. DO NOT combine multiple systems into a single section.
+   - INCORRECT: One section called "Blood Cell Analysis & Inflammation" with biomarkers ["Hemoglobin", "RBC", "WBC", "PLT", "ESR"]
+   - CORRECT: Separate sections like "Red Blood Cell Status", "White Blood Cells & Immune Function", "Platelet Function" - each with only its own biomarkers
+
+2. **Each Section Must Have Its Own Biomarkers Array**: Every section's "biomarkers" array must list ONLY the biomarkers that belong to that physiological system.
+   - Red Blood Cell sections: ["Hemoglobin", "RBC", "HCT", "MCV", "MCH", "MCHC", "RDW-CV", "RDW-SD", "ESR"]
+   - White Blood Cell sections: ["WBC", "NEU%", "LYM%", "MON%", "EOS%", "BAS%", "LYM#", "GRA#"]
+   - Platelet sections: ["PLT"]
+
+3. **Create Sections Dynamically**: The number and type of sections depends on what biomarkers are present in the test. Common groupings:
+   - Red Blood Cell Status & Anemia Assessment
+   - White Blood Cells & Immune Function
+   - Platelet Function & Clotting Readiness
+   - Kidney Function
+   - Liver Function
+   - Electrolytes & Kidney Balance
+   - Glucose & Metabolic Health
+   - Lipid Panel & Cholesterol Balance
+   - Thyroid Function
+   - Iron Status
+
+4. **BIOMARKER_INSIGHTS IS REQUIRED**: You MUST include a "biomarker_insights" object with an entry for EVERY biomarker in test_results. Each entry must have "general", "specific", AND "recommendations" fields.
+   - "general": Explain what the biomarker is and what it measures (educational, same for everyone)
+   - "specific": Interpret THIS patient's specific value (personalized to their result)
+   - "recommendations": You MUST use web search to find evidence-based recommendations from reputable sources (Mayo Clinic, NIH, Cleveland Clinic, etc.) and CITE THEM using markdown link format like [domain.com](https://full-url). Include 2-4 actionable recommendations about diet, lifestyle, or when to see a doctor.
+
+5. **Icons Match Categories**: 
+   - 'body-outline' or 'medical-outline' for blood cell analysis
+   - 'heart-outline' for cardiovascular/cholesterol
+   - 'water-outline' for kidney/fluid/electrolytes
+   - 'pulse-outline' for platelets/clotting
+   - 'flask-outline' for liver/metabolic
+   - 'speedometer-outline' for thyroid/metabolic rate
+
+6. **Test Overview Synthesis**: The test_overview should provide a high-level summary of ALL findings across all sections, synthesizing the overall health picture.
+
+7. **Every Biomarker Must Appear**: Ensure that every biomarker in test_results appears in:
+   - At least one section's "biomarkers" array
+   - The "biomarker_insights" object with both general and specific explanations
 
 After the second JSON block, you may include additional detailed analysis text if needed."""
 
-        # Call GPT-5.1 with responses API
+        # Call GPT-5.1 with responses API and web search enabled for recommendations
         response = self.client.responses.create(
             model="gpt-5.1",
             input=prompt,
+            tools=[{"type": "web_search"}],
             reasoning={"effort": "medium"},
             text={"verbosity": "medium"}
         )
@@ -157,9 +200,15 @@ After the second JSON block, you may include additional detailed analysis text i
         # Parse the response to extract JSON data, structured analysis, and remaining text
         parsed_data, structured_analysis, analysis_text = self._parse_gpt_response(output_text)
         
+        # Process biomarker_insights to extract sources from recommendations
+        if structured_analysis and 'biomarker_insights' in structured_analysis:
+            structured_analysis['biomarker_insights'] = self._process_biomarker_insights(
+                structured_analysis['biomarker_insights']
+            )
+        
         logger.info("")
         logger.info("="*60)
-        logger.info("✅ GPT-5.1 EXTRACTION & ANALYSIS COMPLETE")
+        logger.info("✅ GPT-5.1 EXTRACTION & ANALYSIS COMPLETE (with web search)")
         logger.info("="*60)
         logger.info(f"   Extracted {len(parsed_data.get('test_results', []))} biomarkers")
         logger.info(f"   Patient: {parsed_data.get('patient_info', {}).get('name', 'Unknown')}")
@@ -171,6 +220,70 @@ After the second JSON block, you may include additional detailed analysis text i
             "analysis": analysis_text,
             "structured_analysis": structured_analysis
         }
+    
+    def _extract_urls_from_text(self, text):
+        """
+        Extract URLs from markdown-style links and return clean text + list of sources.
+        Handles formats like: ([domain](url)) or [domain](url)
+        """
+        sources = []
+        
+        # Pattern to match markdown links with optional parentheses: ([text](url)) or [text](url)
+        # This captures the URL from patterns like ([nhlbi.nih.gov](https://...))
+        pattern = r'\(?\[([^\]]+)\]\((https?://[^\)]+)\)\)?'
+        
+        def extract_and_remove(match):
+            domain = match.group(1)
+            url = match.group(2)
+            # Clean up the URL (remove utm params for cleaner display)
+            clean_url = url.split('?')[0] if '?' in url else url
+            sources.append({
+                'domain': domain,
+                'url': url  # Keep full URL for linking
+            })
+            return ''  # Remove the link from text
+        
+        # Extract URLs and clean the text
+        clean_text = re.sub(pattern, extract_and_remove, text)
+        
+        # Clean up extra spaces and punctuation artifacts
+        clean_text = re.sub(r'\s+', ' ', clean_text)  # Multiple spaces to single
+        clean_text = re.sub(r'\s+([.,;:!?])', r'\1', clean_text)  # Space before punctuation
+        clean_text = re.sub(r'([.,;:!?])\s*([.,;:!?])', r'\1', clean_text)  # Double punctuation
+        clean_text = clean_text.strip()
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_sources = []
+        for source in sources:
+            if source['url'] not in seen:
+                seen.add(source['url'])
+                unique_sources.append(source)
+        
+        return clean_text, unique_sources
+    
+    def _process_biomarker_insights(self, biomarker_insights):
+        """
+        Process all biomarker insights to extract sources from recommendations.
+        """
+        processed = {}
+        for marker, insight in biomarker_insights.items():
+            processed[marker] = {
+                'general': insight.get('general', ''),
+                'specific': insight.get('specific', '')
+            }
+            
+            # Process recommendations to extract sources
+            recommendations = insight.get('recommendations', '')
+            if recommendations:
+                clean_text, sources = self._extract_urls_from_text(recommendations)
+                processed[marker]['recommendations'] = clean_text
+                processed[marker]['recommendation_sources'] = sources
+            else:
+                processed[marker]['recommendations'] = ''
+                processed[marker]['recommendation_sources'] = []
+        
+        return processed
     
     def _format_textract_for_gpt(self, structured):
         """
