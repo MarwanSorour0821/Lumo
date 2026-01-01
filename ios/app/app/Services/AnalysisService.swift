@@ -86,6 +86,7 @@ class AnalysisService {
         let boundary = UUID().uuidString
         var request = URLRequest(url: apiURL)
         request.httpMethod = "POST"
+        request.timeoutInterval = 300 // 5 minutes - AI analysis with web search can take a while
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         

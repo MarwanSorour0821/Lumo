@@ -189,7 +189,7 @@ After the second JSON block, you may include additional detailed analysis text i
         response = self.client.responses.create(
             model="gpt-5.1",
             input=prompt,
-            tools=[{"type": "web_search_preview"}],
+            tools=[{"type": "web_search"}],
             reasoning={"effort": "medium"},
             text={"verbosity": "medium"}
         )
