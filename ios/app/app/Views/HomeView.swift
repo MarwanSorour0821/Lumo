@@ -477,8 +477,6 @@ struct HistoryTabView: View {
     @State private var analyses: [Analysis] = []
     @State private var isLoading: Bool = true
     @State private var errorMessage: String? = nil
-    @State private var selectedAnalysisData: AnalysisData? = nil
-    @State private var showDetail: Bool = false
 
     var body: some View {
         NavigationView {
@@ -521,13 +519,13 @@ struct HistoryTabView: View {
                     ScrollView {
                         LazyVStack(spacing: 12) {
                             ForEach(analyses, id: \ .id) { analysis in
-                                Button(action: {
-                                    // Convert Analysis to AnalysisData for the full results view
+                                NavigationLink(destination: {
                                     if let analysisData = analysis.toAnalysisData() {
-                                        selectedAnalysisData = analysisData
-                                        showDetail = true
+                                        AnalysisResultsView(analysisData: analysisData)
+                                            .environmentObject(themeManager)
                                     } else {
-                                        print("❌ Failed to convert analysis to AnalysisData")
+                                        Text("Unable to load analysis")
+                                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                                     }
                                 }) {
                                     HStack(spacing: 12) {
@@ -572,14 +570,6 @@ struct HistoryTabView: View {
             .navigationBarTitle("History", displayMode: .inline)
             .onAppear {
                 Task { await loadAnalyses() }
-            }
-            .sheet(isPresented: $showDetail) {
-                if let analysisData = selectedAnalysisData {
-                    NavigationView {
-                        AnalysisResultsView(analysisData: analysisData)
-                            .environmentObject(themeManager)
-                    }
-                }
             }
         }
     }

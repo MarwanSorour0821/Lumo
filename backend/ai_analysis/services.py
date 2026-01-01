@@ -123,10 +123,19 @@ THEN, after the JSON block, provide a SECOND JSON block with structured analysis
       "category": "Category Name (e.g., 'Red Blood Cell Status & Anemia Assessment', 'White Blood Cells & Immune Function', 'Platelet Function & Clotting Readiness')",
       "icon": "medical-outline",
       "biomarkers": ["Hemoglobin", "RBC"],
-      "summary": "A brief one-line summary (max 100 characters) of what this section covers",
-      "details": "Detailed explanation (2-4 paragraphs) covering ALL biomarkers in this category. For EACH biomarker in the category, explain: 1) What it measures, 2) What the current value indicates for THAT specific biomarker, 3) Health implications, 4) Any recommendations. Be specific about each biomarker mentioned in the 'biomarkers' array."
+      "summary": "A brief one-line summary (max 100 characters) of what this section covers"
     }}
-  ]
+  ],
+  "biomarker_insights": {{
+    "Hemoglobin": {{
+      "general": "A 2-3 sentence explanation of what this biomarker is and what it measures in general terms. Write as if explaining to someone who doesn't know what it is.",
+      "specific": "A 2-4 sentence interpretation of THIS patient's specific result. Include the value, whether it's normal/high/low, and what this means for their health. Include any relevant recommendations or context."
+    }},
+    "RBC": {{
+      "general": "General explanation of this biomarker...",
+      "specific": "Specific interpretation of the patient's result..."
+    }}
+  }}
 }}
 ```
 
@@ -153,7 +162,9 @@ THEN, after the JSON block, provide a SECOND JSON block with structured analysis
    - Thyroid Function
    - Iron Status
 
-4. **Details Must Address Each Biomarker Separately**: In each section's "details" field, discuss EACH biomarker individually. Don't mix explanations - clearly separate the discussion of different biomarkers.
+4. **BIOMARKER_INSIGHTS IS REQUIRED**: You MUST include a "biomarker_insights" object with an entry for EVERY biomarker in test_results. Each entry must have both "general" and "specific" fields.
+   - "general": Explain what the biomarker is and what it measures (educational, same for everyone)
+   - "specific": Interpret THIS patient's specific value (personalized to their result)
 
 5. **Icons Match Categories**: 
    - 'body-outline' or 'medical-outline' for blood cell analysis
@@ -165,7 +176,9 @@ THEN, after the JSON block, provide a SECOND JSON block with structured analysis
 
 6. **Test Overview Synthesis**: The test_overview should provide a high-level summary of ALL findings across all sections, synthesizing the overall health picture.
 
-7. **Every Biomarker Must Appear**: Ensure that every biomarker in test_results appears in at least one section's "biomarkers" array and is discussed in at least one section's "details".
+7. **Every Biomarker Must Appear**: Ensure that every biomarker in test_results appears in:
+   - At least one section's "biomarkers" array
+   - The "biomarker_insights" object with both general and specific explanations
 
 After the second JSON block, you may include additional detailed analysis text if needed."""
 

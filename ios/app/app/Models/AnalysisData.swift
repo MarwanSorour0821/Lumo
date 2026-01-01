@@ -115,20 +115,34 @@ struct AnalysisSection: Codable, Identifiable {
     }
 }
 
+// MARK: - Biomarker Insight
+struct BiomarkerInsight: Codable {
+    let general: String?
+    let specific: String?
+    
+    init(general: String? = nil, specific: String? = nil) {
+        self.general = general
+        self.specific = specific
+    }
+}
+
 // MARK: - Structured Analysis
 struct StructuredAnalysis: Codable {
     let testOverview: String?
     let sections: [AnalysisSection]?
+    let biomarkerInsights: [String: BiomarkerInsight]?
     
     enum CodingKeys: String, CodingKey {
         case testOverview = "test_overview"
         case sections
+        case biomarkerInsights = "biomarker_insights"
     }
     
     // Manual initializer for programmatic creation
-    init(testOverview: String? = nil, sections: [AnalysisSection]? = nil) {
+    init(testOverview: String? = nil, sections: [AnalysisSection]? = nil, biomarkerInsights: [String: BiomarkerInsight]? = nil) {
         self.testOverview = testOverview
         self.sections = sections
+        self.biomarkerInsights = biomarkerInsights
     }
 }
 
@@ -169,6 +183,10 @@ struct AnalysisData: Codable, Identifiable {
     
     var testOverview: String? {
         structuredAnalysis?.testOverview
+    }
+    
+    var biomarkerInsights: [String: BiomarkerInsight]? {
+        structuredAnalysis?.biomarkerInsights
     }
     
     var sections: [AnalysisSection] {

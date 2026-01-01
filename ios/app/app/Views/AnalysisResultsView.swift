@@ -154,10 +154,110 @@ struct StatusBadge: View {
     }
 }
 
+// MARK: - Biomarker Info Modal
+struct BiomarkerInfoModal: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    @Binding var isPresented: Bool
+    let biomarkerName: String
+    let insight: BiomarkerInsight?
+    
+    var body: some View {
+        ZStack {
+            // Background overlay
+            Color.black.opacity(0.6)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    isPresented = false
+                }
+            
+            // Modal content
+            VStack(alignment: .leading, spacing: 20) {
+                // Header
+                HStack {
+                    Text(biomarkerName)
+                        .font(.custom("ProductSans-Bold", size: 22))
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+                    
+                    Spacer()
+                    
+                    Button(action: { isPresented = false }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 24))
+                            .foregroundColor(Color.gray.opacity(0.8))
+                    }
+                }
+                
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        // General section
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "info.circle.fill")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(AppColors.primary)
+                                
+                                Text("General Information")
+                                    .font(.custom("ProductSans-Bold", size: 16))
+                                    .foregroundColor(AppColors.primary)
+                            }
+                            
+                            Text(insight?.general ?? "No general information available for this biomarker.")
+                                .font(.custom("ProductSans-Regular", size: 15))
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+                                .lineSpacing(4)
+                        }
+                        
+                        Divider()
+                            .background(AppColors.border(themeManager.colorScheme))
+                        
+                        // Specific section
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "person.fill")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(Color(hex: "#10b981"))
+                                
+                                Text("Your Result")
+                                    .font(.custom("ProductSans-Bold", size: 16))
+                                    .foregroundColor(Color(hex: "#10b981"))
+                            }
+                            
+                            Text(insight?.specific ?? "No specific insights available for your result.")
+                                .font(.custom("ProductSans-Regular", size: 15))
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+                                .lineSpacing(4)
+                        }
+                    }
+                }
+            }
+            .padding(24)
+            .background(AppColors.cardBackground(themeManager.colorScheme))
+            .cornerRadius(20)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 80)
+        }
+    }
+}
+
 // MARK: - Result Card Component
 struct ResultCardView: View {
     @EnvironmentObject var themeManager: ThemeManager
     let result: BloodTestResult
+    let insight: BiomarkerInsight?
+    var onInfoPressed: (() -> Void)?
+    
+    // Convenience initializer for backward compatibility
+    init(result: BloodTestResult) {
+        self.result = result
+        self.insight = nil
+        self.onInfoPressed = nil
+    }
+    
+    init(result: BloodTestResult, insight: BiomarkerInsight?, onInfoPressed: (() -> Void)?) {
+        self.result = result
+        self.insight = insight
+        self.onInfoPressed = onInfoPressed
+    }
     
     private var parsedRange: ReferenceRange? {
         ReferenceRange.parse(result.referenceRange)
@@ -171,9 +271,20 @@ struct ResultCardView: View {
         VStack(alignment: .leading, spacing: 16) {
             // Header
             HStack {
-                Text(result.marker)
-                    .font(.custom("ProductSans-Bold", size: 16))
-                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+                HStack(spacing: 6) {
+                    Text(result.marker)
+                        .font(.custom("ProductSans-Bold", size: 16))
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+                    
+                    // Info button
+                    if onInfoPressed != nil {
+                        Button(action: { onInfoPressed?() }) {
+                            Image(systemName: "info.circle")
+                                .font(.system(size: 16))
+                                .foregroundColor(Color.gray.opacity(0.6))
+                        }
+                    }
+                }
                 
                 Spacer()
                 
@@ -251,6 +362,8 @@ struct CategorySectionView: View {
     let section: AnalysisSection
     let testResults: [BloodTestResult]
     let index: Int
+    let biomarkerInsights: [String: BiomarkerInsight]?
+    var onBiomarkerInfoPressed: ((BloodTestResult) -> Void)?
     
     @State private var isExpanded: Bool = false
     
@@ -353,7 +466,11 @@ struct CategorySectionView: View {
                     .background(AppColors.border(themeManager.colorScheme))
                 
                 ForEach(categoryResults) { result in
-                    ResultCardView(result: result)
+                    ResultCardView(
+                        result: result,
+                        insight: biomarkerInsights?[result.marker],
+                        onInfoPressed: { onBiomarkerInfoPressed?(result) }
+                    )
                 }
             }
         }
@@ -373,6 +490,14 @@ struct AnalysisResultsView: View {
     @Environment(\.dismiss) var dismiss
     
     let analysisData: AnalysisData
+    
+    @State private var showBiomarkerInfo: Bool = false
+    @State private var selectedBiomarker: BloodTestResult? = nil
+    
+    private var selectedBiomarkerInsight: BiomarkerInsight? {
+        guard let biomarker = selectedBiomarker else { return nil }
+        return analysisData.biomarkerInsights?[biomarker.marker]
+    }
     
     var body: some View {
         let _ = print("🔍 AnalysisResultsView - sections count: \(analysisData.sections.count)")
@@ -515,7 +640,12 @@ struct AnalysisResultsView: View {
                                 CategorySectionView(
                                     section: section,
                                     testResults: analysisData.testResults,
-                                    index: index
+                                    index: index,
+                                    biomarkerInsights: analysisData.biomarkerInsights,
+                                    onBiomarkerInfoPressed: { result in
+                                        selectedBiomarker = result
+                                        showBiomarkerInfo = true
+                                    }
                                 )
                             }
                         }
@@ -528,7 +658,14 @@ struct AnalysisResultsView: View {
                             
                             if !analysisData.testResults.isEmpty {
                                 ForEach(analysisData.testResults) { result in
-                                    ResultCardView(result: result)
+                                    ResultCardView(
+                                        result: result,
+                                        insight: analysisData.biomarkerInsights?[result.marker],
+                                        onInfoPressed: {
+                                            selectedBiomarker = result
+                                            showBiomarkerInfo = true
+                                        }
+                                    )
                                 }
                             } else {
                                 // No results available
@@ -551,6 +688,15 @@ struct AnalysisResultsView: View {
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 40)
+            }
+            
+            // Biomarker Info Modal
+            if showBiomarkerInfo, let biomarker = selectedBiomarker {
+                BiomarkerInfoModal(
+                    isPresented: $showBiomarkerInfo,
+                    biomarkerName: biomarker.marker,
+                    insight: selectedBiomarkerInsight
+                )
             }
         }
         .navigationBarTitleDisplayMode(.inline)

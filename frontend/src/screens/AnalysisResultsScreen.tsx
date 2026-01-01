@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
@@ -9,6 +9,175 @@ import { Colors, FontSize, FontWeight, Spacing, BorderRadius } from '../constant
 import { BloodTestAnalysisResponse } from '../lib/api';
 import { RootStackParamList } from '../types';
 import BackButton from '../../components/BackButton';
+
+// Biomarker Info Modal Component
+const BiomarkerInfoModal = ({ 
+  visible, 
+  onClose, 
+  markerName, 
+  generalInfo, 
+  specificInfo,
+  value,
+  unit,
+  status,
+  referenceRange
+}: { 
+  visible: boolean; 
+  onClose: () => void; 
+  markerName: string;
+  generalInfo: string;
+  specificInfo: string;
+  value?: string;
+  unit?: string;
+  status?: string;
+  referenceRange?: string;
+}) => {
+  return (
+    <Modal
+      visible={visible}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <Pressable style={modalStyles.overlay} onPress={onClose}>
+        <Pressable style={modalStyles.container} onPress={(e) => e.stopPropagation()}>
+          {/* Header */}
+          <View style={modalStyles.header}>
+            <Text style={modalStyles.title}>{markerName}</Text>
+            <TouchableOpacity onPress={onClose} style={modalStyles.closeButton}>
+              <Ionicons name="close" size={24} color="#666" />
+            </TouchableOpacity>
+          </View>
+          
+          {/* Value Badge */}
+          {value && (
+            <View style={modalStyles.valueBadge}>
+              <Text style={modalStyles.valueText}>{value} {unit}</Text>
+              {status && (
+                <View style={[
+                  modalStyles.statusPill,
+                  status === 'normal' && { backgroundColor: 'rgba(16, 185, 129, 0.2)' },
+                  status === 'low' && { backgroundColor: 'rgba(245, 158, 11, 0.2)' },
+                  status === 'high' && { backgroundColor: 'rgba(239, 68, 68, 0.2)' },
+                ]}>
+                  <Text style={[
+                    modalStyles.statusPillText,
+                    status === 'normal' && { color: '#10b981' },
+                    status === 'low' && { color: '#f59e0b' },
+                    status === 'high' && { color: '#ef4444' },
+                  ]}>{status.toUpperCase()}</Text>
+                </View>
+              )}
+            </View>
+          )}
+          
+          {referenceRange && (
+            <Text style={modalStyles.referenceText}>Reference: {referenceRange}</Text>
+          )}
+          
+          <ScrollView style={modalStyles.scrollContent} showsVerticalScrollIndicator={false}>
+            {/* General Info Section */}
+            <View style={modalStyles.section}>
+              <View style={modalStyles.sectionHeader}>
+                <Ionicons name="information-circle-outline" size={20} color={Colors.primary} />
+                <Text style={modalStyles.sectionTitle}>What is {markerName}?</Text>
+              </View>
+              <Text style={modalStyles.sectionText}>{generalInfo}</Text>
+            </View>
+            
+            {/* Specific Result Section */}
+            <View style={modalStyles.section}>
+              <View style={modalStyles.sectionHeader}>
+                <Ionicons name="person-outline" size={20} color={Colors.primary} />
+                <Text style={modalStyles.sectionTitle}>Your Result</Text>
+              </View>
+              <Text style={modalStyles.sectionText}>{specificInfo}</Text>
+            </View>
+          </ScrollView>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+};
+
+const modalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  container: {
+    backgroundColor: '#1a1a2e',
+    borderRadius: 20,
+    width: '100%',
+    maxHeight: '80%',
+    padding: 20,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#fff',
+    flex: 1,
+  },
+  closeButton: {
+    padding: 4,
+  },
+  valueBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  valueText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.primary,
+    marginRight: 12,
+  },
+  statusPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  referenceText: {
+    fontSize: 14,
+    color: '#888',
+    marginBottom: 16,
+  },
+  scrollContent: {
+    flexGrow: 0,
+  },
+  section: {
+    marginBottom: 20,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+    marginLeft: 8,
+  },
+  sectionText: {
+    fontSize: 15,
+    color: '#ccc',
+    lineHeight: 22,
+  },
+});
 
 type AnalysisResultsScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'AnalysisResults'>;
@@ -182,6 +351,14 @@ const parseAnalysisIntoInsights = (analysisText: string): Array<{category: strin
 export function AnalysisResultsScreen({ navigation, route }: AnalysisResultsScreenProps) {
   const { analysisData } = route.params;
   const [expandedSections, setExpandedSections] = useState({});
+  const [selectedBiomarker, setSelectedBiomarker] = useState<{
+    marker: string;
+    value: string;
+    unit: string;
+    status: string;
+    referenceRange: string;
+  } | null>(null);
+  const [biomarkerModalVisible, setBiomarkerModalVisible] = useState(false);
 
   const toggleSection = (section: string) => {
     setExpandedSections((prev: { [key: string]: boolean }) => ({
@@ -221,12 +398,52 @@ export function AnalysisResultsScreen({ navigation, route }: AnalysisResultsScre
   // Get test overview from structured analysis
   const testOverview = structuredAnalysis?.test_overview || null;
   
+  // Get biomarker insights from structured analysis
+  const biomarkerInsights = structuredAnalysis?.biomarker_insights || {};
+  
   // Get sections from structured analysis, fallback to parsing if needed (for old data)
   const aiInsights = structuredAnalysis?.sections || 
     (typeof analysisData.analysis === 'string' ? parseAnalysisIntoInsights(analysisData.analysis) : []);
 
+  // Handle biomarker info button press
+  const handleBiomarkerInfoPress = (result: any) => {
+    setSelectedBiomarker({
+      marker: result.marker,
+      value: result.value,
+      unit: result.unit || '',
+      status: result.status || '',
+      referenceRange: result.reference_range || '',
+    });
+    setBiomarkerModalVisible(true);
+  };
+
+  // Get insight for selected biomarker
+  const getSelectedBiomarkerInsight = () => {
+    if (!selectedBiomarker) return { general: '', specific: '' };
+    const insight = biomarkerInsights[selectedBiomarker.marker];
+    if (insight) return insight;
+    // Fallback for old data without biomarker_insights
+    return {
+      general: `${selectedBiomarker.marker} is a biomarker measured in blood tests.`,
+      specific: `Your ${selectedBiomarker.marker} value is ${selectedBiomarker.value} ${selectedBiomarker.unit}${selectedBiomarker.status ? `, which is ${selectedBiomarker.status}` : ''}.`
+    };
+  };
+
   return (
     <SafeAreaView style={styles.container}>
+      {/* Biomarker Info Modal */}
+      <BiomarkerInfoModal
+        visible={biomarkerModalVisible}
+        onClose={() => setBiomarkerModalVisible(false)}
+        markerName={selectedBiomarker?.marker || ''}
+        generalInfo={getSelectedBiomarkerInsight().general}
+        specificInfo={getSelectedBiomarkerInsight().specific}
+        value={selectedBiomarker?.value}
+        unit={selectedBiomarker?.unit}
+        status={selectedBiomarker?.status}
+        referenceRange={selectedBiomarker?.referenceRange}
+      />
+      
       <View style={styles.headerContainer}>
         <BackButton
           onPress={() => navigation.goBack()}
@@ -396,7 +613,16 @@ export function AnalysisResultsScreen({ navigation, route }: AnalysisResultsScre
                         return (
                           <View key={resultIndex} style={styles.resultCard}>
                             <View style={styles.resultHeader}>
-                              <Text style={styles.markerName}>{result.marker}</Text>
+                              <View style={styles.markerNameRow}>
+                                <Text style={styles.markerName}>{result.marker}</Text>
+                                <TouchableOpacity 
+                                  onPress={() => handleBiomarkerInfoPress(result)}
+                                  style={styles.infoButton}
+                                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                >
+                                  <Ionicons name="information-circle-outline" size={20} color="#888" />
+                                </TouchableOpacity>
+                              </View>
                               {result.status && (
                                 <View style={[
                                   styles.statusBadge,
@@ -454,7 +680,16 @@ export function AnalysisResultsScreen({ navigation, route }: AnalysisResultsScre
                 return (
                   <View key={index} style={styles.resultCard}>
                     <View style={styles.resultHeader}>
-                      <Text style={styles.markerName}>{result.marker}</Text>
+                      <View style={styles.markerNameRow}>
+                        <Text style={styles.markerName}>{result.marker}</Text>
+                        <TouchableOpacity 
+                          onPress={() => handleBiomarkerInfoPress(result)}
+                          style={styles.infoButton}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                          <Ionicons name="information-circle-outline" size={20} color="#888" />
+                        </TouchableOpacity>
+                      </View>
                       {result.status && (
                         <View style={[
                           styles.statusBadge,
@@ -677,10 +912,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: Spacing.md,
   },
+  markerNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: Spacing.sm,
+  },
   markerName: {
     fontSize: FontSize.md,
     fontWeight: FontWeight.semibold,
     color: Colors.white,
+  },
+  infoButton: {
+    marginLeft: Spacing.xs,
+    opacity: 0.6,
   },
   statusBadge: {
     paddingHorizontal: Spacing.sm,
