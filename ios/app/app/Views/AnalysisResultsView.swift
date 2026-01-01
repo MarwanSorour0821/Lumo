@@ -260,15 +260,23 @@ struct CategorySectionView: View {
         return testResults.filter { biomarkers.contains($0.marker) }
     }
     
-    // Icon mapping
+    // Icon mapping - matches React Native Ionicons to SF Symbols
     private var iconName: String {
         switch section.icon {
         case "medical-outline":
             return "cross.case"
+        case "body-outline":
+            return "figure.stand"
         case "water-outline":
             return "drop"
         case "heart-outline":
             return "heart"
+        case "pulse-outline":
+            return "waveform.path.ecg"
+        case "flask-outline":
+            return "flask"
+        case "speedometer-outline":
+            return "speedometer"
         case "information-circle-outline":
             return "info.circle"
         default:

@@ -120,7 +120,7 @@ THEN, after the JSON block, provide a SECOND JSON block with structured analysis
   "test_overview": "A high-level summary paragraph (2-4 sentences) that provides an overall interpretation of ALL biomarkers in this test. This should give a general health picture, highlighting key patterns, areas of concern, and positive aspects. Write naturally and clearly.",
   "sections": [
     {{
-      "category": "Category Name (e.g., 'Cholesterol Balance', 'Liver Function', 'Blood Cell Analysis', 'Kidney Function')",
+      "category": "Category Name (e.g., 'Red Blood Cell Status & Anemia Assessment', 'White Blood Cells & Immune Function', 'Platelet Function & Clotting Readiness')",
       "icon": "medical-outline",
       "biomarkers": ["Hemoglobin", "RBC"],
       "summary": "A brief one-line summary (max 100 characters) of what this section covers",
@@ -130,17 +130,42 @@ THEN, after the JSON block, provide a SECOND JSON block with structured analysis
 }}
 ```
 
-IMPORTANT ANALYSIS RULES:
-- Group biomarkers logically by function/system (e.g., all cholesterol markers together, all liver markers together, all blood cell counts together)
-- Create sections dynamically based on what categories of biomarkers are present in the test
-- The test_overview should synthesize ALL biomarkers into one cohesive summary
-- Each section MUST include a "biomarkers" array listing the exact biomarker names (e.g., ["Hemoglobin", "RBC", "WBC"]) that belong to that section
-- In the "details" field, explain EACH biomarker individually - what it measures, what the value means, implications
-- Each section should focus on biomarkers that belong to the same physiological system or function
-- Use clear, non-technical language. When using medical terms, explain them
-- Icons should be from Ionicons: 'medical-outline', 'heart-outline', 'water-outline', 'pulse-outline', 'flask-outline', 'body-outline', 'speedometer-outline'
-- Choose icons that match the category (heart for cardiovascular, water for kidney/fluid, etc.)
-- Be thorough - every biomarker in test_results should be mentioned in at least one section
+⚠️ CRITICAL ANALYSIS RULES - MUST FOLLOW EXACTLY:
+
+1. **SECTION SEPARATION IS MANDATORY**: Create SEPARATE sections for EACH physiological system or functional category. DO NOT combine multiple systems into a single section.
+   - INCORRECT: One section called "Blood Cell Analysis & Inflammation" with biomarkers ["Hemoglobin", "RBC", "WBC", "PLT", "ESR"]
+   - CORRECT: Separate sections like "Red Blood Cell Status", "White Blood Cells & Immune Function", "Platelet Function" - each with only its own biomarkers
+
+2. **Each Section Must Have Its Own Biomarkers Array**: Every section's "biomarkers" array must list ONLY the biomarkers that belong to that physiological system.
+   - Red Blood Cell sections: ["Hemoglobin", "RBC", "HCT", "MCV", "MCH", "MCHC", "RDW-CV", "RDW-SD", "ESR"]
+   - White Blood Cell sections: ["WBC", "NEU%", "LYM%", "MON%", "EOS%", "BAS%", "LYM#", "GRA#"]
+   - Platelet sections: ["PLT"]
+
+3. **Create Sections Dynamically**: The number and type of sections depends on what biomarkers are present in the test. Common groupings:
+   - Red Blood Cell Status & Anemia Assessment
+   - White Blood Cells & Immune Function
+   - Platelet Function & Clotting Readiness
+   - Kidney Function
+   - Liver Function
+   - Electrolytes & Kidney Balance
+   - Glucose & Metabolic Health
+   - Lipid Panel & Cholesterol Balance
+   - Thyroid Function
+   - Iron Status
+
+4. **Details Must Address Each Biomarker Separately**: In each section's "details" field, discuss EACH biomarker individually. Don't mix explanations - clearly separate the discussion of different biomarkers.
+
+5. **Icons Match Categories**: 
+   - 'body-outline' or 'medical-outline' for blood cell analysis
+   - 'heart-outline' for cardiovascular/cholesterol
+   - 'water-outline' for kidney/fluid/electrolytes
+   - 'pulse-outline' for platelets/clotting
+   - 'flask-outline' for liver/metabolic
+   - 'speedometer-outline' for thyroid/metabolic rate
+
+6. **Test Overview Synthesis**: The test_overview should provide a high-level summary of ALL findings across all sections, synthesizing the overall health picture.
+
+7. **Every Biomarker Must Appear**: Ensure that every biomarker in test_results appears in at least one section's "biomarkers" array and is discussed in at least one section's "details".
 
 After the second JSON block, you may include additional detailed analysis text if needed."""
 

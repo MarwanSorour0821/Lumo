@@ -87,6 +87,95 @@ struct Analysis: Codable {
         }
     }
     
+    // Helper to get structured analysis (test_overview and sections)
+    func getStructuredAnalysis() -> StructuredAnalysis? {
+        guard let analysis = analysis else {
+            print("❌ No analysis field for analysis \(id)")
+            return nil
+        }
+        
+        let jsonData: Data?
+        
+        switch analysis {
+        case .string(let str):
+            // Legacy text analysis - wrap it
+            print("📝 Analysis is legacy text format for \(id)")
+            return nil  // Will be handled by fallback in view
+        case .dictionary(let dict):
+            // Convert dictionary to JSON data
+            let anyDict = dict.mapValues { $0.toAny() }
+            jsonData = try? JSONSerialization.data(withJSONObject: anyDict)
+        case .array, .number, .bool, .null:
+            jsonData = nil
+        }
+        
+        guard let jsonData = jsonData else {
+            print("❌ Could not convert analysis to JSON data for \(id)")
+            return nil
+        }
+        
+        do {
+            let decoder = JSONDecoder()
+            let structured = try decoder.decode(StructuredAnalysis.self, from: jsonData)
+            print("✅ Successfully parsed structured analysis - sections: \(structured.sections?.count ?? 0)")
+            return structured
+        } catch {
+            print("❌ Failed to parse structured analysis: \(error.localizedDescription)")
+            return nil
+        }
+    }
+    
+    // Convert to AnalysisData for use with AnalysisResultsView
+    func toAnalysisData() -> AnalysisData? {
+        guard let parsed = getParsedData() else {
+            print("❌ Cannot convert to AnalysisData - failed to get parsed data")
+            return nil
+        }
+        
+        // Convert ParsedData to ParsedBloodTestData
+        let patientInfo = PatientInfo(
+            name: parsed.patientInfo?.name,
+            age: parsed.patientInfo?.age,
+            testDate: parsed.patientInfo?.testDate,
+            birthDate: parsed.patientInfo?.birthDate,
+            sex: parsed.patientInfo?.sex
+        )
+        
+        let testResults: [BloodTestResult] = parsed.testResults.map { result in
+            BloodTestResult(
+                marker: result.marker,
+                value: result.value,
+                unit: result.unit,
+                referenceRange: result.referenceRange,
+                status: result.status
+            )
+        }
+        
+        let parsedBloodTestData = ParsedBloodTestData(
+            patientInfo: patientInfo,
+            testResults: testResults
+        )
+        
+        // Get structured analysis
+        var analysisWrapper: StructuredAnalysisWrapper? = nil
+        
+        if let structured = getStructuredAnalysis() {
+            analysisWrapper = StructuredAnalysisWrapper(structuredAnalysis: structured)
+            print("✅ Converted structured analysis with \(structured.sections?.count ?? 0) sections")
+        } else if case .string(let legacyText) = analysis {
+            // Handle legacy text analysis
+            analysisWrapper = StructuredAnalysisWrapper(structuredAnalysis: nil, legacyText: legacyText)
+            print("📝 Using legacy text analysis")
+        }
+        
+        return AnalysisData(
+            id: id,
+            parsedData: parsedBloodTestData,
+            analysis: analysisWrapper,
+            createdAt: created_at
+        )
+    }
+    
     // Make it Encodable
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
@@ -187,11 +276,11 @@ struct ParsedData: Codable {
 }
 
 struct TestResult: Codable {
-    let unit: String
+    let unit: String?
     let value: String
     let marker: String
-    let status: String
-    let referenceRange: String
+    let status: String?
+    let referenceRange: String?
     
     enum CodingKeys: String, CodingKey {
         case unit, value, marker, status
@@ -489,9 +578,10 @@ class HealthScoreService {
         for result in testResults {
             totalCount += 1
             // Reward "normal" status, penalize "low" or "high"
-            if result.status.lowercased() == "normal" {
+            let status = result.status?.lowercased() ?? ""
+            if status == "normal" {
                 optimalCount += 1.0
-            } else if result.status.lowercased() == "high" || result.status.lowercased() == "low" {
+            } else if status == "high" || status == "low" {
                 // Partial credit for borderline
                 optimalCount += 0.5
             }
@@ -512,8 +602,8 @@ class HealthScoreService {
     }
     
     // MARK: - Calculate Marker Score
-    private func calculateMarkerScore(value: Double, optimalLow: Double, optimalHigh: Double, status: String) -> Double {
-        let statusLower = status.lowercased()
+    private func calculateMarkerScore(value: Double, optimalLow: Double, optimalHigh: Double, status: String?) -> Double {
+        let statusLower = (status ?? "").lowercased()
         
         // Perfect score for normal
         if statusLower == "normal" {
@@ -532,7 +622,7 @@ class HealthScoreService {
     }
     
     // MARK: - Parse Value
-    private func parseValue(_ valueString: String, unit: String) -> Double? {
+    private func parseValue(_ valueString: String, unit: String?) -> Double? {
         // Remove commas and extract number
         let cleaned = valueString.replacingOccurrences(of: ",", with: "")
         

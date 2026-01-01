@@ -477,7 +477,7 @@ struct HistoryTabView: View {
     @State private var analyses: [Analysis] = []
     @State private var isLoading: Bool = true
     @State private var errorMessage: String? = nil
-    @State private var selectedAnalysis: Analysis? = nil
+    @State private var selectedAnalysisData: AnalysisData? = nil
     @State private var showDetail: Bool = false
 
     var body: some View {
@@ -522,8 +522,13 @@ struct HistoryTabView: View {
                         LazyVStack(spacing: 12) {
                             ForEach(analyses, id: \ .id) { analysis in
                                 Button(action: {
-                                    selectedAnalysis = analysis
-                                    showDetail = true
+                                    // Convert Analysis to AnalysisData for the full results view
+                                    if let analysisData = analysis.toAnalysisData() {
+                                        selectedAnalysisData = analysisData
+                                        showDetail = true
+                                    } else {
+                                        print("❌ Failed to convert analysis to AnalysisData")
+                                    }
                                 }) {
                                     HStack(spacing: 12) {
                                         VStack(alignment: .leading, spacing: 6) {
@@ -569,9 +574,11 @@ struct HistoryTabView: View {
                 Task { await loadAnalyses() }
             }
             .sheet(isPresented: $showDetail) {
-                if let analysis = selectedAnalysis {
-                    AnalysisDetailView(analysis: analysis)
-                        .environmentObject(themeManager)
+                if let analysisData = selectedAnalysisData {
+                    NavigationView {
+                        AnalysisResultsView(analysisData: analysisData)
+                            .environmentObject(themeManager)
+                    }
                 }
             }
         }
@@ -668,7 +675,7 @@ struct AnalysisDetailView: View {
                                         Text(result.marker)
                                             .font(.custom("ProductSans-Bold", size: 14))
                                             .foregroundColor(AppColors.text(themeManager.colorScheme))
-                                        Text(result.referenceRange)
+                                        Text(result.referenceRange ?? "N/A")
                                             .font(.custom("ProductSans-Regular", size: 12))
                                             .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                                     }
@@ -676,10 +683,10 @@ struct AnalysisDetailView: View {
                                     Spacer()
 
                                     VStack(alignment: .trailing) {
-                                        Text(result.value + " " + result.unit)
+                                        Text(result.value + " " + (result.unit ?? ""))
                                             .font(.custom("ProductSans-Bold", size: 14))
                                             .foregroundColor(AppColors.primary)
-                                        Text(result.status)
+                                        Text(result.status ?? "N/A")
                                             .font(.custom("ProductSans-Regular", size: 12))
                                             .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                                     }
