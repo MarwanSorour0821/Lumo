@@ -119,10 +119,12 @@ struct AnalysisSection: Codable, Identifiable {
 struct BiomarkerInsight: Codable {
     let general: String?
     let specific: String?
+    let recommendations: String?
     
-    init(general: String? = nil, specific: String? = nil) {
+    init(general: String? = nil, specific: String? = nil, recommendations: String? = nil) {
         self.general = general
         self.specific = specific
+        self.recommendations = recommendations
     }
 }
 

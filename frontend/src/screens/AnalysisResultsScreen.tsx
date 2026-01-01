@@ -17,6 +17,7 @@ const BiomarkerInfoModal = ({
   markerName, 
   generalInfo, 
   specificInfo,
+  recommendations,
   value,
   unit,
   status,
@@ -27,6 +28,7 @@ const BiomarkerInfoModal = ({
   markerName: string;
   generalInfo: string;
   specificInfo: string;
+  recommendations?: string;
   value?: string;
   unit?: string;
   status?: string;
@@ -93,6 +95,17 @@ const BiomarkerInfoModal = ({
               </View>
               <Text style={modalStyles.sectionText}>{specificInfo}</Text>
             </View>
+            
+            {/* Recommendations Section */}
+            {recommendations && recommendations.length > 0 && (
+              <View style={modalStyles.section}>
+                <View style={modalStyles.sectionHeader}>
+                  <Ionicons name="bulb-outline" size={20} color="#f59e0b" />
+                  <Text style={[modalStyles.sectionTitle, { color: '#f59e0b' }]}>Our Recommendations</Text>
+                </View>
+                <Text style={modalStyles.sectionText}>{recommendations}</Text>
+              </View>
+            )}
           </ScrollView>
         </Pressable>
       </Pressable>
@@ -419,13 +432,14 @@ export function AnalysisResultsScreen({ navigation, route }: AnalysisResultsScre
 
   // Get insight for selected biomarker
   const getSelectedBiomarkerInsight = () => {
-    if (!selectedBiomarker) return { general: '', specific: '' };
+    if (!selectedBiomarker) return { general: '', specific: '', recommendations: '' };
     const insight = biomarkerInsights[selectedBiomarker.marker];
     if (insight) return insight;
     // Fallback for old data without biomarker_insights
     return {
       general: `${selectedBiomarker.marker} is a biomarker measured in blood tests.`,
-      specific: `Your ${selectedBiomarker.marker} value is ${selectedBiomarker.value} ${selectedBiomarker.unit}${selectedBiomarker.status ? `, which is ${selectedBiomarker.status}` : ''}.`
+      specific: `Your ${selectedBiomarker.marker} value is ${selectedBiomarker.value} ${selectedBiomarker.unit}${selectedBiomarker.status ? `, which is ${selectedBiomarker.status}` : ''}.`,
+      recommendations: ''
     };
   };
 
@@ -438,6 +452,7 @@ export function AnalysisResultsScreen({ navigation, route }: AnalysisResultsScre
         markerName={selectedBiomarker?.marker || ''}
         generalInfo={getSelectedBiomarkerInsight().general}
         specificInfo={getSelectedBiomarkerInsight().specific}
+        recommendations={getSelectedBiomarkerInsight().recommendations}
         value={selectedBiomarker?.value}
         unit={selectedBiomarker?.unit}
         status={selectedBiomarker?.status}

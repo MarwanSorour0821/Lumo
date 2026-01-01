@@ -36,9 +36,16 @@ struct TestResultResponse: Codable {
     let status: String?
 }
 
+struct BiomarkerInsightResponse: Codable {
+    let general: String?
+    let specific: String?
+    let recommendations: String?
+}
+
 struct StructuredAnalysisResponse: Codable {
     let test_overview: String?
     let sections: [SectionResponse]?
+    let biomarker_insights: [String: BiomarkerInsightResponse]?
 }
 
 struct SectionResponse: Codable {
@@ -251,9 +258,19 @@ class AnalysisService {
                 )
             }
             
+            // Convert biomarker insights
+            var biomarkerInsights: [String: BiomarkerInsight]? = nil
+            if let insights = structuredResponse.biomarker_insights {
+                biomarkerInsights = insights.mapValues { response in
+                    BiomarkerInsight(general: response.general, specific: response.specific, recommendations: response.recommendations)
+                }
+                print("✅ Converted \(insights.count) biomarker insights for the view")
+            }
+            
             let structuredAnalysis = StructuredAnalysis(
                 testOverview: structuredResponse.test_overview,
-                sections: sections
+                sections: sections,
+                biomarkerInsights: biomarkerInsights
             )
             
             analysisWrapper = StructuredAnalysisWrapper(structuredAnalysis: structuredAnalysis)

@@ -129,11 +129,13 @@ THEN, after the JSON block, provide a SECOND JSON block with structured analysis
   "biomarker_insights": {{
     "Hemoglobin": {{
       "general": "A 2-3 sentence explanation of what this biomarker is and what it measures in general terms. Write as if explaining to someone who doesn't know what it is.",
-      "specific": "A 2-4 sentence interpretation of THIS patient's specific result. Include the value, whether it's normal/high/low, and what this means for their health. Include any relevant recommendations or context."
+      "specific": "A 2-4 sentence interpretation of THIS patient's specific result. Include the value, whether it's normal/high/low, and what this means for their health. Include any relevant recommendations or context.",
+      "recommendations": "2-4 actionable health recommendations based on this specific result. Use web search to find evidence-based advice from reputable medical sources (Mayo Clinic, NIH, Cleveland Clinic, etc.). Include dietary suggestions, lifestyle changes, or when to see a doctor. Be specific and practical."
     }},
     "RBC": {{
       "general": "General explanation of this biomarker...",
-      "specific": "Specific interpretation of the patient's result..."
+      "specific": "Specific interpretation of the patient's result...",
+      "recommendations": "Evidence-based recommendations for this result..."
     }}
   }}
 }}
@@ -162,9 +164,10 @@ THEN, after the JSON block, provide a SECOND JSON block with structured analysis
    - Thyroid Function
    - Iron Status
 
-4. **BIOMARKER_INSIGHTS IS REQUIRED**: You MUST include a "biomarker_insights" object with an entry for EVERY biomarker in test_results. Each entry must have both "general" and "specific" fields.
+4. **BIOMARKER_INSIGHTS IS REQUIRED**: You MUST include a "biomarker_insights" object with an entry for EVERY biomarker in test_results. Each entry must have "general", "specific", AND "recommendations" fields.
    - "general": Explain what the biomarker is and what it measures (educational, same for everyone)
    - "specific": Interpret THIS patient's specific value (personalized to their result)
+   - "recommendations": Provide 2-4 actionable, evidence-based health recommendations. Search reputable medical sources for advice on diet, lifestyle, supplements, or when to see a doctor. Be practical and specific.
 
 5. **Icons Match Categories**: 
    - 'body-outline' or 'medical-outline' for blood cell analysis
@@ -182,10 +185,11 @@ THEN, after the JSON block, provide a SECOND JSON block with structured analysis
 
 After the second JSON block, you may include additional detailed analysis text if needed."""
 
-        # Call GPT-5.1 with responses API
+        # Call GPT-5.1 with responses API and web search enabled for recommendations
         response = self.client.responses.create(
             model="gpt-5.1",
             input=prompt,
+            tools=[{"type": "web_search_preview"}],
             reasoning={"effort": "medium"},
             text={"verbosity": "medium"}
         )
@@ -197,7 +201,7 @@ After the second JSON block, you may include additional detailed analysis text i
         
         logger.info("")
         logger.info("="*60)
-        logger.info("✅ GPT-5.1 EXTRACTION & ANALYSIS COMPLETE")
+        logger.info("✅ GPT-5.1 EXTRACTION & ANALYSIS COMPLETE (with web search)")
         logger.info("="*60)
         logger.info(f"   Extracted {len(parsed_data.get('test_results', []))} biomarkers")
         logger.info(f"   Patient: {parsed_data.get('patient_info', {}).get('name', 'Unknown')}")
