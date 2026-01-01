@@ -131,12 +131,12 @@ THEN, after the JSON block, provide a SECOND JSON block with structured analysis
     "Hemoglobin": {{
       "general": "A 2-3 sentence explanation of what this biomarker is and what it measures in general terms. Write as if explaining to someone who doesn't know what it is.",
       "specific": "A 2-4 sentence interpretation of THIS patient's specific result. Include the value, whether it's normal/high/low, and what this means for their health. Include any relevant recommendations or context.",
-      "recommendations": "2-4 actionable health recommendations based on this specific result. Use web search to find evidence-based advice from reputable medical sources (Mayo Clinic, NIH, Cleveland Clinic, etc.). Include dietary suggestions, lifestyle changes, or when to see a doctor. Be specific and practical."
+      "recommendations": "2-4 actionable health recommendations based on this specific result. You MUST use web search to find evidence-based advice from reputable medical sources and CITE THEM using markdown link format like [source.com](https://full-url). Be specific and practical."
     }},
     "RBC": {{
       "general": "General explanation of this biomarker...",
       "specific": "Specific interpretation of the patient's result...",
-      "recommendations": "Evidence-based recommendations for this result..."
+      "recommendations": "Evidence-based recommendations with citations in markdown link format..."
     }}
   }}
 }}
@@ -168,7 +168,7 @@ THEN, after the JSON block, provide a SECOND JSON block with structured analysis
 4. **BIOMARKER_INSIGHTS IS REQUIRED**: You MUST include a "biomarker_insights" object with an entry for EVERY biomarker in test_results. Each entry must have "general", "specific", AND "recommendations" fields.
    - "general": Explain what the biomarker is and what it measures (educational, same for everyone)
    - "specific": Interpret THIS patient's specific value (personalized to their result)
-   - "recommendations": Provide 2-4 actionable, evidence-based health recommendations. Search reputable medical sources for advice on diet, lifestyle, supplements, or when to see a doctor. Be practical and specific.
+   - "recommendations": You MUST use web search to find evidence-based recommendations from reputable sources (Mayo Clinic, NIH, Cleveland Clinic, etc.) and CITE THEM using markdown link format like [domain.com](https://full-url). Include 2-4 actionable recommendations about diet, lifestyle, or when to see a doctor.
 
 5. **Icons Match Categories**: 
    - 'body-outline' or 'medical-outline' for blood cell analysis
