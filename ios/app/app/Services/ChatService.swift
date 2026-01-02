@@ -171,4 +171,49 @@ actor ChatService {
 
         return ChatFileResult(response: String(data: data, encoding: .utf8))
     }
+    
+    /// Send a chat message with analysis context for blood test questions
+    func sendChatMessageWithContext(userId: String, message: String, analysisContext: String) async throws -> String {
+        guard let apiURLString = SupabaseManager.shared.getAPIURL(),
+              let url = URL(string: "\(apiURLString)/api/chat/send/") else {
+            throw NSError(domain: "ChatService", code: 2, userInfo: [NSLocalizedDescriptionKey: "API URL not configured"])
+        }
+
+        let accessToken = try await AuthService.shared.getAccessToken()
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        // Include the analysis context in the message so the AI has full context
+        let contextualMessage = """
+        [Blood Test Analysis Context]
+        \(analysisContext)
+        
+        [User Question]
+        \(message)
+        """
+        
+        let body: [String: Any] = ["user_id": userId, "message": contextualMessage]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [])
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            let txt = String(data: data, encoding: .utf8) ?? ""
+            throw NSError(domain: "ChatService", code: 3, userInfo: [NSLocalizedDescriptionKey: "Send failed: \(txt)"])
+        }
+
+        // Try to decode { response: "..." }
+        if let decoded = try? JSONDecoder().decode([String: String].self, from: data), let resp = decoded["response"] {
+            return resp
+        }
+
+        if let decoded = try? JSONDecoder().decode(ChatFileResult.self, from: data), let resp = decoded.response {
+            return resp
+        }
+
+        // Fallback to raw string
+        return String(data: data, encoding: .utf8) ?? ""
+    }
 }

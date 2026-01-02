@@ -15,12 +15,453 @@ import Photos
 import AVFoundation
 import Combine
 
+// MARK: - Persistent Processing Analysis Item
+struct ProcessingAnalysis: Identifiable, Codable {
+    let id: String
+    let fileName: String
+    let startTime: Date
+    var progress: Double
+    var isComplete: Bool
+    var isCancelled: Bool
+    var error: String?
+    var fileData: Data? // Store file data for persistence
+    var fileType: String? // "image" or "pdf"
+    
+    // Not persisted - set at runtime
+    var analysisData: AnalysisData?
+    
+    enum CodingKeys: String, CodingKey {
+        case id, fileName, startTime, progress, isComplete, isCancelled, error, fileData, fileType
+    }
+}
+
+// MARK: - Analysis Processing Manager (Persistent & Robust)
+class AnalysisProcessingManager: ObservableObject {
+    static let shared = AnalysisProcessingManager()
+    
+    @Published var processingItems: [ProcessingAnalysis] = []
+    
+    private let userDefaultsKey = "ProcessingAnalysisItems"
+    private var activeTasks: [String: Task<Void, Never>] = [:]
+    private var progressTimers: [String: Timer] = [:]
+    private let queue = DispatchQueue(label: "com.lumo.processingManager", qos: .userInitiated)
+    
+    private init() {
+        requestNotificationPermission()
+        loadPersistedItems()
+        resumePendingProcessing()
+    }
+    
+    // MARK: - Persistence
+    
+    private func loadPersistedItems() {
+        guard let data = UserDefaults.standard.data(forKey: userDefaultsKey),
+              let items = try? JSONDecoder().decode([ProcessingAnalysis].self, from: data) else {
+            return
+        }
+        
+        DispatchQueue.main.async {
+            // Filter out items older than 24 hours or completed items without errors
+            let cutoffDate = Date().addingTimeInterval(-24 * 60 * 60)
+            self.processingItems = items.filter { item in
+                // Keep if: not older than 24 hours AND (not complete OR has error OR is cancelled)
+                item.startTime > cutoffDate && (!item.isComplete || item.error != nil || item.isCancelled)
+            }
+            self.savePersistedItems()
+        }
+    }
+    
+    private func savePersistedItems() {
+        queue.async {
+            // Only persist items that are still processing or have errors
+            let itemsToSave = self.processingItems.filter { !$0.isComplete || $0.error != nil || $0.isCancelled }
+            if let data = try? JSONEncoder().encode(itemsToSave) {
+                UserDefaults.standard.set(data, forKey: self.userDefaultsKey)
+            }
+        }
+    }
+    
+    private func resumePendingProcessing() {
+        // Resume any items that were processing when app closed
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            guard let self = self else { return }
+            
+            for item in self.processingItems {
+                if !item.isComplete && !item.isCancelled && item.error == nil {
+                    // Resume processing if we have file data
+                    if let fileData = item.fileData, let fileType = item.fileType {
+                        self.resumeProcessing(for: item.id, fileData: fileData, fileType: fileType)
+                    } else {
+                        // Can't resume without file data - mark as failed
+                        self.failProcessing(for: item.id, error: "Unable to resume - file data lost. Please try again.")
+                    }
+                }
+            }
+        }
+    }
+    
+    // MARK: - Notification Permission
+    
+    func requestNotificationPermission() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in
+            if granted {
+                print("✅ Notification permission granted")
+            }
+        }
+    }
+    
+    // MARK: - Add Processing Item
+    
+    func addProcessingItem(id: String, fileName: String, fileData: Data?, fileType: String?) {
+        let item = ProcessingAnalysis(
+            id: id,
+            fileName: fileName,
+            startTime: Date(),
+            progress: 0.0,
+            isComplete: false,
+            isCancelled: false,
+            error: nil,
+            fileData: fileData,
+            fileType: fileType,
+            analysisData: nil
+        )
+        DispatchQueue.main.async {
+            self.processingItems.insert(item, at: 0)
+            self.savePersistedItems()
+        }
+        startProgressSimulation(for: id)
+    }
+    
+    // MARK: - Update Progress
+    
+    func updateProgress(for id: String, progress: Double) {
+        DispatchQueue.main.async {
+            if let index = self.processingItems.firstIndex(where: { $0.id == id }) {
+                self.processingItems[index].progress = progress
+            }
+        }
+    }
+    
+    // MARK: - Complete Processing
+    
+    func completeProcessing(for id: String, analysisData: AnalysisData) {
+        // Stop any timers
+        progressTimers[id]?.invalidate()
+        progressTimers.removeValue(forKey: id)
+        activeTasks.removeValue(forKey: id)
+        
+        let fileName = processingItems.first(where: { $0.id == id })?.fileName ?? "Blood Test"
+        
+        DispatchQueue.main.async {
+            if let index = self.processingItems.firstIndex(where: { $0.id == id }) {
+                self.processingItems[index].progress = 1.0
+                self.processingItems[index].isComplete = true
+                self.processingItems[index].analysisData = analysisData
+                self.processingItems[index].fileData = nil // Clear file data to save memory
+            }
+            self.savePersistedItems()
+        }
+        
+        sendCompletionNotification(fileName: fileName, success: true)
+    }
+    
+    // MARK: - Fail Processing
+    
+    func failProcessing(for id: String, error: String) {
+        // Stop any timers
+        progressTimers[id]?.invalidate()
+        progressTimers.removeValue(forKey: id)
+        activeTasks.removeValue(forKey: id)
+        
+        let fileName = processingItems.first(where: { $0.id == id })?.fileName ?? "Blood Test"
+        
+        DispatchQueue.main.async {
+            if let index = self.processingItems.firstIndex(where: { $0.id == id }) {
+                self.processingItems[index].error = error
+                self.processingItems[index].isComplete = true
+                self.processingItems[index].fileData = nil // Clear file data
+            }
+            self.savePersistedItems()
+        }
+        
+        sendCompletionNotification(fileName: fileName, success: false, error: error)
+    }
+    
+    // MARK: - Cancel Processing
+    
+    func cancelProcessing(for id: String) {
+        // Cancel the active task
+        activeTasks[id]?.cancel()
+        activeTasks.removeValue(forKey: id)
+        
+        // Stop any timers
+        progressTimers[id]?.invalidate()
+        progressTimers.removeValue(forKey: id)
+        
+        DispatchQueue.main.async {
+            if let index = self.processingItems.firstIndex(where: { $0.id == id }) {
+                self.processingItems[index].isCancelled = true
+                self.processingItems[index].isComplete = true
+                self.processingItems[index].fileData = nil
+            }
+            self.savePersistedItems()
+        }
+        
+        print("🛑 Processing cancelled for item: \(id)")
+    }
+    
+    // MARK: - Remove Processing Item
+    
+    func removeProcessingItem(id: String) {
+        // Cancel any active task first
+        activeTasks[id]?.cancel()
+        activeTasks.removeValue(forKey: id)
+        progressTimers[id]?.invalidate()
+        progressTimers.removeValue(forKey: id)
+        
+        DispatchQueue.main.async {
+            self.processingItems.removeAll { $0.id == id }
+            self.savePersistedItems()
+        }
+    }
+    
+    // MARK: - Retry Processing
+    
+    func retryProcessing(for id: String) {
+        guard let item = processingItems.first(where: { $0.id == id }),
+              let fileData = item.fileData,
+              let fileType = item.fileType else {
+            // Can't retry without file data
+            return
+        }
+        
+        // Reset item state
+        DispatchQueue.main.async {
+            if let index = self.processingItems.firstIndex(where: { $0.id == id }) {
+                self.processingItems[index].progress = 0.0
+                self.processingItems[index].isComplete = false
+                self.processingItems[index].isCancelled = false
+                self.processingItems[index].error = nil
+            }
+            self.savePersistedItems()
+        }
+        
+        startProgressSimulation(for: id)
+        resumeProcessing(for: id, fileData: fileData, fileType: fileType)
+    }
+    
+    // MARK: - Resume Processing
+    
+    private func resumeProcessing(for id: String, fileData: Data, fileType: String) {
+        let task = Task { [weak self] in
+            guard let self = self else { return }
+            
+            do {
+                // Check if cancelled
+                if Task.isCancelled { return }
+                
+                // Create temporary file from data
+                let tempURL = self.createTempFile(from: fileData, fileType: fileType)
+                
+                guard let fileURL = tempURL else {
+                    await MainActor.run {
+                        self.failProcessing(for: id, error: "Failed to restore file for processing")
+                    }
+                    return
+                }
+                
+                // Check if cancelled
+                if Task.isCancelled {
+                    try? FileManager.default.removeItem(at: fileURL)
+                    return
+                }
+                
+                print("🔵 Resuming blood test analysis for \(id)...")
+                
+                // Step 1: Analyze the blood test with AI
+                let analyzeResult = try await AnalysisService.shared.analyzeBloodTest(fileURL: fileURL)
+                
+                // Check if cancelled
+                if Task.isCancelled {
+                    try? FileManager.default.removeItem(at: fileURL)
+                    return
+                }
+                
+                print("🔵 Analysis complete, saving to database...")
+                
+                // Step 2: Save the analysis to the database
+                let savedResult = try await AnalysisService.shared.saveAnalysis(
+                    parsedData: analyzeResult.parsed_data,
+                    structuredAnalysis: analyzeResult.structured_analysis
+                )
+                
+                // Step 3: Convert to view model
+                let analysisData = AnalysisService.shared.convertToAnalysisData(
+                    analyzeResponse: analyzeResult,
+                    savedResponse: savedResult
+                )
+                
+                // Step 4: NOW deduct credit (only on success)
+                _ = try? await CreditService.shared.deductCredit()
+                
+                // Cleanup temp file
+                try? FileManager.default.removeItem(at: fileURL)
+                
+                await MainActor.run {
+                    print("✅ Processing complete for \(id)")
+                    self.completeProcessing(for: id, analysisData: analysisData)
+                }
+                
+            } catch {
+                if Task.isCancelled { return }
+                
+                await MainActor.run {
+                    print("❌ Processing failed for \(id): \(error.localizedDescription)")
+                    self.failProcessing(for: id, error: error.localizedDescription)
+                }
+            }
+        }
+        
+        activeTasks[id] = task
+    }
+    
+    // MARK: - Start New Processing
+    
+    func startProcessing(for id: String, fileURL: URL) {
+        let task = Task { [weak self] in
+            guard let self = self else { return }
+            
+            do {
+                // Check if cancelled
+                if Task.isCancelled { return }
+                
+                print("🔵 Starting blood test analysis for \(id)...")
+                
+                // Step 1: Analyze the blood test with AI
+                let analyzeResult = try await AnalysisService.shared.analyzeBloodTest(fileURL: fileURL)
+                
+                // Check if cancelled
+                if Task.isCancelled { return }
+                
+                print("🔵 Analysis complete, saving to database...")
+                
+                // Step 2: Save the analysis to the database
+                let savedResult = try await AnalysisService.shared.saveAnalysis(
+                    parsedData: analyzeResult.parsed_data,
+                    structuredAnalysis: analyzeResult.structured_analysis
+                )
+                
+                // Step 3: Convert to view model
+                let analysisData = AnalysisService.shared.convertToAnalysisData(
+                    analyzeResponse: analyzeResult,
+                    savedResponse: savedResult
+                )
+                
+                // Step 4: NOW deduct credit (only on success)
+                _ = try? await CreditService.shared.deductCredit()
+                
+                await MainActor.run {
+                    print("✅ Processing complete for \(id)")
+                    self.completeProcessing(for: id, analysisData: analysisData)
+                }
+                
+            } catch {
+                if Task.isCancelled { return }
+                
+                await MainActor.run {
+                    print("❌ Processing failed for \(id): \(error.localizedDescription)")
+                    self.failProcessing(for: id, error: error.localizedDescription)
+                }
+            }
+        }
+        
+        activeTasks[id] = task
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func createTempFile(from data: Data, fileType: String) -> URL? {
+        let tempDir = FileManager.default.temporaryDirectory
+        let fileName = UUID().uuidString + (fileType == "pdf" ? ".pdf" : ".jpg")
+        let fileURL = tempDir.appendingPathComponent(fileName)
+        
+        do {
+            try data.write(to: fileURL)
+            return fileURL
+        } catch {
+            print("❌ Failed to create temp file: \(error)")
+            return nil
+        }
+    }
+    
+    private func startProgressSimulation(for id: String) {
+        // Create timer on main thread
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            
+            var progress: Double = 0.0
+            let timer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] timer in
+                guard let self = self else {
+                    timer.invalidate()
+                    return
+                }
+                
+                if let item = self.processingItems.first(where: { $0.id == id }) {
+                    if item.isComplete || item.isCancelled {
+                        timer.invalidate()
+                        self.progressTimers.removeValue(forKey: id)
+                        return
+                    }
+                    
+                    // Slowly increase progress, max out at 90% until complete
+                    progress = min(0.9, progress + Double.random(in: 0.03...0.08))
+                    self.updateProgress(for: id, progress: progress)
+                } else {
+                    timer.invalidate()
+                    self.progressTimers.removeValue(forKey: id)
+                }
+            }
+            
+            self.progressTimers[id] = timer
+        }
+    }
+    
+    private func sendCompletionNotification(fileName: String, success: Bool, error: String? = nil) {
+        let content = UNMutableNotificationContent()
+        
+        if success {
+            content.title = "Analysis Complete! 🎉"
+            content.body = "Your blood test '\(fileName)' has been analyzed and is ready to view."
+        } else {
+            content.title = "Analysis Failed ❌"
+            content.body = "Failed to analyze '\(fileName)'. \(error ?? "Please try again.")"
+        }
+        
+        content.sound = .default
+        
+        let request = UNNotificationRequest(
+            identifier: UUID().uuidString,
+            content: content,
+            trigger: nil // Deliver immediately
+        )
+        
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("❌ Failed to send notification: \(error)")
+            } else {
+                print("✅ Notification sent successfully")
+            }
+        }
+    }
+}
+
 struct HomeView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @State private var showAnalyseModal = false
     @State private var selectedTab: Int = 0
     @State private var analysisResultForDisplay: AnalysisData? = nil
     @State private var showAnalysisResultsFromHome = false
+    @StateObject private var processingManager = AnalysisProcessingManager.shared
     
     var body: some View {
         ZStack {
@@ -37,14 +478,8 @@ struct HomeView: View {
                         Label("History", systemImage: "gauge.chart.lefthalf.righthalf")
                     }
                 
-                ChatTabView()
-                    .tag(2)
-                    .tabItem {
-                        Label("Chat", systemImage: "quote.bubble")
-                    }
-                
                 SettingsTabView()
-                    .tag(3)
+                    .tag(2)
                     .tabItem {
                         Label("Me", systemImage: "brain.filled.head.profile")
                     }
@@ -84,39 +519,44 @@ struct HomeView: View {
                 }
             }
             
-            // Floating Analyse Button (hidden on Chat tab)
-            if selectedTab != 2 {
-                VStack {
+            // Bottom-right + button (positioned next to navbar at the bottom)
+            VStack {
+                Spacer()
+                HStack {
                     Spacer()
-                    HStack {
-                        Spacer()
-                        Button {
-                            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                            impactFeedback.impactOccurred()
-                            showAnalyseModal = true
-                        } label: {
-                            Image(systemName: "plus")
-                                .font(.system(size: 24, weight: .bold))
-                                .foregroundColor(.white)
-                                .frame(width: 60, height: 60)
-                                .background(
-                                    Circle()
-                                        .fill(Color(hex: "#C7002B"))
-                                        .shadow(color: Color(hex: "#BB3E4F").opacity(0.6), radius: 16, x: 0, y: 6)
-                                )
-                        }
-                        .padding(.trailing, 24)
-                        .padding(.bottom, 70) // Position above tab bar
+                    Button {
+                        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                        impactFeedback.impactOccurred()
+                        showAnalyseModal = true
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(width: 56, height: 56)
+                            .background(
+                                Circle()
+                                    .fill(AppColors.primary)
+                                    .shadow(color: AppColors.primary.opacity(0.4), radius: 12, x: 0, y: 4)
+                            )
                     }
+                    .padding(.trailing, 16)
+                    .padding(.bottom, 90) // Position above the tab bar
                 }
             }
         }
         .sheet(isPresented: $showAnalyseModal) {
-            AnalyseModalView(isPresented: $showAnalyseModal) { analysisData in
-                // Callback when analysis is complete - show results from HomeView
-                self.analysisResultForDisplay = analysisData
-                self.showAnalysisResultsFromHome = true
-            }
+            AnalyseModalView(
+                isPresented: $showAnalyseModal,
+                onAnalysisStarted: { fileName in
+                    // Switch to history tab and start processing
+                    selectedTab = 1
+                },
+                onAnalysisComplete: { analysisData in
+                    // Analysis complete - show results
+                    self.analysisResultForDisplay = analysisData
+                    self.showAnalysisResultsFromHome = true
+                }
+            )
         }
         .fullScreenCover(isPresented: $showAnalysisResultsFromHome) {
             if let analysisData = analysisResultForDisplay {
@@ -575,102 +1015,177 @@ struct HomeTabView: View {
 // MARK: - History Tab View
 struct HistoryTabView: View {
     @EnvironmentObject var themeManager: ThemeManager
+    @StateObject private var processingManager = AnalysisProcessingManager.shared
     @State private var analyses: [Analysis] = []
     @State private var isLoading: Bool = true
     @State private var errorMessage: String? = nil
+    @State private var selectedAnalysis: Analysis? = nil
+    @State private var showDeleteConfirmation: Bool = false
+    @State private var analysisToDelete: Analysis? = nil
+    @State private var isDeleting: Bool = false
+    @State private var completedProcessingAnalysis: AnalysisData? = nil
 
     var body: some View {
-        NavigationView {
-            ZStack {
-                AppColors.background(themeManager.colorScheme)
-                    .ignoresSafeArea()
-
-                if isLoading {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: AppColors.primary))
-                } else if let error = errorMessage {
-                    VStack(spacing: 12) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 36))
-                            .foregroundColor(.yellow)
-                        Text("Failed to load analyses")
-                            .font(.custom("ProductSans-Bold", size: 18))
-                            .foregroundColor(AppColors.text(themeManager.colorScheme))
-                        Text(error)
-                            .font(.custom("ProductSans-Regular", size: 14))
-                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                            .multilineTextAlignment(.center)
-                    }
-                    .padding(24)
-                } else if analyses.isEmpty {
-                    VStack(spacing: 12) {
-                        Image(systemName: "tray")
-                            .font(.system(size: 44))
-                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                        Text("No analyses yet")
-                            .font(.custom("ProductSans-Bold", size: 20))
-                            .foregroundColor(AppColors.text(themeManager.colorScheme))
-                        Text("Upload a lab report to see your history")
-                            .font(.custom("ProductSans-Regular", size: 14))
-                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                            .multilineTextAlignment(.center)
-                    }
-                    .padding(24)
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 12) {
-                            ForEach(analyses, id: \ .id) { analysis in
-                                NavigationLink(destination: {
-                                    if let analysisData = analysis.toAnalysisData() {
-                                        AnalysisResultsView(analysisData: analysisData)
-                                            .environmentObject(themeManager)
-                                    } else {
-                                        Text("Unable to load analysis")
-                                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                                    }
-                                }) {
-                                    HStack(spacing: 12) {
-                                        VStack(alignment: .leading, spacing: 6) {
-                                            Text(listTitle(for: analysis))
-                                                .font(.custom("ProductSans-Bold", size: 16))
-                                                .foregroundColor(AppColors.text(themeManager.colorScheme))
-
-                                            Text(listSubtitle(for: analysis))
-                                                .font(.custom("ProductSans-Regular", size: 14))
-                                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                                                .lineLimit(2)
-                                        }
-
-                                        Spacer()
-
-                                        VStack(alignment: .trailing, spacing: 6) {
-                                            Text(formattedDate(analysis.created_at))
-                                                .font(.custom("ProductSans-Regular", size: 12))
-                                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-
-                                            Image(systemName: "chevron.right")
-                                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                                        }
-                                    }
-                                    .padding(12)
-                                    .background(AppColors.surface(themeManager.colorScheme))
-                                    .cornerRadius(12)
-                                    .shadow(color: Color.black.opacity(themeManager.colorScheme == .light ? 0.03 : 0.0), radius: 1, x: 0, y: 1)
-                                    .padding(.horizontal, 16)
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                            }
+        NavigationStack {
+            if #available(iOS 17.0, *) {
+                ZStack {
+                    AppColors.background(themeManager.colorScheme)
+                        .ignoresSafeArea()
+                    
+                    if isLoading && processingManager.processingItems.isEmpty {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: AppColors.primary))
+                    } else if let error = errorMessage {
+                        VStack(spacing: 12) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 36))
+                                .foregroundColor(.yellow)
+                            Text("Failed to load analyses")
+                                .font(.custom("ProductSans-Bold", size: 18))
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+                            Text(error)
+                                .font(.custom("ProductSans-Regular", size: 14))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                                .multilineTextAlignment(.center)
                         }
-                        .padding(.vertical, 20)
+                        .padding(24)
+                    } else if analyses.isEmpty && processingManager.processingItems.isEmpty {
+                        VStack(spacing: 12) {
+                            Image(systemName: "tray")
+                                .font(.system(size: 44))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            Text("No analyses yet")
+                                .font(.custom("ProductSans-Bold", size: 20))
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+                            Text("Upload a lab report to see your history")
+                                .font(.custom("ProductSans-Regular", size: 14))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                                .multilineTextAlignment(.center)
+                        }
+                        .padding(24)
+                    } else {
+                        ScrollView {
+                            LazyVGrid(columns: [
+                                GridItem(.flexible(), spacing: 12),
+                                GridItem(.flexible(), spacing: 12)
+                            ], spacing: 12) {
+                                // Show processing items first
+                                ForEach(processingManager.processingItems) { item in
+                                    if item.isCancelled {
+                                        // Show cancelled item - can be dismissed
+                                        ProcessingCancelledCard(
+                                            item: item,
+                                            onDismiss: {
+                                                processingManager.removeProcessingItem(id: item.id)
+                                            }
+                                        )
+                                        .environmentObject(themeManager)
+                                    } else if let error = item.error {
+                                        // Show error item - can retry or dismiss
+                                        ProcessingErrorCard(
+                                            item: item,
+                                            onRetry: {
+                                                processingManager.retryProcessing(for: item.id)
+                                            },
+                                            onDismiss: {
+                                                processingManager.removeProcessingItem(id: item.id)
+                                            }
+                                        )
+                                        .environmentObject(themeManager)
+                                    } else if item.isComplete, let analysisData = item.analysisData {
+                                        // Show completed processing item as tappable
+                                        ProcessingCompleteCard(
+                                            item: item,
+                                            onTap: {
+                                                completedProcessingAnalysis = analysisData
+                                                processingManager.removeProcessingItem(id: item.id)
+                                                Task { await loadAnalyses() }
+                                            }
+                                        )
+                                        .environmentObject(themeManager)
+                                    } else {
+                                        // Show processing progress with cancel option
+                                        ProcessingAnalysisCard(
+                                            item: item,
+                                            onCancel: {
+                                                processingManager.cancelProcessing(for: item.id)
+                                            }
+                                        )
+                                        .environmentObject(themeManager)
+                                    }
+                                }
+                                
+                                // Show completed analyses
+                                ForEach(analyses, id: \.id) { analysis in
+                                    AnalysisGridCard(
+                                        analysis: analysis,
+                                        onTap: {
+                                            selectedAnalysis = analysis
+                                        },
+                                        onDelete: {
+                                            analysisToDelete = analysis
+                                            showDeleteConfirmation = true
+                                        }
+                                    )
+                                    .environmentObject(themeManager)
+                                }
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 20)
+                        }
+                        .refreshable {
+                            await loadAnalyses()
+                        }
                     }
-                    .refreshable {
-                        await loadAnalyses()
+                    
+                    // Delete loading overlay
+                    if isDeleting {
+                        ZStack {
+                            Color.black.opacity(0.3)
+                                .ignoresSafeArea()
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .scaleEffect(1.5)
+                        }
                     }
                 }
-            }
-            .navigationBarTitle("History", displayMode: .inline)
-            .onAppear {
-                Task { await loadAnalyses() }
+                .navigationBarTitle("History", displayMode: .inline)
+                .onAppear {
+                    Task { await loadAnalyses() }
+                }
+                .navigationDestination(item: $selectedAnalysis) { analysis in
+                    if let analysisData = analysis.toAnalysisData() {
+                        AnalysisResultsView(analysisData: analysisData)
+                            .environmentObject(themeManager)
+                    } else {
+                        Text("Unable to load analysis")
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                    }
+                }
+                .navigationDestination(item: $completedProcessingAnalysis) { analysisData in
+                    AnalysisResultsView(analysisData: analysisData)
+                        .environmentObject(themeManager)
+                }
+                .confirmationDialog(
+                    "Delete Analysis",
+                    isPresented: $showDeleteConfirmation,
+                    titleVisibility: .visible
+                ) {
+                    Button("Delete", role: .destructive) {
+                        if let analysis = analysisToDelete {
+                            Task {
+                                await deleteAnalysis(analysis)
+                            }
+                        }
+                    }
+                    Button("Cancel", role: .cancel) {
+                        analysisToDelete = nil
+                    }
+                } message: {
+                    Text("Are you sure you want to delete this analysis? This action cannot be undone.")
+                }
+            } else {
+                // Fallback on earlier versions
             }
         }
     }
@@ -692,15 +1207,57 @@ struct HistoryTabView: View {
             }
         }
     }
+    
+    private func deleteAnalysis(_ analysis: Analysis) async {
+        await MainActor.run { isDeleting = true }
+        do {
+            try await HealthScoreService.shared.deleteAnalysis(analysisId: analysis.id)
+            await MainActor.run {
+                analyses.removeAll { $0.id == analysis.id }
+                analysisToDelete = nil
+                isDeleting = false
+            }
+            // Trigger haptic feedback
+            let notificationFeedback = UINotificationFeedbackGenerator()
+            notificationFeedback.notificationOccurred(.success)
+        } catch {
+            await MainActor.run {
+                isDeleting = false
+                errorMessage = "Failed to delete: \(error.localizedDescription)"
+            }
+        }
+    }
 
     private func formattedDate(_ iso: String) -> String {
         let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        
         if let date = formatter.date(from: iso) {
-            let out = DateFormatter()
-            out.dateStyle = .medium
-            out.timeStyle = .none
-            return out.string(from: date)
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd"
+            let dateString = dateFormatter.string(from: date)
+            
+            let timeFormatter = DateFormatter()
+            timeFormatter.dateFormat = "HH:mm"
+            let timeString = timeFormatter.string(from: date)
+            
+            return "\(dateString) at \(timeString)"
         }
+        
+        // Try without fractional seconds
+        formatter.formatOptions = [.withInternetDateTime]
+        if let date = formatter.date(from: iso) {
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd"
+            let dateString = dateFormatter.string(from: date)
+            
+            let timeFormatter = DateFormatter()
+            timeFormatter.dateFormat = "HH:mm"
+            let timeString = timeFormatter.string(from: date)
+            
+            return "\(dateString) at \(timeString)"
+        }
+        
         return iso
     }
 
@@ -712,6 +1269,450 @@ struct HistoryTabView: View {
         return "Analysis \(analysis.id.prefix(8))"
     }
 
+    private func listSubtitle(for analysis: Analysis) -> String {
+        if let parsed = analysis.getParsedData() {
+            let count = parsed.testResults.count
+            return "\(count) markers · Report"
+        }
+        return "Lab report"
+    }
+}
+
+// MARK: - Processing Analysis Card (Shows progress while analyzing)
+struct ProcessingAnalysisCard: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    let item: ProcessingAnalysis
+    let onCancel: () -> Void
+    @State private var showCancelConfirmation = false
+    
+    var body: some View {
+        GeometryReader { geometry in
+            VStack(alignment: .leading, spacing: 0) {
+                // Top row with loading indicator and cancel button
+                HStack {
+                    // Pulsing indicator
+                    Circle()
+                        .fill(AppColors.primary)
+                        .frame(width: 8, height: 8)
+                        .opacity(0.8)
+                        .modifier(PulsingAnimation())
+                    
+                    Spacer()
+                    
+                    // Cancel button
+                    Button(action: {
+                        showCancelConfirmation = true
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 20))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.top, 12)
+                
+                Spacer()
+                
+                // Bottom section with info and progress
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(item.fileName)
+                        .font(.custom("ProductSans-Bold", size: 16))
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+                        .lineLimit(2)
+                    
+                    Text("Analyzing...")
+                        .font(.custom("ProductSans-Regular", size: 13))
+                        .foregroundColor(AppColors.primary)
+                        .lineLimit(1)
+                    
+                    // Progress bar
+                    VStack(alignment: .leading, spacing: 4) {
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                // Background
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(AppColors.inputBackground(themeManager.colorScheme))
+                                    .frame(height: 6)
+                                
+                                // Progress fill
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(AppColors.primary)
+                                    .frame(width: geo.size.width * item.progress, height: 6)
+                                    .animation(.easeInOut(duration: 0.3), value: item.progress)
+                            }
+                        }
+                        .frame(height: 6)
+                        
+                        Text("Usually takes ~2 minutes")
+                            .font(.custom("ProductSans-Regular", size: 10))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.bottom, 12)
+            }
+            .frame(width: geometry.size.width, height: geometry.size.width)
+            .background(AppColors.surface(themeManager.colorScheme))
+            .cornerRadius(16)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(AppColors.primary.opacity(0.3), lineWidth: 2)
+            )
+            .shadow(color: Color.black.opacity(themeManager.colorScheme == .light ? 0.05 : 0.0), radius: 2, x: 0, y: 1)
+        }
+        .aspectRatio(1, contentMode: .fit)
+        .confirmationDialog("Cancel Analysis", isPresented: $showCancelConfirmation, titleVisibility: .visible) {
+            Button("Cancel Analysis", role: .destructive) {
+                onCancel()
+            }
+            Button("Continue Processing", role: .cancel) { }
+        } message: {
+            Text("Are you sure you want to cancel? No credit will be charged.")
+        }
+    }
+}
+
+// MARK: - Pulsing Animation Modifier
+struct PulsingAnimation: ViewModifier {
+    @State private var isPulsing = false
+    
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(isPulsing ? 1.3 : 1.0)
+            .opacity(isPulsing ? 0.5 : 1.0)
+            .animation(
+                Animation.easeInOut(duration: 0.8)
+                    .repeatForever(autoreverses: true),
+                value: isPulsing
+            )
+            .onAppear {
+                isPulsing = true
+            }
+    }
+}
+
+// MARK: - Processing Complete Card (Shows when analysis is done)
+struct ProcessingCompleteCard: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    let item: ProcessingAnalysis
+    let onTap: () -> Void
+    
+    var body: some View {
+        Button(action: {
+            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+            impactFeedback.impactOccurred()
+            onTap()
+        }) {
+            GeometryReader { geometry in
+                VStack(alignment: .leading, spacing: 0) {
+                    // Top row with checkmark
+                    HStack {
+                        // Success indicator
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 20))
+                            .foregroundColor(.green)
+                        
+                        Spacer()
+                        
+                        // Arrow icon
+                        Image(systemName: "arrow.up.forward.app")
+                            .font(.system(size: 18))
+                            .foregroundColor(AppColors.text(themeManager.colorScheme))
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.top, 12)
+                    
+                    Spacer()
+                    
+                    // Bottom section with info
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(item.fileName)
+                            .font(.custom("ProductSans-Bold", size: 16))
+                            .foregroundColor(AppColors.text(themeManager.colorScheme))
+                            .lineLimit(2)
+                        
+                        Text("Analysis Complete!")
+                            .font(.custom("ProductSans-Bold", size: 13))
+                            .foregroundColor(.green)
+                            .lineLimit(1)
+                        
+                        Text("Tap to view results")
+                            .font(.custom("ProductSans-Regular", size: 11))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            .lineLimit(1)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 12)
+                }
+                .frame(width: geometry.size.width, height: geometry.size.width)
+                .background(AppColors.surface(themeManager.colorScheme))
+                .cornerRadius(16)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color.green.opacity(0.5), lineWidth: 2)
+                )
+                .shadow(color: Color.black.opacity(themeManager.colorScheme == .light ? 0.05 : 0.0), radius: 2, x: 0, y: 1)
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
+        .aspectRatio(1, contentMode: .fit)
+    }
+}
+
+// MARK: - Processing Error Card (Shows when analysis failed)
+struct ProcessingErrorCard: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    let item: ProcessingAnalysis
+    let onRetry: () -> Void
+    let onDismiss: () -> Void
+    
+    var body: some View {
+        GeometryReader { geometry in
+            VStack(alignment: .leading, spacing: 0) {
+                // Top row with error icon and dismiss
+                HStack {
+                    // Error indicator
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 20))
+                        .foregroundColor(.orange)
+                    
+                    Spacer()
+                    
+                    // Dismiss button
+                    Button(action: onDismiss) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 20))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.top, 12)
+                
+                Spacer()
+                
+                // Bottom section with info and retry
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(item.fileName)
+                        .font(.custom("ProductSans-Bold", size: 16))
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+                        .lineLimit(1)
+                    
+                    Text("Analysis Failed")
+                        .font(.custom("ProductSans-Bold", size: 13))
+                        .foregroundColor(.orange)
+                        .lineLimit(1)
+                    
+                    // Retry button
+                    Button(action: {
+                        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                        impactFeedback.impactOccurred()
+                        onRetry()
+                    }) {
+                        HStack {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 12, weight: .semibold))
+                            Text("Retry")
+                                .font(.custom("ProductSans-Bold", size: 12))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(AppColors.primary)
+                        .cornerRadius(12)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.bottom, 12)
+            }
+            .frame(width: geometry.size.width, height: geometry.size.width)
+            .background(AppColors.surface(themeManager.colorScheme))
+            .cornerRadius(16)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color.orange.opacity(0.5), lineWidth: 2)
+            )
+            .shadow(color: Color.black.opacity(themeManager.colorScheme == .light ? 0.05 : 0.0), radius: 2, x: 0, y: 1)
+        }
+        .aspectRatio(1, contentMode: .fit)
+    }
+}
+
+// MARK: - Processing Cancelled Card (Shows when analysis was cancelled)
+struct ProcessingCancelledCard: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    let item: ProcessingAnalysis
+    let onDismiss: () -> Void
+    
+    var body: some View {
+        GeometryReader { geometry in
+            VStack(alignment: .leading, spacing: 0) {
+                // Top row with cancelled icon and dismiss
+                HStack {
+                    // Cancelled indicator
+                    Image(systemName: "slash.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundColor(.gray)
+                    
+                    Spacer()
+                    
+                    // Dismiss button
+                    Button(action: onDismiss) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 20))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.top, 12)
+                
+                Spacer()
+                
+                // Bottom section with info
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(item.fileName)
+                        .font(.custom("ProductSans-Bold", size: 16))
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+                        .lineLimit(2)
+                    
+                    Text("Cancelled")
+                        .font(.custom("ProductSans-Bold", size: 13))
+                        .foregroundColor(.gray)
+                        .lineLimit(1)
+                    
+                    Text("No credit charged")
+                        .font(.custom("ProductSans-Regular", size: 11))
+                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 12)
+                .padding(.bottom, 12)
+            }
+            .frame(width: geometry.size.width, height: geometry.size.width)
+            .background(AppColors.surface(themeManager.colorScheme))
+            .cornerRadius(16)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color.gray.opacity(0.3), lineWidth: 2)
+            )
+            .shadow(color: Color.black.opacity(themeManager.colorScheme == .light ? 0.05 : 0.0), radius: 2, x: 0, y: 1)
+        }
+        .aspectRatio(1, contentMode: .fit)
+    }
+}
+
+// MARK: - Analysis Grid Card
+struct AnalysisGridCard: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    let analysis: Analysis
+    let onTap: () -> Void
+    let onDelete: () -> Void
+    
+    var body: some View {
+        Button(action: {
+            onTap()
+        }) {
+            GeometryReader { geometry in
+                VStack(alignment: .leading, spacing: 0) {
+                    // Top row with ellipsis (left) and arrow (right)
+                    HStack {
+                        // Ellipsis menu button
+                        Menu {
+                            Button(role: .destructive) {
+                                onDelete()
+                            } label: {
+                                Label("Delete Analysis", systemImage: "trash")
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                                .frame(width: 32, height: 32)
+                        }
+                        .buttonStyle(BorderlessButtonStyle())
+                        
+                        Spacer()
+                        
+                        // Arrow icon
+                        Image(systemName: "arrow.up.forward.app")
+                            .font(.system(size: 18))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.top, 12)
+                    
+                    Spacer()
+                    
+                    // Bottom section with info
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(listTitle(for: analysis))
+                            .font(.custom("ProductSans-Bold", size: 16))
+                            .foregroundColor(AppColors.text(themeManager.colorScheme))
+                            .lineLimit(2)
+                        
+                        Text(listSubtitle(for: analysis))
+                            .font(.custom("ProductSans-Regular", size: 13))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            .lineLimit(1)
+                        
+                        Text(formattedDate(analysis.created_at))
+                            .font(.custom("ProductSans-Regular", size: 11))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            .lineLimit(1)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 12)
+                }
+                .frame(width: geometry.size.width, height: geometry.size.width)
+                .background(AppColors.surface(themeManager.colorScheme))
+                .cornerRadius(16)
+                .shadow(color: Color.black.opacity(themeManager.colorScheme == .light ? 0.05 : 0.0), radius: 2, x: 0, y: 1)
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
+        .aspectRatio(1, contentMode: .fit)
+    }
+    
+    // MARK: - Helpers
+    private func formattedDate(_ iso: String) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        
+        if let date = formatter.date(from: iso) {
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd"
+            let dateString = dateFormatter.string(from: date)
+            
+            let timeFormatter = DateFormatter()
+            timeFormatter.dateFormat = "HH:mm"
+            let timeString = timeFormatter.string(from: date)
+            
+            return "\(dateString) at \(timeString)"
+        }
+        
+        // Try without fractional seconds
+        formatter.formatOptions = [.withInternetDateTime]
+        if let date = formatter.date(from: iso) {
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd"
+            let dateString = dateFormatter.string(from: date)
+            
+            let timeFormatter = DateFormatter()
+            timeFormatter.dateFormat = "HH:mm"
+            let timeString = timeFormatter.string(from: date)
+            
+            return "\(dateString) at \(timeString)"
+        }
+        
+        return iso
+    }
+    
+    private func listTitle(for analysis: Analysis) -> String {
+        if let parsed = analysis.getParsedData(), let name = parsed.patientInfo?.name, !name.isEmpty {
+            return name
+        }
+        return "Analysis \(analysis.id.prefix(8))"
+    }
+    
     private func listSubtitle(for analysis: Analysis) -> String {
         if let parsed = analysis.getParsedData() {
             let count = parsed.testResults.count
@@ -1515,6 +2516,7 @@ struct SettingsTabView: View {
 struct AnalyseModalView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @Binding var isPresented: Bool
+    var onAnalysisStarted: ((String) -> Void)?
     var onAnalysisComplete: ((AnalysisData) -> Void)?
     @State private var selectedFile: URL? = nil
     @State private var selectedFileName: String? = nil
@@ -1531,9 +2533,10 @@ struct AnalyseModalView: View {
     @State private var showErrorAlert = false
     @State private var errorMessage = ""
     
-    // Initializer with callback
-    init(isPresented: Binding<Bool>, onAnalysisComplete: ((AnalysisData) -> Void)? = nil) {
+    // Initializer with callbacks
+    init(isPresented: Binding<Bool>, onAnalysisStarted: ((String) -> Void)? = nil, onAnalysisComplete: ((AnalysisData) -> Void)? = nil) {
         self._isPresented = isPresented
+        self.onAnalysisStarted = onAnalysisStarted
         self.onAnalysisComplete = onAnalysisComplete
     }
 
@@ -1753,14 +2756,15 @@ struct AnalyseModalView: View {
         
         Task {
             do {
-                // Check if user has credits
-                let hasCredit = try await CreditService.shared.deductCredit()
+                // Check if user has credits (but don't deduct yet)
+                let credits = try await CreditService.shared.getCredits()
                 
                 await MainActor.run {
                     isCheckingCredits = false
                     
-                    if hasCredit {
+                    if credits > 0 {
                         // User has credits, proceed with upload
+                        // Credits will be deducted ONLY after successful analysis
                         performUpload(file: file)
                     } else {
                         // Insufficient credits, show purchase modal
@@ -1778,61 +2782,32 @@ struct AnalyseModalView: View {
     }
     
     private func performUpload(file: URL) {
-        isUploading = true
+        let fileName = selectedFileName ?? "Blood Test"
+        let processingId = UUID().uuidString
+        let fileType = selectedFileType ?? "image"
         
-        Task {
-            do {
-                print("🔵 Starting blood test analysis...")
-                
-                // Step 1: Analyze the blood test with AI
-                // This calls /api/ai/analyze/ - same as React Native analyzeBloodTest()
-                let analyzeResult = try await AnalysisService.shared.analyzeBloodTest(fileURL: file)
-                
-                print("🔵 Analysis complete, saving to database...")
-                
-                // Step 2: Save the analysis to the database
-                // This calls /api/analyses/ - same as React Native saveAnalysis()
-                let savedResult = try await AnalysisService.shared.saveAnalysis(
-                    parsedData: analyzeResult.parsed_data,
-                    structuredAnalysis: analyzeResult.structured_analysis
-                )
-                
-                // Step 3: Convert to view model
-                let analysisData = AnalysisService.shared.convertToAnalysisData(
-                    analyzeResponse: analyzeResult,
-                    savedResponse: savedResult
-                )
-                
-                // DEBUG: Log what we got
-                print("🔍 DEBUG: analyzeResult.structured_analysis sections count: \(analyzeResult.structured_analysis?.sections?.count ?? -1)")
-                print("🔍 DEBUG: analysisData.sections count: \(analysisData.sections.count)")
-                print("🔍 DEBUG: analysisData.testOverview: \(analysisData.testOverview ?? "nil")")
-                if let sections = analyzeResult.structured_analysis?.sections {
-                    for (i, section) in sections.enumerated() {
-                        print("🔍 DEBUG: Section \(i): \(section.category ?? "no category") - biomarkers: \(section.biomarkers ?? [])")
-                    }
-                }
-                
-                await MainActor.run {
-                    print("✅ Upload complete! Navigating to results...")
-                    isUploading = false
-                    selectedFile = nil
-                    selectedFileName = nil
-                    isPresented = false  // Close the modal first
-                    
-                    // Use callback to show results from parent (HomeView)
-                    onAnalysisComplete?(analysisData)
-                }
-                
-            } catch {
-                await MainActor.run {
-                    print("❌ Upload failed: \(error.localizedDescription)")
-                    isUploading = false
-                    errorMessage = error.localizedDescription
-                    showErrorAlert = true
-                }
-            }
+        // Read file data for persistence (so we can resume if app closes)
+        var fileData: Data? = nil
+        do {
+            fileData = try Data(contentsOf: file)
+        } catch {
+            print("⚠️ Could not read file data for persistence: \(error)")
         }
+        
+        // Immediately close modal and notify that analysis started
+        isPresented = false
+        onAnalysisStarted?(fileName)
+        
+        // Add to processing manager with file data for persistence
+        AnalysisProcessingManager.shared.addProcessingItem(
+            id: processingId,
+            fileName: fileName,
+            fileData: fileData,
+            fileType: fileType
+        )
+        
+        // Start processing (credit will be deducted only on success)
+        AnalysisProcessingManager.shared.startProcessing(for: processingId, fileURL: file)
     }
 }
 

@@ -9,13 +9,22 @@ import Foundation
 import Supabase
 
 // MARK: - Analysis Model
-struct Analysis: Codable {
+struct Analysis: Codable, Identifiable, Hashable {
     let id: String
     let user_id: String?
     let parsed_data_raw: AnyCodableValue  // Can be string or dictionary
     let analysis: AnyCodableValue?
     let created_at: String
     let updated_at: String?
+    
+    // Hashable conformance
+    static func == (lhs: Analysis, rhs: Analysis) -> Bool {
+        lhs.id == rhs.id
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -428,6 +437,38 @@ class HealthScoreService {
             }
             throw error
         }
+    }
+    
+    // MARK: - Delete Analysis
+    func deleteAnalysis(analysisId: String) async throws {
+        guard let apiURLString = SupabaseManager.shared.getAPIURL(),
+              let apiURL = URL(string: "\(apiURLString)/api/analyses/\(analysisId)/") else {
+            throw NSError(domain: "HealthScoreService", code: 1, userInfo: [NSLocalizedDescriptionKey: "API URL not configured"])
+        }
+        
+        guard let client = SupabaseManager.shared.getClient() else {
+            throw NSError(domain: "HealthScoreService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Supabase client not configured"])
+        }
+        
+        let session = try await client.auth.session
+        let accessToken = session.accessToken
+        
+        var request = URLRequest(url: apiURL)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let (_, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NSError(domain: "HealthScoreService", code: 2, userInfo: [NSLocalizedDescriptionKey: "Invalid response"])
+        }
+        
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw NSError(domain: "HealthScoreService", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "Failed to delete analysis"])
+        }
+        
+        print("✅ Successfully deleted analysis \(analysisId)")
     }
     
     // MARK: - Calculate Health Score

@@ -334,19 +334,12 @@ struct BiomarkerTrendCard: View {
             
             Spacer()
             
-            // Latest Value & Trend
+            // Latest Value
             HStack(spacing: 8) {
                 if let latestValue = trend.latestValue {
                     Text(formatValue(latestValue))
                         .font(.custom("ProductSans-Bold", size: 18))
                         .foregroundColor(AppColors.text(themeManager.colorScheme))
-                }
-                
-                // Trend Arrow
-                if trend.hasMultiplePoints {
-                    Image(systemName: trend.trend.iconName)
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(trendColor)
                 }
                 
                 // Expand Icon
@@ -513,7 +506,7 @@ struct BiomarkerTrendCard: View {
                     
                     Spacer()
                     
-                    Text("\(formatValue(point.value)) \(point.unit)")
+                    Text(formatValue(point.value))
                         .font(.custom("ProductSans-Medium", size: 13))
                         .foregroundColor(AppColors.text(themeManager.colorScheme))
                     
@@ -533,7 +526,7 @@ struct BiomarkerTrendCard: View {
                     
                     Spacer()
                     
-                    Text("\(formatValue(min)) - \(formatValue(max)) \(trend.unit)")
+                    Text("\(formatValue(min)) - \(formatValue(max))")
                         .font(.custom("ProductSans-Medium", size: 12))
                         .foregroundColor(Color.green)
                 }

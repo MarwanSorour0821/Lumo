@@ -33,5 +33,14 @@
 	<string>We access photos so you can import lab reports for analysis and tracking.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>We access photos so you can import lab reports for analysis and tracking.</string>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.lumo.analyzeBloodTest</string>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>processing</string>
+		<string>fetch</string>
+	</array>
 </dict>
 </plist>

@@ -8,11 +8,62 @@
 import SwiftUI
 import Combine
 import Supabase
+import BackgroundTasks
+import UserNotifications
+
+// MARK: - App Delegate for Background Tasks
+class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
+        // Register background task
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: "com.lumo.analyzeBloodTest", using: nil) { task in
+            self.handleBackgroundAnalysis(task: task as! BGProcessingTask)
+        }
+        return true
+    }
+    
+    func scheduleBackgroundAnalysisIfNeeded() {
+        // Check if there are any pending processing items
+        let hasPendingItems = AnalysisProcessingManager.shared.processingItems.contains { 
+            !$0.isComplete && !$0.isCancelled && $0.error == nil 
+        }
+        
+        if hasPendingItems {
+            let request = BGProcessingTaskRequest(identifier: "com.lumo.analyzeBloodTest")
+            request.requiresNetworkConnectivity = true
+            request.requiresExternalPower = false
+            
+            do {
+                try BGTaskScheduler.shared.submit(request)
+                print("🔵 Background task scheduled")
+            } catch {
+                print("⚠️ Failed to schedule background task: \(error)")
+            }
+        }
+    }
+    
+    private func handleBackgroundAnalysis(task: BGProcessingTask) {
+        // Schedule a new background task in case we need more time
+        scheduleBackgroundAnalysisIfNeeded()
+        
+        task.expirationHandler = {
+            // Handle expiration - processing manager handles persistence
+            print("⚠️ Background task expired")
+        }
+        
+        // The processing manager automatically resumes pending items when initialized
+        // Just mark the task as complete after a delay to allow processing to continue
+        DispatchQueue.main.asyncAfter(deadline: .now() + 25) {
+            task.setTaskCompleted(success: true)
+        }
+    }
+}
 
 @main
 struct LumoApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var appState = AppState()
     @StateObject private var themeManager = ThemeManager.shared
+    @Environment(\.scenePhase) private var scenePhase
     
     var body: some Scene {
         WindowGroup {
@@ -26,6 +77,20 @@ struct LumoApp: App {
                     // OAuth callback URL is handled by ASWebAuthenticationSession
                     // This is just for debugging
                 }
+        }
+        .onChange(of: scenePhase) { newPhase in
+            switch newPhase {
+            case .background:
+                // App is going to background - schedule background task if needed
+                appDelegate.scheduleBackgroundAnalysisIfNeeded()
+            case .active:
+                // App became active - processing manager will resume automatically
+                print("🔵 App became active")
+            case .inactive:
+                break
+            @unknown default:
+                break
+            }
         }
     }
 }

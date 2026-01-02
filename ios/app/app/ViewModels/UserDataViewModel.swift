@@ -32,6 +32,12 @@ class UserDataViewModel: ObservableObject {
     private var hasLoadedAnalyses: Bool = false
     private var hasLoadedChat: Bool = false
     
+    // Task tracking to prevent concurrent refreshes
+    private var refreshHealthScoreTask: Task<Void, Never>? = nil
+    private var refreshAnalysesTask: Task<Void, Never>? = nil
+    private var refreshProfileTask: Task<Void, Never>? = nil
+    private var refreshChatTask: Task<Void, Never>? = nil
+    
     // Singleton instance
     static let shared = UserDataViewModel()
     
@@ -52,11 +58,35 @@ class UserDataViewModel: ObservableObject {
             
             currentUserId = userId
             
-            // Load data in parallel
-            async let profileTask = loadUserProfile(userId: userId)
-            async let healthScoreTask = loadHealthScore(userId: userId)
-            async let analysesTask = loadAnalyses(userId: userId)
-            async let chatTask = loadChatHistory(userId: userId)
+            // Load data in parallel, but only if not already loaded
+            let shouldLoadProfile = !hasLoadedProfile
+            let shouldLoadHealthScore = !hasLoadedHealthScore
+            let shouldLoadAnalyses = !hasLoadedAnalyses
+            let shouldLoadChat = !hasLoadedChat
+            
+            async let profileTask: Void = {
+                if shouldLoadProfile {
+                    await loadUserProfile(userId: userId)
+                }
+            }()
+            
+            async let healthScoreTask: Void = {
+                if shouldLoadHealthScore {
+                    await loadHealthScore(userId: userId)
+                }
+            }()
+            
+            async let analysesTask: Void = {
+                if shouldLoadAnalyses {
+                    await loadAnalyses(userId: userId)
+                }
+            }()
+            
+            async let chatTask: Void = {
+                if shouldLoadChat {
+                    await loadChatHistory(userId: userId)
+                }
+            }()
             
             // Wait for all tasks to complete
             _ = await [profileTask, healthScoreTask, analysesTask, chatTask]
@@ -69,27 +99,105 @@ class UserDataViewModel: ObservableObject {
     
     /// Force refresh user profile
     func refreshUserProfile() async {
-        hasLoadedProfile = false
-        await loadAllUserData()
+        // Cancel any existing refresh task
+        refreshProfileTask?.cancel()
+        
+        // Create new task and store reference
+        refreshProfileTask = Task {
+            guard !Task.isCancelled else { 
+                print("⚠️ Profile refresh cancelled")
+                return 
+            }
+            
+            guard let userId = currentUserId else {
+                await loadAllUserData()
+                return
+            }
+            await loadUserProfile(userId: userId)
+        }
+        
+        await refreshProfileTask?.value
     }
     
     /// Force refresh health score
     func refreshHealthScore() async {
-        hasLoadedHealthScore = false
-        hasLoadedAnalyses = false
-        await loadAllUserData()
+        // Cancel any existing refresh task
+        refreshHealthScoreTask?.cancel()
+        
+        // Create new task and store reference
+        refreshHealthScoreTask = Task {
+            guard !Task.isCancelled else { 
+                print("⚠️ Health score refresh cancelled by new request")
+                return 
+            }
+            
+            guard let userId = currentUserId else {
+                print("⚠️ No current user ID, loading all data")
+                await loadAllUserData()
+                return
+            }
+            
+            print("🔄 Refreshing health score...")
+            
+            // Check for cancellation before each step
+            guard !Task.isCancelled else { 
+                print("⚠️ Health score refresh cancelled before loadHealthScore")
+                return 
+            }
+            await loadHealthScore(userId: userId)
+            
+            guard !Task.isCancelled else { 
+                print("⚠️ Health score refresh cancelled before loadAnalyses")
+                return 
+            }
+            await loadAnalyses(userId: userId)
+        }
+        
+        await refreshHealthScoreTask?.value
     }
     
     /// Force refresh analyses
     func refreshAnalyses() async {
-        hasLoadedAnalyses = false
-        await loadAllUserData()
+        // Cancel any existing refresh task
+        refreshAnalysesTask?.cancel()
+        
+        // Create new task and store reference
+        refreshAnalysesTask = Task {
+            guard !Task.isCancelled else { 
+                print("⚠️ Analyses refresh cancelled")
+                return 
+            }
+            
+            guard let userId = currentUserId else {
+                await loadAllUserData()
+                return
+            }
+            await loadAnalyses(userId: userId)
+        }
+        
+        await refreshAnalysesTask?.value
     }
     
     /// Force refresh chat
     func refreshChat() async {
-        hasLoadedChat = false
-        await loadAllUserData()
+        // Cancel any existing refresh task
+        refreshChatTask?.cancel()
+        
+        // Create new task and store reference
+        refreshChatTask = Task {
+            guard !Task.isCancelled else { 
+                print("⚠️ Chat refresh cancelled")
+                return 
+            }
+            
+            guard let userId = currentUserId else {
+                await loadAllUserData()
+                return
+            }
+            await loadChatHistory(userId: userId)
+        }
+        
+        await refreshChatTask?.value
     }
     
     /// Add a new chat message locally (optimistic update)
@@ -99,6 +207,12 @@ class UserDataViewModel: ObservableObject {
     
     /// Clear all data (call when user logs out)
     func clearAllData() {
+        // Cancel all pending tasks
+        refreshHealthScoreTask?.cancel()
+        refreshAnalysesTask?.cancel()
+        refreshProfileTask?.cancel()
+        refreshChatTask?.cancel()
+        
         userName = nil
         healthScore = 0.0
         animatedProgress = 0.0
@@ -119,7 +233,7 @@ class UserDataViewModel: ObservableObject {
     // MARK: - Private Methods
     
     private func loadUserProfile(userId: String) async {
-        guard !hasLoadedProfile else { return }
+        // Allow reloading for explicit refresh calls
         
         isLoadingProfile = true
         defer { isLoadingProfile = false }
@@ -200,7 +314,7 @@ class UserDataViewModel: ObservableObject {
     }
     
     private func loadHealthScore(userId: String) async {
-        guard !hasLoadedHealthScore else { return }
+        // Allow reloading even if already loaded (for refresh)
         
         isLoadingHealthScore = true
         healthScoreError = nil
@@ -237,7 +351,7 @@ class UserDataViewModel: ObservableObject {
     }
     
     private func loadAnalyses(userId: String) async {
-        guard !hasLoadedAnalyses else { return }
+        // Allow reloading even if already loaded (for refresh)
         
         isLoadingAnalyses = true
         analysesError = nil
@@ -256,7 +370,7 @@ class UserDataViewModel: ObservableObject {
     }
     
     private func loadChatHistory(userId: String) async {
-        guard !hasLoadedChat else { return }
+        // Allow reloading for explicit refresh calls
         
         isLoadingChat = true
         defer { isLoadingChat = false }

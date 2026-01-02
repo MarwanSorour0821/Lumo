@@ -162,7 +162,7 @@ struct StructuredAnalysis: Codable {
 }
 
 // MARK: - Analysis Data (Full Response)
-struct AnalysisData: Codable, Identifiable {
+struct AnalysisData: Codable, Identifiable, Hashable {
     let id: String?
     let parsedData: ParsedBloodTestData
     let analysis: StructuredAnalysisWrapper?
@@ -173,6 +173,16 @@ struct AnalysisData: Codable, Identifiable {
         case parsedData = "parsed_data"
         case analysis
         case createdAt = "created_at"
+    }
+    
+    // Hashable conformance - use id and createdAt for uniqueness
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(createdAt)
+    }
+    
+    static func == (lhs: AnalysisData, rhs: AnalysisData) -> Bool {
+        return lhs.id == rhs.id && lhs.createdAt == rhs.createdAt
     }
     
     // Explicit memberwise initializer for manual creation

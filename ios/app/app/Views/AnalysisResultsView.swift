@@ -1,4 +1,290 @@
 import SwiftUI
+import Foundation
+import Combine
+
+// MARK: - Stored Chat Message Model
+struct StoredChatMessage: Codable, Identifiable {
+    let id: String
+    let role: String
+    let content: String
+    let createdAt: Date
+    
+    init(id: String = UUID().uuidString, role: String, content: String, createdAt: Date = Date()) {
+        self.id = id
+        self.role = role
+        self.content = content
+        self.createdAt = createdAt
+    }
+}
+
+// MARK: - Analysis Chat Storage
+class AnalysisChatStorage {
+    static let shared = AnalysisChatStorage()
+    
+    private let userDefaults = UserDefaults.standard
+    private let storageKeyPrefix = "analysis_chat_"
+    
+    private init() {}
+    
+    private func storageKey(for analysisId: String) -> String {
+        return "\(storageKeyPrefix)\(analysisId)"
+    }
+    
+    func loadMessages(for analysisId: String) -> [StoredChatMessage] {
+        let key = storageKey(for: analysisId)
+        
+        guard let data = userDefaults.data(forKey: key) else {
+            return []
+        }
+        
+        do {
+            let messages = try JSONDecoder().decode([StoredChatMessage].self, from: data)
+            return messages.sorted { $0.createdAt < $1.createdAt }
+        } catch {
+            print("Error loading chat messages: \(error)")
+            return []
+        }
+    }
+    
+    func saveMessages(_ messages: [StoredChatMessage], for analysisId: String) {
+        let key = storageKey(for: analysisId)
+        
+        do {
+            let data = try JSONEncoder().encode(messages)
+            userDefaults.set(data, forKey: key)
+        } catch {
+            print("Error saving chat messages: \(error)")
+        }
+    }
+    
+    func addMessage(_ message: StoredChatMessage, for analysisId: String) {
+        var messages = loadMessages(for: analysisId)
+        messages.append(message)
+        saveMessages(messages, for: analysisId)
+    }
+    
+    func clearMessages(for analysisId: String) {
+        let key = storageKey(for: analysisId)
+        userDefaults.removeObject(forKey: key)
+    }
+}
+
+// MARK: - Markdown Text View
+struct MarkdownTextView: View {
+    let text: String
+    let textColor: Color
+    let fontSize: CGFloat
+    
+    init(_ text: String, textColor: Color = .primary, fontSize: CGFloat = 15) {
+        self.text = text
+        self.textColor = textColor
+        self.fontSize = fontSize
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(Array(parseMarkdown().enumerated()), id: \.offset) { _, element in
+                element
+            }
+        }
+    }
+    
+    private func parseMarkdown() -> [AnyView] {
+        var views: [AnyView] = []
+        let lines = text.components(separatedBy: "\n")
+        var currentParagraph = ""
+        
+        for line in lines {
+            let trimmedLine = line.trimmingCharacters(in: .whitespaces)
+            
+            // Check for numbered list
+            if let match = trimmedLine.range(of: #"^\d+\.\s+"#, options: .regularExpression) {
+                if !currentParagraph.isEmpty {
+                    views.append(AnyView(createFormattedText(currentParagraph)))
+                    currentParagraph = ""
+                }
+                
+                let content = String(trimmedLine[match.upperBound...])
+                views.append(AnyView(
+                    HStack(alignment: .top, spacing: 8) {
+                        Text(String(trimmedLine[..<match.upperBound]))
+                            .font(.custom("ProductSans-Bold", size: fontSize))
+                            .foregroundColor(textColor)
+                            .frame(width: 24, alignment: .trailing)
+                        createFormattedText(content)
+                    }
+                ))
+            }
+            // Check for bullet point
+            else if trimmedLine.hasPrefix("- ") || trimmedLine.hasPrefix("• ") || trimmedLine.hasPrefix("* ") {
+                if !currentParagraph.isEmpty {
+                    views.append(AnyView(createFormattedText(currentParagraph)))
+                    currentParagraph = ""
+                }
+                
+                let content = String(trimmedLine.dropFirst(2))
+                views.append(AnyView(
+                    HStack(alignment: .top, spacing: 8) {
+                        Text("•")
+                            .font(.custom("ProductSans-Bold", size: fontSize))
+                            .foregroundColor(textColor)
+                            .frame(width: 16, alignment: .center)
+                        createFormattedText(content)
+                    }
+                ))
+            }
+            // Check for headers
+            else if trimmedLine.hasPrefix("### ") {
+                if !currentParagraph.isEmpty {
+                    views.append(AnyView(createFormattedText(currentParagraph)))
+                    currentParagraph = ""
+                }
+                let content = String(trimmedLine.dropFirst(4))
+                views.append(AnyView(
+                    Text(content)
+                        .font(.custom("ProductSans-Bold", size: fontSize + 2))
+                        .foregroundColor(textColor)
+                        .padding(.top, 4)
+                ))
+            }
+            else if trimmedLine.hasPrefix("## ") {
+                if !currentParagraph.isEmpty {
+                    views.append(AnyView(createFormattedText(currentParagraph)))
+                    currentParagraph = ""
+                }
+                let content = String(trimmedLine.dropFirst(3))
+                views.append(AnyView(
+                    Text(content)
+                        .font(.custom("ProductSans-Bold", size: fontSize + 4))
+                        .foregroundColor(textColor)
+                        .padding(.top, 6)
+                ))
+            }
+            else if trimmedLine.hasPrefix("# ") {
+                if !currentParagraph.isEmpty {
+                    views.append(AnyView(createFormattedText(currentParagraph)))
+                    currentParagraph = ""
+                }
+                let content = String(trimmedLine.dropFirst(2))
+                views.append(AnyView(
+                    Text(content)
+                        .font(.custom("ProductSans-Bold", size: fontSize + 6))
+                        .foregroundColor(textColor)
+                        .padding(.top, 8)
+                ))
+            }
+            // Empty line
+            else if trimmedLine.isEmpty {
+                if !currentParagraph.isEmpty {
+                    views.append(AnyView(createFormattedText(currentParagraph)))
+                    currentParagraph = ""
+                }
+            }
+            // Regular text
+            else {
+                if !currentParagraph.isEmpty {
+                    currentParagraph += " "
+                }
+                currentParagraph += trimmedLine
+            }
+        }
+        
+        if !currentParagraph.isEmpty {
+            views.append(AnyView(createFormattedText(currentParagraph)))
+        }
+        
+        return views
+    }
+    
+    private func createFormattedText(_ text: String) -> some View {
+        var attributedString = AttributedString(text)
+        attributedString = processBold(attributedString)
+        attributedString = processItalic(attributedString)
+        attributedString = processInlineCode(attributedString)
+        
+        return Text(attributedString)
+            .font(.custom("ProductSans-Regular", size: fontSize))
+            .foregroundColor(textColor)
+            .lineSpacing(4)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+    
+    private func processBold(_ input: AttributedString) -> AttributedString {
+        var result = input
+        let string = String(result.characters)
+        let pattern = #"\*\*(.+?)\*\*"#
+        
+        if let regex = try? NSRegularExpression(pattern: pattern, options: []) {
+            let matches = regex.matches(in: string, options: [], range: NSRange(string.startIndex..., in: string))
+            
+            for match in matches.reversed() {
+                guard let fullRange = Range(match.range, in: string),
+                      let contentRange = Range(match.range(at: 1), in: string) else { continue }
+                
+                let content = String(string[contentRange])
+                var replacement = AttributedString(content)
+                replacement.font = .custom("ProductSans-Bold", size: fontSize)
+                
+                if let attrRange = result.range(of: String(string[fullRange])) {
+                    result.replaceSubrange(attrRange, with: replacement)
+                }
+            }
+        }
+        
+        return result
+    }
+    
+    private func processItalic(_ input: AttributedString) -> AttributedString {
+        var result = input
+        let string = String(result.characters)
+        let pattern = #"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)"#
+        
+        if let regex = try? NSRegularExpression(pattern: pattern, options: []) {
+            let matches = regex.matches(in: string, options: [], range: NSRange(string.startIndex..., in: string))
+            
+            for match in matches.reversed() {
+                guard let fullRange = Range(match.range, in: string),
+                      let contentRange = Range(match.range(at: 1), in: string) else { continue }
+                
+                let content = String(string[contentRange])
+                var replacement = AttributedString(content)
+                replacement.font = .custom("ProductSans-Regular", size: fontSize).italic()
+                
+                if let attrRange = result.range(of: String(string[fullRange])) {
+                    result.replaceSubrange(attrRange, with: replacement)
+                }
+            }
+        }
+        
+        return result
+    }
+    
+    private func processInlineCode(_ input: AttributedString) -> AttributedString {
+        var result = input
+        let string = String(result.characters)
+        let pattern = #"`(.+?)`"#
+        
+        if let regex = try? NSRegularExpression(pattern: pattern, options: []) {
+            let matches = regex.matches(in: string, options: [], range: NSRange(string.startIndex..., in: string))
+            
+            for match in matches.reversed() {
+                guard let fullRange = Range(match.range, in: string),
+                      let contentRange = Range(match.range(at: 1), in: string) else { continue }
+                
+                let content = String(string[contentRange])
+                var replacement = AttributedString(content)
+                replacement.font = .system(size: fontSize - 1, design: .monospaced)
+                replacement.backgroundColor = Color.gray.opacity(0.2)
+                
+                if let attrRange = result.range(of: String(string[fullRange])) {
+                    result.replaceSubrange(attrRange, with: replacement)
+                }
+            }
+        }
+        
+        return result
+    }
+}
 
 // MARK: - Circular Progress Component
 struct CircularProgressView: View {
@@ -597,10 +883,47 @@ struct AnalysisResultsView: View {
     
     @State private var showBiomarkerInfo: Bool = false
     @State private var selectedBiomarker: BloodTestResult? = nil
+    @State private var showChatModal: Bool = false
     
     private var selectedBiomarkerInsight: BiomarkerInsight? {
         guard let biomarker = selectedBiomarker else { return nil }
         return analysisData.biomarkerInsights?[biomarker.marker]
+    }
+    
+    /// Generate analysis context string for the chat
+    private var analysisContextString: String {
+        var context = "Patient Blood Test Results:\n"
+        
+        if let patientInfo = analysisData.patientInfo {
+            if let name = patientInfo.name {
+                context += "Patient: \(name)\n"
+            }
+            if let age = patientInfo.age {
+                context += "Age: \(age)\n"
+            }
+            if let sex = patientInfo.sex {
+                context += "Sex: \(sex)\n"
+            }
+        }
+        
+        context += "\nTest Date: \(analysisData.formattedCreatedAt)\n"
+        context += "Total Biomarkers: \(analysisData.testResults.count)\n"
+        context += "Normal: \(analysisData.normalCount), Abnormal: \(analysisData.abnormalCount)\n\n"
+        
+        context += "Biomarker Results:\n"
+        for result in analysisData.testResults {
+            context += "- \(result.marker): \(result.value) \(result.unit ?? "") (Status: \(result.status ?? "unknown"))"
+            if let refRange = result.referenceRange {
+                context += " [Reference: \(refRange)]"
+            }
+            context += "\n"
+        }
+        
+        if let overview = analysisData.testOverview {
+            context += "\nTest Overview: \(overview)\n"
+        }
+        
+        return context
     }
     
     var body: some View {
@@ -613,7 +936,7 @@ struct AnalysisResultsView: View {
             AppColors.background(themeManager.colorScheme)
                 .ignoresSafeArea()
             
-            ScrollView {
+            ScrollView(.vertical, showsIndicators: true) {
                 VStack(alignment: .leading, spacing: 24) {
                     // Header
                     VStack(alignment: .leading, spacing: 4) {
@@ -802,193 +1125,160 @@ struct AnalysisResultsView: View {
                     dismiss()
                 }
             }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: {
+                    showChatModal = true
+                }) {
+                    Image(systemName: "bubble.left.and.bubble.right")
+                        .font(.system(size: 18))
+                        .foregroundColor(AppColors.primary)
+                }
+            }
         }
-        .fullScreenCover(isPresented: $showBiomarkerInfo) {
-            // Biomarker Info Modal (Bottom Sheet) - presented as fullScreenCover to cover tab bar
+        .sheet(isPresented: $showBiomarkerInfo) {
+            // Native iOS Biomarker Info Modal
             if let biomarker = selectedBiomarker {
-                BiomarkerInfoModalFullScreen(
-                    isPresented: $showBiomarkerInfo,
+                BiomarkerInfoSheet(
                     biomarkerName: biomarker.marker,
                     insight: selectedBiomarkerInsight
                 )
                 .environmentObject(themeManager)
-                .presentationBackground(.clear)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
             }
         }
-        .transaction { transaction in
-            transaction.disablesAnimations = true
+        .sheet(isPresented: $showChatModal) {
+            AnalysisChatModal(
+                analysisId: analysisData.id ?? "unknown",
+                analysisContext: analysisContextString
+            )
+                .environmentObject(themeManager)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
     }
 }
 
-// MARK: - Biomarker Info Modal Full Screen Wrapper
-struct BiomarkerInfoModalFullScreen: View {
+// MARK: - Native Biomarker Info Sheet
+struct BiomarkerInfoSheet: View {
     @EnvironmentObject var themeManager: ThemeManager
-    @Binding var isPresented: Bool
+    @Environment(\.dismiss) private var dismiss
     let biomarkerName: String
     let insight: BiomarkerInsight?
     
-    @State private var sheetOffset: CGFloat = UIScreen.main.bounds.height
-    
     var body: some View {
-        ZStack(alignment: .bottom) {
-            // Background overlay
-            Color.black.opacity(sheetOffset == 0 ? 0.5 : 0)
-                .ignoresSafeArea(.all)
-                .onTapGesture {
-                    dismissSheet()
-                }
-            
-            // Bottom sheet content
-            VStack(spacing: 0) {
-                // Drag indicator
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(Color.gray.opacity(0.4))
-                    .frame(width: 40, height: 5)
-                    .padding(.top, 12)
-                    .padding(.bottom, 16)
-                
-                // Header
-                HStack {
-                    Text(biomarkerName)
-                        .font(.custom("ProductSans-Bold", size: 22))
-                        .foregroundColor(AppColors.text(themeManager.colorScheme))
-                    
-                    Spacer()
-                    
-                    Button(action: {
-                        dismissSheet()
-                    }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 28))
-                            .foregroundColor(Color.gray.opacity(0.5))
-                    }
-                }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 20)
-                
-                // Scrollable content
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        // General section
-                        VStack(alignment: .leading, spacing: 10) {
-                            HStack(spacing: 8) {
-                                Image(systemName: "info.circle.fill")
-                                    .font(.system(size: 18))
-                                    .foregroundColor(AppColors.primary)
-                                
-                                Text("General Information")
-                                    .font(.custom("ProductSans-Bold", size: 17))
-                                    .foregroundColor(AppColors.primary)
-                            }
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    // General section
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "info.circle.fill")
+                                .font(.system(size: 18))
+                                .foregroundColor(AppColors.primary)
                             
-                            Text(insight?.general ?? "No general information available for this biomarker.")
-                                .font(.custom("ProductSans-Regular", size: 15))
-                                .foregroundColor(AppColors.text(themeManager.colorScheme))
-                                .lineSpacing(5)
-                                .fixedSize(horizontal: false, vertical: true)
+                            Text("General Information")
+                                .font(.custom("ProductSans-Bold", size: 17))
+                                .foregroundColor(AppColors.primary)
                         }
                         
+                        Text(insight?.general ?? "No general information available for this biomarker.")
+                            .font(.custom("ProductSans-Regular", size: 15))
+                            .foregroundColor(AppColors.text(themeManager.colorScheme))
+                            .lineSpacing(5)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    
+                    Divider()
+                        .background(AppColors.border(themeManager.colorScheme))
+                        .padding(.vertical, 4)
+                    
+                    // Specific section
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "person.fill")
+                                .font(.system(size: 18))
+                                .foregroundColor(Color(hex: "#10b981"))
+                            
+                            Text("Your Result")
+                                .font(.custom("ProductSans-Bold", size: 17))
+                                .foregroundColor(Color(hex: "#10b981"))
+                        }
+                        
+                        Text(insight?.specific ?? "No specific insights available for your result.")
+                            .font(.custom("ProductSans-Regular", size: 15))
+                            .foregroundColor(AppColors.text(themeManager.colorScheme))
+                            .lineSpacing(5)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    
+                    // Recommendations section (only show if available)
+                    if let recommendations = insight?.recommendations, !recommendations.isEmpty {
                         Divider()
                             .background(AppColors.border(themeManager.colorScheme))
                             .padding(.vertical, 4)
                         
-                        // Specific section
                         VStack(alignment: .leading, spacing: 10) {
                             HStack(spacing: 8) {
-                                Image(systemName: "person.fill")
+                                Image(systemName: "lightbulb.fill")
                                     .font(.system(size: 18))
-                                    .foregroundColor(Color(hex: "#10b981"))
+                                    .foregroundColor(Color(hex: "#f59e0b"))
                                 
-                                Text("Your Result")
+                                Text("Our Recommendations")
                                     .font(.custom("ProductSans-Bold", size: 17))
-                                    .foregroundColor(Color(hex: "#10b981"))
+                                    .foregroundColor(Color(hex: "#f59e0b"))
                             }
                             
-                            Text(insight?.specific ?? "No specific insights available for your result.")
+                            Text(recommendations)
                                 .font(.custom("ProductSans-Regular", size: 15))
                                 .foregroundColor(AppColors.text(themeManager.colorScheme))
                                 .lineSpacing(5)
                                 .fixedSize(horizontal: false, vertical: true)
-                        }
-                        
-                        // Recommendations section (only show if available)
-                        if let recommendations = insight?.recommendations, !recommendations.isEmpty {
-                            Divider()
-                                .background(AppColors.border(themeManager.colorScheme))
-                                .padding(.vertical, 4)
                             
-                            VStack(alignment: .leading, spacing: 10) {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "lightbulb.fill")
-                                        .font(.system(size: 18))
-                                        .foregroundColor(Color(hex: "#f59e0b"))
-                                    
-                                    Text("Our Recommendations")
-                                        .font(.custom("ProductSans-Bold", size: 17))
-                                        .foregroundColor(Color(hex: "#f59e0b"))
-                                }
-                                
-                                Text(recommendations)
-                                    .font(.custom("ProductSans-Regular", size: 15))
-                                    .foregroundColor(AppColors.text(themeManager.colorScheme))
-                                    .lineSpacing(5)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                
-                                // Source links
-                                if let sources = insight?.recommendationSources, !sources.isEmpty {
-                                    HStack(spacing: 12) {
-                                        ForEach(sources.prefix(4), id: \.url) { source in
-                                            Button(action: {
-                                                if let url = URL(string: source.url) {
-                                                    UIApplication.shared.open(url)
-                                                }
-                                            }) {
-                                                HStack(spacing: 4) {
-                                                    Image(systemName: "link")
-                                                        .font(.system(size: 12))
-                                                    Text(source.domain)
-                                                        .font(.custom("ProductSans-Regular", size: 11))
-                                                        .lineLimit(1)
-                                                }
-                                                .foregroundColor(AppColors.primary)
-                                                .padding(.horizontal, 8)
-                                                .padding(.vertical, 4)
-                                                .background(AppColors.primary.opacity(0.1))
-                                                .cornerRadius(12)
+                            // Source links
+                            if let sources = insight?.recommendationSources, !sources.isEmpty {
+                                HStack(spacing: 12) {
+                                    ForEach(sources.prefix(4), id: \.url) { source in
+                                        Button(action: {
+                                            if let url = URL(string: source.url) {
+                                                UIApplication.shared.open(url)
                                             }
+                                        }) {
+                                            HStack(spacing: 4) {
+                                                Image(systemName: "link")
+                                                    .font(.system(size: 12))
+                                                Text(source.domain)
+                                                    .font(.custom("ProductSans-Regular", size: 11))
+                                                    .lineLimit(1)
+                                            }
+                                            .foregroundColor(AppColors.primary)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 4)
+                                            .background(AppColors.primary.opacity(0.1))
+                                            .cornerRadius(12)
                                         }
                                     }
-                                    .padding(.top, 8)
                                 }
+                                .padding(.top, 8)
                             }
                         }
                     }
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 60)
+                }
+                .padding(.horizontal, 24)
+                .padding(.vertical, 20)
+            }
+            .background(AppColors.background(themeManager.colorScheme))
+            .navigationTitle(biomarkerName)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .font(.custom("ProductSans-Bold", size: 16))
+                    .foregroundColor(AppColors.primary)
                 }
             }
-            .frame(height: UIScreen.main.bounds.height * 0.75)
-            .frame(maxWidth: .infinity)
-            .background(AppColors.modalBackground(themeManager.colorScheme))
-            .cornerRadius(24, corners: [.topLeft, .topRight])
-            .offset(y: sheetOffset)
-        }
-        .ignoresSafeArea(.all)
-        .background(Color.clear)
-        .onAppear {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                sheetOffset = 0
-            }
-        }
-    }
-    
-    private func dismissSheet() {
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-            sheetOffset = UIScreen.main.bounds.height
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-            isPresented = false
         }
     }
 }
@@ -1010,6 +1300,266 @@ struct InfoRowView: View {
             Text(value)
                 .font(.custom("ProductSans-Bold", size: 14))
                 .foregroundColor(AppColors.text(themeManager.colorScheme))
+        }
+    }
+}
+
+// MARK: - Analysis Chat Modal
+struct AnalysisChatModal: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    @Environment(\.dismiss) private var dismiss
+    
+    let analysisId: String
+    let analysisContext: String
+    
+    @State private var messageText: String = ""
+    @State private var messages: [StoredChatMessage] = []
+    @State private var isTyping: Bool = false
+    @State private var userId: String? = nil
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 0) {
+                // Messages
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(spacing: 12) {
+                            if messages.isEmpty {
+                                VStack(spacing: 16) {
+                                    Image(systemName: "bubble.left.and.bubble.right")
+                                        .font(.system(size: 48))
+                                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                                    
+                                    Text("Ask about your results")
+                                        .font(.custom("ProductSans-Bold", size: 18))
+                                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+                                    
+                                    Text("Ask any questions about your blood test results and get personalized insights.")
+                                        .font(.custom("ProductSans-Regular", size: 14))
+                                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                                        .multilineTextAlignment(.center)
+                                        .padding(.horizontal, 32)
+                                }
+                                .padding(.top, 60)
+                            } else {
+                                ForEach(messages) { message in
+                                    FormattedMessageBubble(message: message)
+                                        .environmentObject(themeManager)
+                                        .id(message.id)
+                                }
+                                
+                                if isTyping {
+                                    HStack {
+                                        TypingIndicatorView()
+                                            .padding(12)
+                                            .background(AppColors.surface(themeManager.colorScheme))
+                                            .cornerRadius(16)
+                                        Spacer()
+                                    }
+                                    .padding(.leading, 8)
+                                    .id("typing")
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 12)
+                        .padding(.bottom, 16)
+                        .onChange(of: messages.count) { _ in
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                withAnimation {
+                                    if let lastMessage = messages.last {
+                                        proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                                    }
+                                }
+                            }
+                        }
+                        .onChange(of: isTyping) { typing in
+                            if typing {
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                    withAnimation {
+                                        proxy.scrollTo("typing", anchor: .bottom)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .onTapGesture {
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                    }
+                }
+                
+                // Input bar
+                HStack(spacing: 12) {
+                    TextField("Ask about your results...", text: $messageText)
+                        .textFieldStyle(PlainTextFieldStyle())
+                        .padding(.horizontal, 16)
+                        .frame(height: 48)
+                        .background(AppColors.surface(themeManager.colorScheme))
+                        .clipShape(Capsule())
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+                    
+                    Button(action: sendMessage) {
+                        if isTyping {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .frame(width: 48, height: 48)
+                                .background(AppColors.primary)
+                                .clipShape(Circle())
+                        } else {
+                            Image(systemName: "arrow.up")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(width: 48, height: 48)
+                                .background(messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.gray : AppColors.primary)
+                                .clipShape(Circle())
+                        }
+                    }
+                    .disabled(messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isTyping)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(AppColors.background(themeManager.colorScheme))
+            }
+            .background(AppColors.background(themeManager.colorScheme))
+            .navigationTitle("Ask About Results")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .font(.custom("ProductSans-Bold", size: 16))
+                    .foregroundColor(AppColors.primary)
+                }
+            }
+        }
+        .onAppear {
+            Task {
+                await initializeChat()
+            }
+        }
+    }
+    
+    private func initializeChat() async {
+        do {
+            let uid = try await AuthService.shared.getCurrentUserId()
+            await MainActor.run {
+                userId = uid
+                // Load saved messages for this analysis
+                messages = AnalysisChatStorage.shared.loadMessages(for: analysisId)
+            }
+        } catch {
+            print("Error getting user ID: \(error)")
+        }
+    }
+    
+    private func sendMessage() {
+        guard let uid = userId else { return }
+        let userMessage = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !userMessage.isEmpty else { return }
+        
+        // Create and save user message
+        let userChatMessage = StoredChatMessage(role: "user", content: userMessage)
+        messages.append(userChatMessage)
+        AnalysisChatStorage.shared.addMessage(userChatMessage, for: analysisId)
+        
+        messageText = ""
+        isTyping = true
+        
+        // Haptic feedback
+        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+        impactFeedback.impactOccurred()
+        
+        Task {
+            do {
+                let response = try await ChatService.shared.sendChatMessageWithContext(
+                    userId: uid,
+                    message: userMessage,
+                    analysisContext: analysisContext
+                )
+                
+                await MainActor.run {
+                    // Create and save assistant message
+                    let assistantMessage = StoredChatMessage(role: "assistant", content: response)
+                    messages.append(assistantMessage)
+                    AnalysisChatStorage.shared.addMessage(assistantMessage, for: analysisId)
+                    isTyping = false
+                }
+            } catch {
+                print("Error sending message: \(error)")
+                await MainActor.run {
+                    let errorMessage = StoredChatMessage(role: "assistant", content: "Sorry, I couldn't process your question. Please try again.")
+                    messages.append(errorMessage)
+                    AnalysisChatStorage.shared.addMessage(errorMessage, for: analysisId)
+                    isTyping = false
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Formatted Message Bubble
+struct FormattedMessageBubble: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    let message: StoredChatMessage
+    
+    var body: some View {
+        HStack {
+            if message.role == "user" {
+                Spacer(minLength: 60)
+                
+                Text(message.content)
+                    .font(.custom("ProductSans-Regular", size: 15))
+                    .foregroundColor(.white)
+                    .padding(12)
+                    .background(AppColors.primary)
+                    .cornerRadius(16)
+                    .padding(.trailing, 8)
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    MarkdownTextView(
+                        message.content,
+                        textColor: AppColors.text(themeManager.colorScheme),
+                        fontSize: 15
+                    )
+                }
+                .padding(12)
+                .background(AppColors.surface(themeManager.colorScheme))
+                .cornerRadius(16)
+                .padding(.leading, 8)
+                
+                Spacer(minLength: 60)
+            }
+        }
+    }
+}
+
+// MARK: - Typing Indicator View
+struct TypingIndicatorView: View {
+    @State private var animationPhase: Int = 0
+    
+    let timer = Timer.publish(every: 0.3, on: .main, in: .common).autoconnect()
+    
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .frame(width: 8, height: 8)
+                .foregroundColor(Color.gray)
+                .opacity(animationPhase == 0 ? 1.0 : 0.4)
+            
+            Circle()
+                .frame(width: 8, height: 8)
+                .foregroundColor(Color.gray)
+                .opacity(animationPhase == 1 ? 1.0 : 0.4)
+            
+            Circle()
+                .frame(width: 8, height: 8)
+                .foregroundColor(Color.gray)
+                .opacity(animationPhase == 2 ? 1.0 : 0.4)
+        }
+        .animation(.easeInOut(duration: 0.3), value: animationPhase)
+        .onReceive(timer) { _ in
+            animationPhase = (animationPhase + 1) % 3
         }
     }
 }
