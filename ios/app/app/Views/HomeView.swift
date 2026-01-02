@@ -313,15 +313,271 @@ struct HomeTabView: View {
     }
 }
 
+//// MARK: - History Tab View
+//struct HistoryTabView: View {
+//    @EnvironmentObject var themeManager: ThemeManager
+//    @State private var analyses: [Analysis] = []
+//    @State private var isLoading: Bool = true
+//    @State private var errorMessage: String? = nil
+//    @StateObject private var userData = UserDataViewModel.shared
+//    @State private var selectedAnalysis: Analysis? = nil
+//    @State private var showDetail: Bool = false
+//
+//    var body: some View {
+//        NavigationView {
+//            ZStack {
+//                AppColors.background(themeManager.colorScheme)
+//                    .ignoresSafeArea()
+//
+//                if userData.isLoadingAnalyses {
+//                    ProgressView()
+//                        .progressViewStyle(CircularProgressViewStyle(tint: AppColors.primary))
+//                } else if let error = userData.analysesError {
+//                    VStack(spacing: 12) {
+//                        Image(systemName: "exclamationmark.triangle.fill")
+//                            .font(.system(size: 36))
+//                            .foregroundColor(.yellow)
+//                        Text("Failed to load analyses")
+//                            .font(.custom("ProductSans-Bold", size: 18))
+//                            .foregroundColor(AppColors.text(themeManager.colorScheme))
+//                        Text(error)
+//                            .font(.custom("ProductSans-Regular", size: 14))
+//                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+//                            .multilineTextAlignment(.center)
+//                    }
+//                    .padding(24)
+//                } else if userData.analyses.isEmpty {
+//                    VStack(spacing: 12) {
+//                        Image(systemName: "tray")
+//                            .font(.system(size: 44))
+//                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+//                        Text("No analyses yet")
+//                            .font(.custom("ProductSans-Bold", size: 20))
+//                            .foregroundColor(AppColors.text(themeManager.colorScheme))
+//                        Text("Upload a lab report to see your history")
+//                            .font(.custom("ProductSans-Regular", size: 14))
+//                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+//                            .multilineTextAlignment(.center)
+//                    }
+//                    .padding(24)
+//                } else {
+//                    ScrollView {
+//                        LazyVGrid(columns: [
+//                            GridItem(.flexible(), spacing: 12),
+//                            GridItem(.flexible(), spacing: 12)
+//                        ], spacing: 12) {
+//                            ForEach(userData.analyses, id: \.id) { analysis in
+//                                Button(action: {
+//                                    selectedAnalysis = analysis
+//                                    showDetail = true
+//                                }) {
+//                                    GeometryReader { geometry in
+//                                        VStack(alignment: .leading, spacing: 0) {
+//                                            // Top section with icon
+//                                            HStack {
+//                                                Spacer()
+//                                                Image(systemName: "arrow.up.forward.app")
+//                                                    .font(.system(size: 18))
+//                                                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+//                                            }
+//                                            .padding(12)
+//                                            
+//                                            Spacer()
+//                                            
+//                                            // Bottom section with info
+//                                            VStack(alignment: .leading, spacing: 6) {
+//                                                Text(listTitle(for: analysis))
+//                                                    .font(.custom("ProductSans-Bold", size: 16))
+//                                                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+//                                                    .lineLimit(2)
+//
+//                                                Text(listSubtitle(for: analysis))
+//                                                    .font(.custom("ProductSans-Regular", size: 13))
+//                                                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+//                                                    .lineLimit(1)
+//                                                
+//                                                Text(formattedDate(analysis.created_at))
+//                                                    .font(.custom("ProductSans-Regular", size: 11))
+//                                                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+//                                                    .lineLimit(1)
+//                                            }
+//                                            .padding(12)
+//                                        }
+//                                        .frame(width: geometry.size.width, height: geometry.size.width)
+//                                        .background(AppColors.surface(themeManager.colorScheme))
+//                                        .cornerRadius(16)
+//                                        .shadow(color: Color.black.opacity(themeManager.colorScheme == .light ? 0.05 : 0.0), radius: 2, x: 0, y: 1)
+//                                    }
+//                                    .aspectRatio(1, contentMode: .fit)
+//                                }
+//                                .buttonStyle(PlainButtonStyle())
+//                            }
+//                        }
+//                        .padding(.horizontal, 16)
+//                        .padding(.vertical, 20)
+//                    }
+//                    .refreshable {
+//                        await userData.refreshAnalyses()
+//                    }
+//                }
+//            }
+//            .navigationBarTitle("History", displayMode: .inline)
+//        }
+//    }
+//
+//    // MARK: - Helpers
+//    private func formattedDate(_ iso: String) -> String {
+//        let formatter = ISO8601DateFormatter()
+//        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+//        
+//        if let date = formatter.date(from: iso) {
+//            let dateFormatter = DateFormatter()
+//            dateFormatter.dateFormat = "yyyy-MM-dd"
+//            let dateString = dateFormatter.string(from: date)
+//            
+//            let timeFormatter = DateFormatter()
+//            timeFormatter.dateFormat = "HH:mm"
+//            let timeString = timeFormatter.string(from: date)
+//            
+//            return "\(dateString) at \(timeString)"
+//        }
+//        
+//        // Try without fractional seconds
+//        formatter.formatOptions = [.withInternetDateTime]
+//        if let date = formatter.date(from: iso) {
+//            let dateFormatter = DateFormatter()
+//            dateFormatter.dateFormat = "yyyy-MM-dd"
+//            let dateString = dateFormatter.string(from: date)
+//            
+//            let timeFormatter = DateFormatter()
+//            timeFormatter.dateFormat = "HH:mm"
+//            let timeString = timeFormatter.string(from: date)
+//            
+//            return "\(dateString) at \(timeString)"
+//        }
+//        
+//        return iso
+//    }
+//
+//    private func listTitle(for analysis: Analysis) -> String {
+//        if let parsed = analysis.getParsedData(), let name = parsed.patientInfo?.name, !name.isEmpty {
+//            return name
+//        }
+//        // fallback to ID short
+//        return "Analysis \(analysis.id.prefix(8))"
+//    }
+//
+//    private func listSubtitle(for analysis: Analysis) -> String {
+//        if let parsed = analysis.getParsedData() {
+//            let count = parsed.testResults.count
+//            return "\(count) markers · Report"
+//        }
+//        return "Lab report"
+//    }
+//}
+//
+//// MARK: - Analysis Detail View
+//struct AnalysisDetailView: View {
+//    @EnvironmentObject var themeManager: ThemeManager
+//    let analysis: Analysis
+//
+//    var body: some View {
+//        NavigationView {
+//            ScrollView {
+//                VStack(alignment: .leading, spacing: 16) {
+//                    HStack {
+//                        Text("Report")
+//                            .font(.custom("ProductSans-Bold", size: 20))
+//                            .foregroundColor(AppColors.text(themeManager.colorScheme))
+//                        Spacer()
+//                        Text(formattedDate(analysis.created_at))
+//                            .font(.custom("ProductSans-Regular", size: 13))
+//                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+//                    }
+//
+//                    if let parsed = analysis.getParsedData() {
+//                        if let patient = parsed.patientInfo {
+//                            VStack(alignment: .leading, spacing: 6) {
+//                                Text("Patient")
+//                                    .font(.custom("ProductSans-Bold", size: 16))
+//                                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+//                                if let name = patient.name { Text(name).foregroundColor(AppColors.textSecondary(themeManager.colorScheme)) }
+//                                if let age = patient.age { Text("Age: \(age)").foregroundColor(AppColors.textSecondary(themeManager.colorScheme)) }
+//                                if let sex = patient.sex { Text("Sex: \(sex)").foregroundColor(AppColors.textSecondary(themeManager.colorScheme)) }
+//                            }
+//                            .padding()
+//                            .background(AppColors.surface(themeManager.colorScheme))
+//                            .cornerRadius(12)
+//                        }
+//
+//                        VStack(alignment: .leading, spacing: 12) {
+//                            Text("Results")
+//                                .font(.custom("ProductSans-Bold", size: 18))
+//                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+//
+//                            ForEach(parsed.testResults, id: \ .marker) { result in
+//                                HStack {
+//                                    VStack(alignment: .leading, spacing: 4) {
+//                                        Text(result.marker)
+//                                            .font(.custom("ProductSans-Bold", size: 14))
+//                                            .foregroundColor(AppColors.text(themeManager.colorScheme))
+//                                        Text(result.referenceRange ?? "N/A")
+//                                            .font(.custom("ProductSans-Regular", size: 12))
+//                                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+//                                    }
+//
+//                                    Spacer()
+//
+//                                    VStack(alignment: .trailing) {
+//                                        Text(result.value + " " + (result.unit ?? ""))
+//                                            .font(.custom("ProductSans-Bold", size: 14))
+//                                            .foregroundColor(AppColors.primary)
+//                                        Text(result.status ?? "N/A")
+//                                            .font(.custom("ProductSans-Regular", size: 12))
+//                                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+//                                    }
+//                                }
+//                                .padding(12)
+//                                .background(AppColors.surface(themeManager.colorScheme))
+//                                .cornerRadius(10)
+//                            }
+//                        }
+//                    } else {
+//                        Text("Unable to parse report details")
+//                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+//                    }
+//                }
+//                .padding(16)
+//            }
+//            .navigationBarTitleDisplayMode(.inline)
+//            .toolbar {
+//                ToolbarItem(placement: .navigationBarTrailing) {
+//                    Button("Done") { }
+//                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+//                }
+//            }
+//            .background(AppColors.background(themeManager.colorScheme).ignoresSafeArea())
+//        }
+//    }
+//
+//    private func formattedDate(_ iso: String) -> String {
+//        let formatter = ISO8601DateFormatter()
+//        if let date = formatter.date(from: iso) {
+//            let out = DateFormatter()
+//            out.dateStyle = .medium
+//            out.timeStyle = .none
+//            return out.string(from: date)
+//        }
+//        return iso
+//    }
+//}
+
 // MARK: - History Tab View
 struct HistoryTabView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @State private var analyses: [Analysis] = []
     @State private var isLoading: Bool = true
     @State private var errorMessage: String? = nil
-    @StateObject private var userData = UserDataViewModel.shared
-    @State private var selectedAnalysis: Analysis? = nil
-    @State private var showDetail: Bool = false
 
     var body: some View {
         NavigationView {
@@ -329,10 +585,10 @@ struct HistoryTabView: View {
                 AppColors.background(themeManager.colorScheme)
                     .ignoresSafeArea()
 
-                if userData.isLoadingAnalyses {
+                if isLoading {
                     ProgressView()
                         .progressViewStyle(CircularProgressViewStyle(tint: AppColors.primary))
-                } else if let error = userData.analysesError {
+                } else if let error = errorMessage {
                     VStack(spacing: 12) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.system(size: 36))
@@ -346,7 +602,7 @@ struct HistoryTabView: View {
                             .multilineTextAlignment(.center)
                     }
                     .padding(24)
-                } else if userData.analyses.isEmpty {
+                } else if analyses.isEmpty {
                     VStack(spacing: 12) {
                         Image(systemName: "tray")
                             .font(.system(size: 44))
@@ -362,62 +618,53 @@ struct HistoryTabView: View {
                     .padding(24)
                 } else {
                     ScrollView {
-                        LazyVGrid(columns: [
-                            GridItem(.flexible(), spacing: 12),
-                            GridItem(.flexible(), spacing: 12)
-                        ], spacing: 12) {
-                            ForEach(userData.analyses, id: \.id) { analysis in
-                                Button(action: {
-                                    selectedAnalysis = analysis
-                                    showDetail = true
-                                }) {
-                                    GeometryReader { geometry in
-                                        VStack(alignment: .leading, spacing: 0) {
-                                            // Top section with icon
-                                            HStack {
-                                                Spacer()
-                                                Image(systemName: "arrow.up.forward.app")
-                                                    .font(.system(size: 18))
-                                                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                                            }
-                                            .padding(12)
-                                            
-                                            Spacer()
-                                            
-                                            // Bottom section with info
-                                            VStack(alignment: .leading, spacing: 6) {
-                                                Text(listTitle(for: analysis))
-                                                    .font(.custom("ProductSans-Bold", size: 16))
-                                                    .foregroundColor(AppColors.text(themeManager.colorScheme))
-                                                    .lineLimit(2)
-
-                                                Text(listSubtitle(for: analysis))
-                                                    .font(.custom("ProductSans-Regular", size: 13))
-                                                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                                                    .lineLimit(1)
-                                                
-                                                Text(formattedDate(analysis.created_at))
-                                                    .font(.custom("ProductSans-Regular", size: 11))
-                                                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                                                    .lineLimit(1)
-                                            }
-                                            .padding(12)
-                                        }
-                                        .frame(width: geometry.size.width, height: geometry.size.width)
-                                        .background(AppColors.surface(themeManager.colorScheme))
-                                        .cornerRadius(16)
-                                        .shadow(color: Color.black.opacity(themeManager.colorScheme == .light ? 0.05 : 0.0), radius: 2, x: 0, y: 1)
+                        LazyVStack(spacing: 12) {
+                            ForEach(analyses, id: \ .id) { analysis in
+                                NavigationLink(destination: {
+                                    if let analysisData = analysis.toAnalysisData() {
+                                        AnalysisResultsView(analysisData: analysisData)
+                                            .environmentObject(themeManager)
+                                    } else {
+                                        Text("Unable to load analysis")
+                                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                                     }
-                                    .aspectRatio(1, contentMode: .fit)
+                                }) {
+                                    HStack(spacing: 12) {
+                                        VStack(alignment: .leading, spacing: 6) {
+                                            Text(listTitle(for: analysis))
+                                                .font(.custom("ProductSans-Bold", size: 16))
+                                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+
+                                            Text(listSubtitle(for: analysis))
+                                                .font(.custom("ProductSans-Regular", size: 14))
+                                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                                                .lineLimit(2)
+                                        }
+
+                                        Spacer()
+
+                                        VStack(alignment: .trailing, spacing: 6) {
+                                            Text(formattedDate(analysis.created_at))
+                                                .font(.custom("ProductSans-Regular", size: 12))
+                                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+
+                                            Image(systemName: "chevron.right")
+                                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                                        }
+                                    }
+                                    .padding(12)
+                                    .background(AppColors.surface(themeManager.colorScheme))
+                                    .cornerRadius(12)
+                                    .shadow(color: Color.black.opacity(themeManager.colorScheme == .light ? 0.03 : 0.0), radius: 1, x: 0, y: 1)
+                                    .padding(.horizontal, 16)
                                 }
                                 .buttonStyle(PlainButtonStyle())
                             }
                         }
-                        .padding(.horizontal, 16)
                         .padding(.vertical, 20)
                     }
                     .refreshable {
-                        await userData.refreshAnalyses()
+                        await loadAnalyses()
                     }
                 }
             }
@@ -429,36 +676,31 @@ struct HistoryTabView: View {
     }
 
     // MARK: - Helpers
+    private func loadAnalyses() async {
+        await MainActor.run { isLoading = true; errorMessage = nil }
+        do {
+            let uid = try await AuthService.shared.getCurrentUserId()
+            let fetched = try await HealthScoreService.shared.fetchAnalyses(userId: uid)
+            await MainActor.run {
+                self.analyses = fetched
+                self.isLoading = false
+            }
+        } catch {
+            await MainActor.run {
+                self.errorMessage = error.localizedDescription
+                self.isLoading = false
+            }
+        }
+    }
+
     private func formattedDate(_ iso: String) -> String {
         let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        
         if let date = formatter.date(from: iso) {
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "yyyy-MM-dd"
-            let dateString = dateFormatter.string(from: date)
-            
-            let timeFormatter = DateFormatter()
-            timeFormatter.dateFormat = "HH:mm"
-            let timeString = timeFormatter.string(from: date)
-            
-            return "\(dateString) at \(timeString)"
+            let out = DateFormatter()
+            out.dateStyle = .medium
+            out.timeStyle = .none
+            return out.string(from: date)
         }
-        
-        // Try without fractional seconds
-        formatter.formatOptions = [.withInternetDateTime]
-        if let date = formatter.date(from: iso) {
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "yyyy-MM-dd"
-            let dateString = dateFormatter.string(from: date)
-            
-            let timeFormatter = DateFormatter()
-            timeFormatter.dateFormat = "HH:mm"
-            let timeString = timeFormatter.string(from: date)
-            
-            return "\(dateString) at \(timeString)"
-        }
-        
         return iso
     }
 
@@ -574,6 +816,7 @@ struct AnalysisDetailView: View {
         return iso
     }
 }
+
 
 // MARK: - Chat Tab View
 struct ChatTabView: View {

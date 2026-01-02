@@ -665,7 +665,7 @@ class HealthScoreService {
         }
         
         // Build a dictionary to track the LATEST value of EACH biomarker across all tests
-        var latestBiomarkerValues: [String: (value: Double, date: Date, status: String, analysis: Analysis)] = [:]
+        var latestBiomarkerValues: [String: (value: Double, date: Date, status: String?, analysis: Analysis)] = [:]
         var previousBiomarkerValues: [String: Double] = [:]
         
         for analysis in sortedAnalyses {

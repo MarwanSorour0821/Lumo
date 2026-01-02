@@ -12,9 +12,9 @@ struct BiomarkerDataPoint: Identifiable {
     let id = UUID()
     let date: Date
     let value: Double
-    let status: String
-    let unit: String
-    let referenceRange: String
+    let status: String?
+    let unit: String?
+    let referenceRange: String?
     
     var formattedDate: String {
         let formatter = DateFormatter()
@@ -86,7 +86,7 @@ class TrendsService {
     // MARK: - Process Analyses into Trends
     func processTrends(from analyses: [Analysis]) -> [BiomarkerTrend] {
         // Dictionary to collect all data points for each biomarker
-        var biomarkerData: [String: [(date: Date, value: Double, status: String, unit: String, referenceRange: String)]] = [:]
+        var biomarkerData: [String: [(date: Date, value: Double, status: String?, unit: String?, referenceRange: String?)]] = [:]
         
         for analysis in analyses {
             guard let parsedData = analysis.getParsedData() else { continue }
@@ -134,16 +134,16 @@ class TrendsService {
             guard !points.isEmpty else { continue }
             
             // Parse reference range from the latest point
-            let latestRefRange = sortedPoints.last?.referenceRange ?? ""
-            let (refMin, refMax) = parseReferenceRange(latestRefRange)
+            let latestRefRange = sortedPoints.last?.referenceRange ?? nil
+            let (refMin, refMax) = parseReferenceRange(latestRefRange ?? "")
             
             let trend = BiomarkerTrend(
                 marker: marker,
-                unit: points.first?.unit ?? "",
+                unit: points.first?.unit ?? nil ?? "",
                 dataPoints: points,
                 referenceMin: refMin,
                 referenceMax: refMax,
-                latestStatus: points.last?.status ?? "normal"
+                latestStatus: points.last?.status ?? nil ?? "normal"
             )
             
             trends.append(trend)
