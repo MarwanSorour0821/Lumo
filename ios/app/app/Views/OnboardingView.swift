@@ -170,7 +170,7 @@ struct OnboardingView: View {
     
     var textContent: some View {
         VStack(spacing: 24) {
-            Text("Get actionable insights to improve your biomarkers.")
+            Text("Build the healthiest \nversion of you.")
                 .font(.custom("ProductSans-Regular", size: 30))
                 .foregroundColor(AppColors.text(themeManager.colorScheme))
                 .multilineTextAlignment(.center)

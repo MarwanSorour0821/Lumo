@@ -471,48 +471,72 @@ class HealthScoreService {
         print("✅ Successfully deleted analysis \(analysisId)")
     }
     
-    // MARK: - Calculate Health Score
+    // MARK: - Calculate Health Score (Enhanced with new calculator)
     func calculateHealthScore(analyses: [Analysis]) -> Double {
         guard !analyses.isEmpty else {
             print("⚠️ No analyses provided for score calculation")
             return 0.0
         }
         
-        var allScores: [Double] = []
+        // Use the new sophisticated health score calculator
+        let result = HealthScoreCalculator.shared.calculateHealthScore(analyses: analyses)
+        print("✅ New calculator health score: \(result.score) (confidence: \(String(format: "%.0f", result.confidence * 100))%)")
+        print("   Summary: \(result.summaryExplanation)")
         
-        for (index, analysis) in analyses.enumerated() {
-            print("🔵 Processing analysis \(index + 1)/\(analyses.count) - ID: \(analysis.id)")
-            // Get parsed_data info for logging
-            switch analysis.parsed_data_raw {
-            case .string(let str):
-                print("   - parsed_data is string, length: \(str.count)")
-            case .dictionary:
-                print("   - parsed_data is dictionary")
-            default:
-                print("   - parsed_data is other type")
-            }
-            
-            guard let parsedData = analysis.getParsedData() else {
-                print("⚠️ Skipping analysis \(index + 1) - failed to parse data")
-                continue
-            }
-            
-            
-            print("   - test_results count: \(parsedData.testResults.count)")
-            let score = calculateScoreForAnalysis(parsedData: parsedData)
-            print("✅ Analysis \(index + 1) score: \(score)")
-            allScores.append(score)
-        }
-        
-        guard !allScores.isEmpty else {
-            print("⚠️ No valid analyses to calculate score from")
+        return min(max(result.score, 0.0), 10.0) // Clamp between 0-10
+    }
+    
+    /// Get detailed health score with full breakdown
+    /// Use this for detailed UI display
+    func calculateDetailedHealthScore(analyses: [Analysis], userProfile: UserHealthProfile? = nil) -> HealthScoreResult {
+        let profile = userProfile ?? .default
+        return HealthScoreCalculator.shared.calculateHealthScore(analyses: analyses, userProfile: profile)
+    }
+    
+    // MARK: - Legacy Calculate Health Score (kept for reference)
+    private func calculateHealthScoreLegacy(analyses: [Analysis]) -> Double {
+        guard !analyses.isEmpty else {
+            print("⚠️ No analyses provided for score calculation")
             return 0.0
         }
         
-        // Average all scores
-        let averageScore = allScores.reduce(0, +) / Double(allScores.count)
-        print("✅ Final health score: \(averageScore)")
-        return min(max(averageScore, 0.0), 10.0) // Clamp between 0-10
+        // Sort analyses by created_at date (most recent first)
+        let sortedAnalyses = analyses.sorted { analysis1, analysis2 in
+            // Parse ISO 8601 date strings
+            let formatter = ISO8601DateFormatter()
+            let date1 = formatter.date(from: analysis1.created_at) ?? Date.distantPast
+            let date2 = formatter.date(from: analysis2.created_at) ?? Date.distantPast
+            return date1 > date2 // Most recent first
+        }
+        
+        // Get the most recent analysis
+        guard let latestAnalysis = sortedAnalyses.first else {
+            print("⚠️ No valid latest analysis found")
+            return 0.0
+        }
+        
+        print("🔵 Using latest analysis - ID: \(latestAnalysis.id), created_at: \(latestAnalysis.created_at)")
+        
+        // Get parsed_data info for logging
+        switch latestAnalysis.parsed_data_raw {
+        case .string(let str):
+            print("   - parsed_data is string, length: \(str.count)")
+        case .dictionary:
+            print("   - parsed_data is dictionary")
+        default:
+            print("   - parsed_data is other type")
+        }
+        
+        guard let parsedData = latestAnalysis.getParsedData() else {
+            print("⚠️ Failed to parse data for latest analysis")
+            return 0.0
+        }
+        
+        print("   - test_results count: \(parsedData.testResults.count)")
+        let score = calculateScoreForAnalysis(parsedData: parsedData)
+        print("✅ Latest analysis score: \(score)")
+        
+        return min(max(score, 0.0), 10.0) // Clamp between 0-10
     }
     
     // MARK: - Parse Analysis Data (public for helper)
@@ -572,24 +596,29 @@ class HealthScoreService {
         var score: Double = 0.0
         var count: Int = 0
         
-        // Key risk markers with their optimal ranges
+        // Key risk markers with their optimal ranges (using canonical IDs)
         let riskMarkers: [String: (optimalLow: Double, optimalHigh: Double, weight: Double)] = [
-            "Hemoglobin (Hb)": (13.0, 17.0, 0.15),
-            "Total RBC count": (4.5, 5.5, 0.10),
-            "Packed Cell Volume (PCV)": (40.0, 50.0, 0.10),
-            "Total WBC count": (4000.0, 11000.0, 0.10),
-            "Platelet Count": (150000.0, 410000.0, 0.10),
-            "ESR": (0.0, 15.0, 0.05),
-            "Neutrophils": (50.0, 62.0, 0.08),
-            "Lymphocytes": (20.0, 40.0, 0.08),
-            "MCH": (27.0, 32.0, 0.07),
-            "MCHC": (32.5, 34.5, 0.07),
-            "MCV": (83.0, 101.0, 0.05),
-            "RDW": (11.6, 14.0, 0.05)
+            "hemoglobin": (13.0, 17.0, 0.15),
+            "rbc": (4.5, 5.5, 0.10),
+            "hematocrit": (40.0, 50.0, 0.10),
+            "wbc": (4.0, 11.0, 0.10),  // Convert to K/µL (4000-11000 → 4-11)
+            "platelets": (150.0, 450.0, 0.10),  // Convert to K/µL (150000-450000 → 150-450)
+            "esr": (0.0, 15.0, 0.05),
+            "neutrophils": (50.0, 62.0, 0.08),
+            "lymphocytes": (20.0, 40.0, 0.08),
+            "mch": (27.0, 32.0, 0.07),
+            "mchc": (32.5, 34.5, 0.07),
+            "mcv": (83.0, 101.0, 0.05),
+            "rdw": (11.6, 14.0, 0.05)
         ]
         
+        let normalizer = BiomarkerNormalizer.shared
+        
         for result in testResults {
-            guard let markerInfo = riskMarkers[result.marker],
+            // Normalize the marker name to canonical ID
+            let canonicalId = normalizer.getCanonicalId(for: result.marker)
+            
+            guard let markerInfo = riskMarkers[canonicalId],
                   let value = parseValue(result.value, unit: result.unit) else { continue }
             
             let markerScore = calculateMarkerScore(
@@ -692,11 +721,60 @@ class HealthScoreService {
         let trend: String // "↑", "↓", "→"
         let reason: String
         let attentionScore: Double
+        
+        /// Create from new BiomarkerSubScore
+        init(from subScore: BiomarkerSubScore) {
+            self.id = subScore.biomarkerId
+            self.name = subScore.displayName
+            self.status = subScore.status.rawValue
+            self.trend = subScore.trend == .improving ? "↓" : (subScore.trend == .worsening ? "↑" : "→")
+            self.reason = subScore.explanation
+            self.attentionScore = subScore.riskWeight * (100 - subScore.subScore)
+        }
+        
+        /// Legacy initializer
+        init(id: String, name: String, status: String, trend: String, reason: String, attentionScore: Double) {
+            self.id = id
+            self.name = name
+            self.status = status
+            self.trend = trend
+            self.reason = reason
+            self.attentionScore = attentionScore
+        }
     }
     
-    // MARK: - Get Top Biomarkers Needing Attention (Based on Latest Value of Each Biomarker)
+    // MARK: - Get Top Biomarkers Needing Attention (Enhanced)
+    /// Uses the new HealthScoreCalculator for more accurate attention scoring
     func getTopBiomarkers(analyses: [Analysis], limit: Int = 4) -> [BiomarkerAttention] {
         guard analyses.count > 0 else { return [] }
+        
+        // Use new calculator for comprehensive scoring
+        let scoreResult = HealthScoreCalculator.shared.calculateHealthScore(analyses: analyses)
+        
+        // Convert top concerns to BiomarkerAttention format
+        let topConcerns = scoreResult.topConcerns.prefix(limit).map { BiomarkerAttention(from: $0) }
+        
+        // If we have enough concerns, return them
+        if topConcerns.count >= limit {
+            return Array(topConcerns)
+        }
+        
+        // Otherwise, fill with borderline markers
+        let additionalMarkers = scoreResult.biomarkerScores
+            .filter { $0.status == .borderline || $0.status == .good }
+            .filter { marker in !topConcerns.contains(where: { $0.id == marker.biomarkerId }) }
+            .sorted { $0.riskWeight * (100 - $0.subScore) > $1.riskWeight * (100 - $1.subScore) }
+            .prefix(limit - topConcerns.count)
+            .map { BiomarkerAttention(from: $0) }
+        
+        return Array(topConcerns) + Array(additionalMarkers)
+    }
+    
+    // MARK: - Get Top Biomarkers Needing Attention (Legacy - kept for reference)
+    private func getTopBiomarkersLegacy(analyses: [Analysis], limit: Int = 4) -> [BiomarkerAttention] {
+        guard analyses.count > 0 else { return [] }
+        
+        let normalizer = BiomarkerNormalizer.shared
         
         // Sort all analyses by date (newest first)
         let sortedAnalyses = analyses.sorted { analysis1, analysis2 in
@@ -705,8 +783,8 @@ class HealthScoreService {
             return date1 > date2
         }
         
-        // Build a dictionary to track the LATEST value of EACH biomarker across all tests
-        var latestBiomarkerValues: [String: (value: Double, date: Date, status: String?, analysis: Analysis)] = [:]
+        // Build a dictionary to track the LATEST value of EACH biomarker across all tests (using canonical IDs)
+        var latestBiomarkerValues: [String: (value: Double, date: Date, status: String?, analysis: Analysis, displayName: String)] = [:]
         var previousBiomarkerValues: [String: Double] = [:]
         
         for analysis in sortedAnalyses {
@@ -716,18 +794,20 @@ class HealthScoreService {
             for result in parsedData.testResults {
                 guard let value = parseValue(result.value, unit: result.unit) else { continue }
                 
-                let marker = result.marker
+                // Normalize marker name to canonical ID
+                let canonicalId = normalizer.getCanonicalId(for: result.marker)
+                let displayName = normalizer.normalize(result.marker)
                 
                 // If this is the first time seeing this marker, or this test is newer
-                if latestBiomarkerValues[marker] == nil {
-                    latestBiomarkerValues[marker] = (value: value, date: analysisDate, status: result.status, analysis: analysis)
-                } else if let existing = latestBiomarkerValues[marker], analysisDate > existing.date {
+                if latestBiomarkerValues[canonicalId] == nil {
+                    latestBiomarkerValues[canonicalId] = (value: value, date: analysisDate, status: result.status, analysis: analysis, displayName: displayName)
+                } else if let existing = latestBiomarkerValues[canonicalId], analysisDate > existing.date {
                     // Found a newer value for this marker
-                    previousBiomarkerValues[marker] = existing.value // Store old value for trend
-                    latestBiomarkerValues[marker] = (value: value, date: analysisDate, status: result.status, analysis: analysis)
-                } else if previousBiomarkerValues[marker] == nil {
+                    previousBiomarkerValues[canonicalId] = existing.value // Store old value for trend
+                    latestBiomarkerValues[canonicalId] = (value: value, date: analysisDate, status: result.status, analysis: analysis, displayName: displayName)
+                } else if previousBiomarkerValues[canonicalId] == nil {
                     // This is an older value, store it as previous for trend calculation
-                    previousBiomarkerValues[marker] = value
+                    previousBiomarkerValues[canonicalId] = value
                 }
             }
         }
@@ -744,73 +824,73 @@ class HealthScoreService {
         }
         
         let biomarkerDefs: [String: BiomarkerDef] = [
-            "Hemoglobin (Hb)": BiomarkerDef(
+            "hemoglobin": BiomarkerDef(
                 optimalLow: 13.0, optimalHigh: 17.0,
                 borderlineLow: 12.0, borderlineHigh: 18.0,
                 weight: 1.5, reason: "Oxygen-carrying capacity. Low levels can indicate anemia.",
                 trendThreshold: 0.5
             ),
-            "Total RBC count": BiomarkerDef(
+            "rbc": BiomarkerDef(
                 optimalLow: 4.5, optimalHigh: 5.5,
                 borderlineLow: 4.0, borderlineHigh: 6.0,
                 weight: 1.4, reason: "Red blood cell count. Important for overall blood health.",
                 trendThreshold: 0.3
             ),
-            "Packed Cell Volume (PCV)": BiomarkerDef(
+            "hematocrit": BiomarkerDef(
                 optimalLow: 40.0, optimalHigh: 50.0,
                 borderlineLow: 35.0, borderlineHigh: 55.0,
                 weight: 1.3, reason: "Percentage of blood that is red blood cells.",
                 trendThreshold: 2.0
             ),
-            "Total WBC count": BiomarkerDef(
-                optimalLow: 4000.0, optimalHigh: 11000.0,
-                borderlineLow: 3000.0, borderlineHigh: 12000.0,
+            "wbc": BiomarkerDef(
+                optimalLow: 4.0, optimalHigh: 11.0,
+                borderlineLow: 3.0, borderlineHigh: 12.0,
                 weight: 1.4, reason: "White blood cell count. Indicates immune system health.",
-                trendThreshold: 1000.0
+                trendThreshold: 1.0
             ),
-            "Platelet Count": BiomarkerDef(
-                optimalLow: 150000.0, optimalHigh: 410000.0,
-                borderlineLow: 100000.0, borderlineHigh: 450000.0,
+            "platelets": BiomarkerDef(
+                optimalLow: 150.0, optimalHigh: 450.0,
+                borderlineLow: 100.0, borderlineHigh: 500.0,
                 weight: 1.3, reason: "Important for blood clotting and wound healing.",
-                trendThreshold: 20000.0
+                trendThreshold: 20.0
             ),
-            "ESR": BiomarkerDef(
+            "esr": BiomarkerDef(
                 optimalLow: 0.0, optimalHigh: 15.0,
                 borderlineLow: nil, borderlineHigh: 20.0,
                 weight: 1.2, reason: "Erythrocyte sedimentation rate. High levels indicate inflammation.",
                 trendThreshold: 2.0
             ),
-            "Neutrophils": BiomarkerDef(
+            "neutrophils": BiomarkerDef(
                 optimalLow: 50.0, optimalHigh: 62.0,
                 borderlineLow: 45.0, borderlineHigh: 70.0,
                 weight: 1.1, reason: "Type of white blood cell. Key component of immune response.",
                 trendThreshold: 5.0
             ),
-            "Lymphocytes": BiomarkerDef(
+            "lymphocytes": BiomarkerDef(
                 optimalLow: 20.0, optimalHigh: 40.0,
                 borderlineLow: 15.0, borderlineHigh: 45.0,
                 weight: 1.1, reason: "Type of white blood cell. Important for immune function.",
                 trendThreshold: 5.0
             ),
-            "MCH": BiomarkerDef(
+            "mch": BiomarkerDef(
                 optimalLow: 27.0, optimalHigh: 32.0,
                 borderlineLow: 25.0, borderlineHigh: 34.0,
                 weight: 0.9, reason: "Mean corpuscular hemoglobin. Average hemoglobin per red blood cell.",
                 trendThreshold: 1.0
             ),
-            "MCHC": BiomarkerDef(
+            "mchc": BiomarkerDef(
                 optimalLow: 32.5, optimalHigh: 34.5,
                 borderlineLow: 31.0, borderlineHigh: 36.0,
                 weight: 0.9, reason: "Mean corpuscular hemoglobin concentration.",
                 trendThreshold: 1.0
             ),
-            "MCV": BiomarkerDef(
+            "mcv": BiomarkerDef(
                 optimalLow: 83.0, optimalHigh: 101.0,
                 borderlineLow: 80.0, borderlineHigh: 105.0,
                 weight: 0.8, reason: "Mean corpuscular volume. Average size of red blood cells.",
                 trendThreshold: 3.0
             ),
-            "RDW": BiomarkerDef(
+            "rdw": BiomarkerDef(
                 optimalLow: 11.6, optimalHigh: 14.0,
                 borderlineLow: nil, borderlineHigh: 15.0,
                 weight: 0.8, reason: "Red cell distribution width. Measures variation in red blood cell size.",
@@ -877,7 +957,7 @@ class HealthScoreService {
             if status != "Optimal" {
                 biomarkerScores.append(BiomarkerAttention(
                     id: marker,
-                    name: marker,
+                    name: latest.displayName,
                     status: status,
                     trend: trend,
                     reason: def.reason,

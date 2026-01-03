@@ -424,12 +424,38 @@ struct ReferenceRange {
         
         guard let minRange = Range(match.range(at: 1), in: referenceRange),
               let maxRange = Range(match.range(at: 2), in: referenceRange),
-              let min = Double(referenceRange[minRange]),
-              let max = Double(referenceRange[maxRange]) else {
+              let parsedMin = Double(referenceRange[minRange]),
+              let parsedMax = Double(referenceRange[maxRange]) else {
             return nil
         }
         
-        return ReferenceRange(min: min, max: max)
+        // Add padding to the range for better visualization
+        // For small ranges (like Basophils 0-1%), we need smart padding
+        let rangeWidth = parsedMax - parsedMin
+        let paddingPercentage = 0.3 // 30% padding for better visualization
+        let minimumPadding = 0.2 // Minimum absolute padding
+        
+        let padding = Swift.max(rangeWidth * paddingPercentage, minimumPadding)
+        
+        // Smart minimum adjustment:
+        // - If parsedMin is 0, allow negative visualization (for percentage markers)
+        // - If parsedMin is very small (< 1), use relative padding
+        // - Otherwise, don't go below 0
+        let adjustedMin: Double
+        if parsedMin == 0 {
+            // For 0-based ranges (like Basophils 0-1%), extend below 0 for visualization
+            adjustedMin = -padding
+        } else if parsedMin < 1.0 {
+            // For very small minimums, use percentage-based padding
+            adjustedMin = Swift.max(0, parsedMin - (parsedMin * 0.5))
+        } else {
+            // For normal ranges, don't go below 0
+            adjustedMin = Swift.max(0, parsedMin - padding)
+        }
+        
+        let adjustedMax = parsedMax + padding
+        
+        return ReferenceRange(min: adjustedMin, max: adjustedMax)
     }
 }
 

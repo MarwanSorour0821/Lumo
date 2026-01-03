@@ -32,12 +32,14 @@ struct BiomarkerDataPoint: Identifiable {
 // MARK: - Biomarker Trend
 struct BiomarkerTrend: Identifiable {
     let id = UUID()
-    let marker: String
+    let marker: String           // Canonical display name
+    let biomarkerId: String      // Internal ID for logic (never changes)
     let unit: String
     let dataPoints: [BiomarkerDataPoint]
     let referenceMin: Double?
     let referenceMax: Double?
     let latestStatus: String
+    let aliases: [String]?       // Other known names for tooltip
     
     var hasMultiplePoints: Bool {
         dataPoints.count > 1
@@ -60,6 +62,15 @@ struct BiomarkerTrend: Identifiable {
             return .stable
         }
         return difference > 0 ? .increasing : .decreasing
+    }
+    
+    /// Returns a user-friendly tooltip showing alternative names
+    var aliasTooltip: String? {
+        guard let aliases = aliases, !aliases.isEmpty else { return nil }
+        // Filter out the canonical name and limit to 3 aliases
+        let otherNames = aliases.filter { $0.lowercased() != marker.lowercased() }.prefix(3)
+        guard !otherNames.isEmpty else { return nil }
+        return "Also known as: \(otherNames.joined(separator: ", "))"
     }
     
     enum TrendDirection {
@@ -86,7 +97,8 @@ class TrendsService {
     // MARK: - Process Analyses into Trends
     func processTrends(from analyses: [Analysis]) -> [BiomarkerTrend] {
         // Dictionary to collect all data points for each biomarker
-        var biomarkerData: [String: [(date: Date, value: Double, status: String?, unit: String?, referenceRange: String?)]] = [:]
+        // Use normalized names as keys to group variations together
+        var biomarkerData: [String: [(date: Date, value: Double, status: String?, unit: String?, referenceRange: String?, originalName: String)]] = [:]
         
         for analysis in analyses {
             guard let parsedData = analysis.getParsedData() else { continue }
@@ -97,18 +109,21 @@ class TrendsService {
             for result in parsedData.testResults {
                 guard let value = Double(result.value) else { continue }
                 
-                let marker = result.marker
+                // Normalize the biomarker name to handle variations
+                let originalMarker = result.marker
+                let normalizedMarker = BiomarkerNormalizer.shared.normalize(originalMarker)
                 
-                if biomarkerData[marker] == nil {
-                    biomarkerData[marker] = []
+                if biomarkerData[normalizedMarker] == nil {
+                    biomarkerData[normalizedMarker] = []
                 }
                 
-                biomarkerData[marker]?.append((
+                biomarkerData[normalizedMarker]?.append((
                     date: date,
                     value: value,
                     status: result.status,
                     unit: result.unit,
-                    referenceRange: result.referenceRange
+                    referenceRange: result.referenceRange,
+                    originalName: originalMarker
                 ))
             }
         }
@@ -116,7 +131,7 @@ class TrendsService {
         // Convert to BiomarkerTrend objects
         var trends: [BiomarkerTrend] = []
         
-        for (marker, dataPoints) in biomarkerData {
+        for (normalizedMarker, dataPoints) in biomarkerData {
             // Sort data points by date
             let sortedPoints = dataPoints.sorted { $0.date < $1.date }
             
@@ -137,13 +152,19 @@ class TrendsService {
             let latestRefRange = sortedPoints.last?.referenceRange ?? nil
             let (refMin, refMax) = parseReferenceRange(latestRefRange ?? "")
             
+            // Get canonical ID and aliases for this biomarker
+            let biomarkerId = BiomarkerNormalizer.shared.getCanonicalId(for: normalizedMarker)
+            let aliases = BiomarkerNormalizer.shared.getAliases(for: normalizedMarker)
+            
             let trend = BiomarkerTrend(
-                marker: marker,
+                marker: normalizedMarker,
+                biomarkerId: biomarkerId,
                 unit: points.first?.unit ?? nil ?? "",
                 dataPoints: points,
                 referenceMin: refMin,
                 referenceMax: refMax,
-                latestStatus: points.last?.status ?? nil ?? "normal"
+                latestStatus: points.last?.status ?? nil ?? "normal",
+                aliases: aliases
             )
             
             trends.append(trend)
@@ -162,13 +183,16 @@ class TrendsService {
     }
     
     // MARK: - Get Unique Biomarkers
+    /// Returns unique normalized biomarker names from all analyses
     func getUniqueBiomarkers(from analyses: [Analysis]) -> [String] {
         var markers: Set<String> = []
         
         for analysis in analyses {
             guard let parsedData = analysis.getParsedData() else { continue }
             for result in parsedData.testResults {
-                markers.insert(result.marker)
+                // Use normalized name to avoid duplicates
+                let normalizedMarker = BiomarkerNormalizer.shared.normalize(result.marker)
+                markers.insert(normalizedMarker)
             }
         }
         

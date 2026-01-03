@@ -326,8 +326,20 @@ class UserDataViewModel: ObservableObject {
             let fetchedAnalyses = try await HealthScoreService.shared.fetchAnalyses(userId: userId)
             print("🔵 Fetched \(fetchedAnalyses.count) analyses")
             
-            let score = HealthScoreService.shared.calculateHealthScore(analyses: fetchedAnalyses)
-            print("🔵 Calculated health score: \(score)")
+            // Fetch user profile for personalized scoring
+            let userProfile = await UserHealthProfile.fetchFromSupabase()
+            print("🔵 User profile loaded for personalization: age=\(userProfile.age ?? -1), conditions=\(userProfile.healthConditions.count)")
+            
+            // Use enhanced health score calculation with personalization
+            let detailedResult = HealthScoreService.shared.calculateDetailedHealthScore(
+                analyses: fetchedAnalyses,
+                userProfile: userProfile
+            )
+            
+            let score = detailedResult.score
+            print("🔵 Calculated health score: \(score) (\(detailedResult.scoreCategory))")
+            print("   Confidence: \(String(format: "%.0f", detailedResult.confidence * 100))%")
+            print("   Summary: \(detailedResult.summaryExplanation)")
             
             let biomarkers = HealthScoreService.shared.getTopBiomarkers(analyses: fetchedAnalyses, limit: 4)
             print("🔵 Found \(biomarkers.count) biomarkers needing attention")

@@ -322,10 +322,20 @@ struct BiomarkerTrendCard: View {
             
             // Marker Name
             VStack(alignment: .leading, spacing: 2) {
-                Text(trend.marker)
-                    .font(.custom("ProductSans-Bold", size: 16))
-                    .foregroundColor(AppColors.text(themeManager.colorScheme))
-                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    Text(trend.marker)
+                        .font(.custom("ProductSans-Bold", size: 16))
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+                        .lineLimit(1)
+                    
+                    // Info tooltip for aliases
+                    if trend.aliasTooltip != nil {
+                        Image(systemName: "info.circle")
+                            .font(.system(size: 12))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            .help(trend.aliasTooltip ?? "")
+                    }
+                }
                 
                 Text(trend.unit)
                     .font(.custom("ProductSans-Regular", size: 12))

@@ -2945,7 +2945,7 @@ struct HealthScoreInfoModal: View {
                         .font(.custom("ProductSans-Bold", size: 16))
                         .foregroundColor(AppColors.text(themeManager.colorScheme))
 
-                    Text("We analyse your uploaded blood tests and compute a score between 0 and 10 that reflects overall blood health. The score is a weighted combination of three components:")
+                    Text("We analyse your most recent blood test and compute a score between 0 and 10 that reflects overall blood health. The score is a weighted combination of three components:")
                         .font(.custom("ProductSans-Regular", size: 14))
                         .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
 
@@ -3000,7 +3000,7 @@ struct HealthScoreInfoModal: View {
                         .foregroundColor(AppColors.text(themeManager.colorScheme))
 
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("1) For each analysis we compute:")
+                        Text("1) For your most recent test, we compute:")
                             .font(.custom("ProductSans-Regular", size: 13))
                             .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
 
