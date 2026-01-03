@@ -42,6 +42,10 @@ struct OnboardingView: View {
     @State private var mainTextOffset: CGFloat = 30
     @State private var buttonOpacity: Double = 0
     
+    // Image reveal animation state
+    @State private var imageReveal: CGFloat = 0.0
+    @State private var imageOffsetY: CGFloat = -24
+
     // Particle animation states
     @State private var particles: [Particle] = []
     @State private var currentBurst: BiomarkerBurst? = nil
@@ -66,20 +70,30 @@ struct OnboardingView: View {
     
     var body: some View {
         NavigationStack {
-        ZStack {
-            backgroundView
-            particleView
-            bottomSectionView
-        }
-        .onAppear {
-            startAnimations()
-            // Removed particle initialization and timers - using static onboarding image instead
-        }
-        .onDisappear {
-            particleTimer?.invalidate()
-            burstTimer?.invalidate()
-        }
-        .sheet(isPresented: $isSignInModalVisible) {
+            ZStack {
+                // Background at the very back
+                backgroundView
+                    .zIndex(-1)
+
+                // Bottom content (buttons/text) sits above background
+                bottomSectionView
+                    .zIndex(0)
+
+                // Particle / onboarding image on top so nothing covers it
+                particleView
+                    .zIndex(9999)
+                    .ignoresSafeArea() // ensure image can extend into safe areas and won't be clipped
+                    .allowsHitTesting(false) // don't block taps
+            }
+            .onAppear {
+                startAnimations()
+                // Removed particle initialization and timers - using static onboarding image instead
+            }
+            .onDisappear {
+                particleTimer?.invalidate()
+                burstTimer?.invalidate()
+            }
+            .sheet(isPresented: $isSignInModalVisible) {
                 SignInModalView(
                     isPresented: $isSignInModalVisible,
                     onGoogleSignIn: {
@@ -107,8 +121,14 @@ struct OnboardingView: View {
     
     // MARK: - Background
     var backgroundView: some View {
-        AppColors.background(themeManager.colorScheme)
-            .ignoresSafeArea()
+        Group {
+            if colorScheme == .light {
+                Color(hex: "#FFFFFF")
+            } else {
+                AppColors.background(themeManager.colorScheme)
+            }
+        }
+        .ignoresSafeArea()
     }
     
     // MARK: - Particle View (replaced with static onboarding images)
@@ -119,19 +139,27 @@ struct OnboardingView: View {
                 imageFromAssets(["Group6"]) // light-mode image variants
                     .resizable()
                     .scaledToFit()
-                    .frame(maxWidth: screenWidth * 0.8)
-                    .padding(.top, 100)
+                    .scaleEffect(0.45, anchor: .top) // increased size from 0.30 -> 0.45
+                    .padding(.top, 120)
+                    .offset(y: imageOffsetY)
+                    .opacity(Double(imageReveal))
+                    .clipShape(TopReveal(fraction: imageReveal)) // use clipShape for reveal
+                    .animation(.easeOut(duration: 0.9), value: imageReveal)
             } else {
                 imageFromAssets(["Group7"]) // dark-mode image variants
                     .resizable()
                     .scaledToFit()
-                    .frame(maxWidth: screenWidth * 0.8)
-                    .padding(.top, 100)
+                    .scaleEffect(0.45, anchor: .top)
+                    .padding(.top, 120)
+                    .offset(y: imageOffsetY)
+                    .opacity(Double(imageReveal))
+                    .clipShape(TopReveal(fraction: imageReveal))
+                    .animation(.easeOut(duration: 0.9), value: imageReveal)
             }
 
             Spacer()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top) // ensure image uses top alignment so it isn't centered/clipped
         .ignoresSafeArea(edges: .top)
     }
 
@@ -170,8 +198,12 @@ struct OnboardingView: View {
     
     var textContent: some View {
         VStack(spacing: 24) {
-            Text("Build the healthiest \nversion of you.")
-                .font(.custom("ProductSans-Regular", size: 30))
+            (Text("Build the ")
+                .font(.custom("ProductSans-Regular", size: 30)) +
+             Text("healthiest")
+                .font(.custom("instrumentserif-italic", size: 30)) +
+             Text(" \nversion of you.")
+                .font(.custom("ProductSans-Regular", size: 30)))
                 .foregroundColor(AppColors.text(themeManager.colorScheme))
                 .multilineTextAlignment(.center)
                 .lineLimit(nil)
@@ -349,6 +381,14 @@ struct OnboardingView: View {
                 buttonOpacity = 1
             }
         }
+
+        // Image reveal animation (top-to-bottom) and slide down further
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            withAnimation(.easeOut(duration: 0.9)) {
+                imageReveal = 1.0
+                imageOffsetY = 64 // settle lower on the screen
+            }
+        }
     }
     
     // MARK: - Google Sign In Handler
@@ -522,6 +562,22 @@ struct BottomTriangle: Shape {
         path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY)) // bottom right
         path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY)) // bottom left
         path.closeSubpath()
+        return path
+    }
+}
+
+// Top-to-bottom reveal shape used to clip the onboarding image reliably
+struct TopReveal: Shape {
+    var fraction: CGFloat
+    var animatableData: CGFloat {
+        get { fraction }
+        set { fraction = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let revealHeight = rect.height * fraction
+        path.addRect(CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: revealHeight))
         return path
     }
 }

@@ -34,14 +34,19 @@ struct TrendsView: View {
             )
             .ignoresSafeArea()
             
-            if viewModel.isLoading {
+            if viewModel.isLoading && !viewModel.hasLoaded {
                 loadingView
-            } else if viewModel.trends.isEmpty {
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            } else if viewModel.trends.isEmpty && viewModel.hasLoaded {
                 emptyStateView
+                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
             } else {
                 trendsContent
+                    .transition(.opacity)
             }
         }
+        .animation(.easeInOut(duration: 0.4), value: viewModel.isLoading)
+        .animation(.easeInOut(duration: 0.4), value: viewModel.hasLoaded)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
@@ -58,9 +63,7 @@ struct TrendsView: View {
     // MARK: - Loading View
     private var loadingView: some View {
         VStack(spacing: 16) {
-            ProgressView()
-                .progressViewStyle(CircularProgressViewStyle(tint: AppColors.text(themeManager.colorScheme)))
-                .scaleEffect(1.2)
+            CustomSpinner(size: 32, lineWidth: 3)
             
             Text("Loading your trends...")
                 .font(.custom("ProductSans-Regular", size: 16))
@@ -607,6 +610,7 @@ class TrendsViewModel: ObservableObject {
     @Published var trends: [BiomarkerTrend] = []
     @Published var isLoading: Bool = false
     @Published var testCount: Int = 0
+    @Published var hasLoaded: Bool = false
     
     var normalCount: Int {
         trends.filter { $0.latestStatus == "normal" }.count
@@ -618,7 +622,10 @@ class TrendsViewModel: ObservableObject {
     
     func loadTrends() async {
         isLoading = true
-        defer { isLoading = false }
+        defer { 
+            isLoading = false
+            hasLoaded = true
+        }
         
         // Get analyses from the shared UserDataViewModel
         let analyses = UserDataViewModel.shared.analyses

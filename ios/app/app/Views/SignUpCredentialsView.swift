@@ -230,8 +230,7 @@ struct SignUpCredentialsView: View {
                         }) {
                             HStack(spacing: 8) {
                                 if isCreatingAccount {
-                                    ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    CustomSpinner(size: 24, lineWidth: 2.5)
                                 } else {
                                     Text("Create")
                                         .font(.custom("ProductSans-Bold", size: 16))

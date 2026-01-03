@@ -24,6 +24,8 @@ struct SignUpSexView: View {
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
+                // Top spacing (was DNA progress indicator)
+                Spacer().frame(height: 16)
                 
                 ScrollView {
                     VStack(spacing: 0) {
@@ -40,9 +42,9 @@ struct SignUpSexView: View {
                                 .opacity(headingOpacity)
                         }
                         .padding(.horizontal, 24)
-                        .padding(.top, 24)
+                        .padding(.top, 16)
                         .padding(.bottom, 32)
-                        
+
                         // Sex Options - Vertical List
                         VStack(spacing: 12) {
                             ForEach(BiologicalSex.allCases, id: \.self) { sex in
@@ -57,7 +59,7 @@ struct SignUpSexView: View {
                         .opacity(contentOpacity)
                         .padding(.horizontal, 24)
                         .padding(.bottom, 48)
-                        
+
                         // Continue Button
                         Button(action: handleContinue) {
                             HStack {

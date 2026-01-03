@@ -37,8 +37,7 @@ struct GoogleSignInButton: View {
             onPress()
         }) {
             if loading {
-                ProgressView()
-                    .progressViewStyle(CircularProgressViewStyle(tint: foregroundColor))
+                CustomSpinner(size: 20, lineWidth: 2.5)
                     .frame(height: 20)
             } else {
                 HStack(spacing: 12) {

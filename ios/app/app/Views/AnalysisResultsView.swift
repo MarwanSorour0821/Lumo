@@ -1116,8 +1116,7 @@ struct AnalysisChatModal: View {
                     
                     Button(action: sendMessage) {
                         if isTyping {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            CustomSpinner(size: 24, lineWidth: 2.5)
                                 .frame(width: 48, height: 48)
                                 .background(AppColors.primary)
                                 .clipShape(Circle())

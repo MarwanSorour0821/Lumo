@@ -126,8 +126,7 @@ struct CreditsModalView: View {
                             HStack {
                                 Spacer()
                                 if isLoading {
-                                    ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    CustomSpinner(size: 24, lineWidth: 2.5)
                                 } else {
                                     Text(selectedBundle != nil ? "Continue" : "Select a Bundle")
                                         .font(.custom("ProductSans-Bold", size: 16))

@@ -589,11 +589,56 @@ struct HomeTabView: View {
                 )
                 .ignoresSafeArea()
                 
-                ScrollView {
-                VStack(spacing: 40) {
-                    
-                    // Health Score Section
-                    VStack(spacing: 12) {
+                // Show loading indicator when initially loading
+                if userData.isLoadingHealthScore && userData.healthScore == 0.0 {
+                    VStack(spacing: 16) {
+                        CustomSpinner(size: 32, lineWidth: 3)
+                        
+                        Text("Loading your health data...")
+                            .font(.custom("ProductSans-Regular", size: 16))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                    }
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                } else {
+                    homeContent
+                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                }
+            }
+            .animation(.easeInOut(duration: 0.4), value: userData.isLoadingHealthScore)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(action: {
+                        // Do nothing
+                    }) {
+                        if let name = userData.userName {
+                            Text(name)
+                                .font(.custom("ProductSans-Bold", size: 18))
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+                        } else {
+                            Text("User")
+                                .font(.custom("ProductSans-Bold", size: 18))
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+                        }
+                    }
+                }
+            }
+        }
+        .onAppear {
+            // Data is loaded centrally, no need to reload here
+        }
+        .sheet(isPresented: $showInfoModal) {
+            HealthScoreInfoModal(isPresented: $showInfoModal)
+        }
+    }
+    
+    // MARK: - Home Content
+    private var homeContent: some View {
+        ScrollView {
+            VStack(spacing: 40) {
+                
+                // Health Score Section
+                VStack(spacing: 12) {
                         // Circular progress indicator
                         ZStack {
                             // Background circle (light gray, partial - cut off at bottom)
@@ -609,12 +654,12 @@ struct HomeTabView: View {
                                 .stroke(AppColors.text(themeManager.colorScheme), style: StrokeStyle(lineWidth: 8, lineCap: .round))
                                 .frame(width: 280, height: 280)
                                 .rotationEffect(.degrees(90)) // Rotate so gap is at bottom
-                                .animation(.easeInOut(duration: 1.5), value: userData.animatedProgress)
+                                .animation(.easeOut(duration: 1.8), value: userData.animatedProgress)
                             
                             // Center score display
                             if userData.isLoadingHealthScore {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: AppColors.text(themeManager.colorScheme)))
+                                CustomSpinner(size: 24, lineWidth: 2.5)
+                                    .transition(.opacity.combined(with: .scale))
                             } else if let error = userData.healthScoreError {
                                 VStack(spacing: 4) {
                                     Text("Error")
@@ -624,11 +669,13 @@ struct HomeTabView: View {
                                         .font(.system(size: 14))
                                         .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                                 }
+                                .transition(.opacity)
                             } else {
                                 VStack(spacing: 4) {
-                                    Text(String(format: "%.1f", userData.healthScore))
-                                        .font(.system(size: 72, weight: .bold))
-                                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+                                    AnimatedScoreView(
+                                        targetScore: userData.healthScore,
+                                        textColor: AppColors.text(themeManager.colorScheme)
+                                    )
                                     
                                     // "your health score" with info button
                                     HStack(spacing: 6) {
@@ -647,8 +694,10 @@ struct HomeTabView: View {
                                         }
                                     }
                                 }
+                                .transition(.opacity.combined(with: .scale(scale: 0.95)))
                             }
                         }
+                        .animation(.easeInOut(duration: 0.4), value: userData.isLoadingHealthScore)
                         .frame(width: 300, height: 300)
                         
                         // Your Trends Button with Icon
@@ -690,8 +739,13 @@ struct HomeTabView: View {
                             .padding(.horizontal, 24)
                             
                             if !userData.topBiomarkers.isEmpty {
-                                ForEach(userData.topBiomarkers) { biomarker in
+                                ForEach(Array(userData.topBiomarkers.enumerated()), id: \.element.id) { index, biomarker in
                                     BiomarkerCard(biomarker: biomarker)
+                                        .transition(.asymmetric(
+                                            insertion: .opacity.combined(with: .move(edge: .bottom)).combined(with: .scale(scale: 0.95)),
+                                            removal: .opacity
+                                        ))
+                                        .animation(.easeOut(duration: 0.4).delay(Double(index) * 0.1), value: userData.topBiomarkers.count)
                                 }
                             } else {
                                 // All biomarkers are optimal
@@ -714,310 +768,30 @@ struct HomeTabView: View {
                                 .background(AppColors.surface(themeManager.colorScheme))
                                 .cornerRadius(12)
                                 .padding(.horizontal, 24)
+                                .transition(.opacity.combined(with: .scale(scale: 0.95)))
                             }
                         }
                         .padding(.top, 20)
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                        .animation(.easeOut(duration: 0.5).delay(0.3), value: userData.hasAnalyses)
                     }
                 }
                 .padding(.bottom, 40)
             }
-            }
             .refreshable {
                 await userData.refreshHealthScore()
             }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: {
-                        // Do nothing
-                    }) {
-                        if let name = userData.userName {
-                            Text(name)
-                                .font(.custom("ProductSans-Bold", size: 18))
-                                .foregroundColor(AppColors.text(themeManager.colorScheme))
-                        } else {
-                            Text("User")
-                                .font(.custom("ProductSans-Bold", size: 18))
-                                .foregroundColor(AppColors.text(themeManager.colorScheme))
-                        }
-                    }
-                }
-            }
-        }
-        .onAppear {
-            // Data is loaded centrally, no need to reload here
-        }
-        .sheet(isPresented: $showInfoModal) {
-            HealthScoreInfoModal(isPresented: $showInfoModal)
         }
     }
-}
 
-//// MARK: - History Tab View
-//struct HistoryTabView: View {
-//    @EnvironmentObject var themeManager: ThemeManager
-//    @State private var analyses: [Analysis] = []
-//    @State private var isLoading: Bool = true
-//    @State private var errorMessage: String? = nil
-//    @StateObject private var userData = UserDataViewModel.shared
-//    @State private var selectedAnalysis: Analysis? = nil
-//    @State private var showDetail: Bool = false
-//
-//    var body: some View {
-//        NavigationView {
-//            ZStack {
-//                AppColors.background(themeManager.colorScheme)
-//                    .ignoresSafeArea()
-//
-//                if userData.isLoadingAnalyses {
-//                    ProgressView()
-//                        .progressViewStyle(CircularProgressViewStyle(tint: AppColors.primary))
-//                } else if let error = userData.analysesError {
-//                    VStack(spacing: 12) {
-//                        Image(systemName: "exclamationmark.triangle.fill")
-//                            .font(.system(size: 36))
-//                            .foregroundColor(.yellow)
-//                        Text("Failed to load analyses")
-//                            .font(.custom("ProductSans-Bold", size: 18))
-//                            .foregroundColor(AppColors.text(themeManager.colorScheme))
-//                        Text(error)
-//                            .font(.custom("ProductSans-Regular", size: 14))
-//                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-//                            .multilineTextAlignment(.center)
-//                    }
-//                    .padding(24)
-//                } else if userData.analyses.isEmpty {
-//                    VStack(spacing: 12) {
-//                        Image(systemName: "tray")
-//                            .font(.system(size: 44))
-//                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-//                        Text("No analyses yet")
-//                            .font(.custom("ProductSans-Bold", size: 20))
-//                            .foregroundColor(AppColors.text(themeManager.colorScheme))
-//                        Text("Upload a lab report to see your history")
-//                            .font(.custom("ProductSans-Regular", size: 14))
-//                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-//                            .multilineTextAlignment(.center)
-//                    }
-//                    .padding(24)
-//                } else {
-//                    ScrollView {
-//                        LazyVGrid(columns: [
-//                            GridItem(.flexible(), spacing: 12),
-//                            GridItem(.flexible(), spacing: 12)
-//                        ], spacing: 12) {
-//                            ForEach(userData.analyses, id: \.id) { analysis in
-//                                Button(action: {
-//                                    selectedAnalysis = analysis
-//                                    showDetail = true
-//                                }) {
-//                                    GeometryReader { geometry in
-//                                        VStack(alignment: .leading, spacing: 0) {
-//                                            // Top section with icon
-//                                            HStack {
-//                                                Spacer()
-//                                                Image(systemName: "arrow.up.forward.app")
-//                                                    .font(.system(size: 18))
-//                                                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-//                                            }
-//                                            .padding(12)
-//                                            
-//                                            Spacer()
-//                                            
-//                                            // Bottom section with info
-//                                            VStack(alignment: .leading, spacing: 6) {
-//                                                Text(listTitle(for: analysis))
-//                                                    .font(.custom("ProductSans-Bold", size: 16))
-//                                                    .foregroundColor(AppColors.text(themeManager.colorScheme))
-//                                                    .lineLimit(2)
-//
-//                                                Text(listSubtitle(for: analysis))
-//                                                    .font(.custom("ProductSans-Regular", size: 13))
-//                                                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-//                                                    .lineLimit(1)
-//                                                
-//                                                Text(formattedDate(analysis.created_at))
-//                                                    .font(.custom("ProductSans-Regular", size: 11))
-//                                                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-//                                                    .lineLimit(1)
-//                                            }
-//                                            .padding(12)
-//                                        }
-//                                        .frame(width: geometry.size.width, height: geometry.size.width)
-//                                        .background(AppColors.surface(themeManager.colorScheme))
-//                                        .cornerRadius(16)
-//                                        .shadow(color: Color.black.opacity(themeManager.colorScheme == .light ? 0.05 : 0.0), radius: 2, x: 0, y: 1)
-//                                    }
-//                                    .aspectRatio(1, contentMode: .fit)
-//                                }
-//                                .buttonStyle(PlainButtonStyle())
-//                            }
-//                        }
-//                        .padding(.horizontal, 16)
-//                        .padding(.vertical, 20)
-//                    }
-//                    .refreshable {
-//                        await userData.refreshAnalyses()
-//                    }
-//                }
-//            }
-//            .navigationBarTitle("History", displayMode: .inline)
-//        }
-//    }
-//
-//    // MARK: - Helpers
-//    private func formattedDate(_ iso: String) -> String {
-//        let formatter = ISO8601DateFormatter()
-//        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-//        
-//        if let date = formatter.date(from: iso) {
-//            let dateFormatter = DateFormatter()
-//            dateFormatter.dateFormat = "yyyy-MM-dd"
-//            let dateString = dateFormatter.string(from: date)
-//            
-//            let timeFormatter = DateFormatter()
-//            timeFormatter.dateFormat = "HH:mm"
-//            let timeString = timeFormatter.string(from: date)
-//            
-//            return "\(dateString) at \(timeString)"
-//        }
-//        
-//        // Try without fractional seconds
-//        formatter.formatOptions = [.withInternetDateTime]
-//        if let date = formatter.date(from: iso) {
-//            let dateFormatter = DateFormatter()
-//            dateFormatter.dateFormat = "yyyy-MM-dd"
-//            let dateString = dateFormatter.string(from: date)
-//            
-//            let timeFormatter = DateFormatter()
-//            timeFormatter.dateFormat = "HH:mm"
-//            let timeString = timeFormatter.string(from: date)
-//            
-//            return "\(dateString) at \(timeString)"
-//        }
-//        
-//        return iso
-//    }
-//
-//    private func listTitle(for analysis: Analysis) -> String {
-//        if let parsed = analysis.getParsedData(), let name = parsed.patientInfo?.name, !name.isEmpty {
-//            return name
-//        }
-//        // fallback to ID short
-//        return "Analysis \(analysis.id.prefix(8))"
-//    }
-//
-//    private func listSubtitle(for analysis: Analysis) -> String {
-//        if let parsed = analysis.getParsedData() {
-//            let count = parsed.testResults.count
-//            return "\(count) markers · Report"
-//        }
-//        return "Lab report"
-//    }
-//}
-//
-//// MARK: - Analysis Detail View
-//struct AnalysisDetailView: View {
-//    @EnvironmentObject var themeManager: ThemeManager
-//    let analysis: Analysis
-//
-//    var body: some View {
-//        NavigationView {
-//            ScrollView {
-//                VStack(alignment: .leading, spacing: 16) {
-//                    HStack {
-//                        Text("Report")
-//                            .font(.custom("ProductSans-Bold", size: 20))
-//                            .foregroundColor(AppColors.text(themeManager.colorScheme))
-//                        Spacer()
-//                        Text(formattedDate(analysis.created_at))
-//                            .font(.custom("ProductSans-Regular", size: 13))
-//                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-//                    }
-//
-//                    if let parsed = analysis.getParsedData() {
-//                        if let patient = parsed.patientInfo {
-//                            VStack(alignment: .leading, spacing: 6) {
-//                                Text("Patient")
-//                                    .font(.custom("ProductSans-Bold", size: 16))
-//                                    .foregroundColor(AppColors.text(themeManager.colorScheme))
-//                                if let name = patient.name { Text(name).foregroundColor(AppColors.textSecondary(themeManager.colorScheme)) }
-//                                if let age = patient.age { Text("Age: \(age)").foregroundColor(AppColors.textSecondary(themeManager.colorScheme)) }
-//                                if let sex = patient.sex { Text("Sex: \(sex)").foregroundColor(AppColors.textSecondary(themeManager.colorScheme)) }
-//                            }
-//                            .padding()
-//                            .background(AppColors.surface(themeManager.colorScheme))
-//                            .cornerRadius(12)
-//                        }
-//
-//                        VStack(alignment: .leading, spacing: 12) {
-//                            Text("Results")
-//                                .font(.custom("ProductSans-Bold", size: 18))
-//                                .foregroundColor(AppColors.text(themeManager.colorScheme))
-//
-//                            ForEach(parsed.testResults, id: \ .marker) { result in
-//                                HStack {
-//                                    VStack(alignment: .leading, spacing: 4) {
-//                                        Text(result.marker)
-//                                            .font(.custom("ProductSans-Bold", size: 14))
-//                                            .foregroundColor(AppColors.text(themeManager.colorScheme))
-//                                        Text(result.referenceRange ?? "N/A")
-//                                            .font(.custom("ProductSans-Regular", size: 12))
-//                                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-//                                    }
-//
-//                                    Spacer()
-//
-//                                    VStack(alignment: .trailing) {
-//                                        Text(result.value + " " + (result.unit ?? ""))
-//                                            .font(.custom("ProductSans-Bold", size: 14))
-//                                            .foregroundColor(AppColors.primary)
-//                                        Text(result.status ?? "N/A")
-//                                            .font(.custom("ProductSans-Regular", size: 12))
-//                                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-//                                    }
-//                                }
-//                                .padding(12)
-//                                .background(AppColors.surface(themeManager.colorScheme))
-//                                .cornerRadius(10)
-//                            }
-//                        }
-//                    } else {
-//                        Text("Unable to parse report details")
-//                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-//                    }
-//                }
-//                .padding(16)
-//            }
-//            .navigationBarTitleDisplayMode(.inline)
-//            .toolbar {
-//                ToolbarItem(placement: .navigationBarTrailing) {
-//                    Button("Done") { }
-//                        .foregroundColor(AppColors.text(themeManager.colorScheme))
-//                }
-//            }
-//            .background(AppColors.background(themeManager.colorScheme).ignoresSafeArea())
-//        }
-//    }
-//
-//    private func formattedDate(_ iso: String) -> String {
-//        let formatter = ISO8601DateFormatter()
-//        if let date = formatter.date(from: iso) {
-//            let out = DateFormatter()
-//            out.dateStyle = .medium
-//            out.timeStyle = .none
-//            return out.string(from: date)
-//        }
-//        return iso
-//    }
-//}
 
 // MARK: - History Tab View
 struct HistoryTabView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @StateObject private var processingManager = AnalysisProcessingManager.shared
     @State private var analyses: [Analysis] = []
-    @State private var isLoading: Bool = true
+    @State private var isLoading: Bool = false // Changed: don't load on first appear
+    @State private var hasLoaded: Bool = false // Track if we've loaded once
     @State private var errorMessage: String? = nil
     @State private var selectedAnalysis: Analysis? = nil
     @State private var showDeleteConfirmation: Bool = false
@@ -1033,8 +807,7 @@ struct HistoryTabView: View {
                         .ignoresSafeArea()
                     
                     if isLoading && processingManager.processingItems.isEmpty {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: AppColors.primary))
+                        CustomSpinner(size: 32, lineWidth: 3)
                     } else if let error = errorMessage {
                         VStack(spacing: 12) {
                             Image(systemName: "exclamationmark.triangle.fill")
@@ -1143,15 +916,15 @@ struct HistoryTabView: View {
                         ZStack {
                             Color.black.opacity(0.3)
                                 .ignoresSafeArea()
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                .scaleEffect(1.5)
+                            CustomSpinner(size: 36, lineWidth: 3)
                         }
                     }
                 }
                 .navigationBarTitle("History", displayMode: .inline)
                 .onAppear {
-                    Task { await loadAnalyses() }
+                    if !hasLoaded {
+                        Task { await loadAnalyses() }
+                    }
                 }
                 .navigationDestination(item: $selectedAnalysis) { analysis in
                     if let analysisData = analysis.toAnalysisData() {
@@ -1199,11 +972,13 @@ struct HistoryTabView: View {
             await MainActor.run {
                 self.analyses = fetched
                 self.isLoading = false
+                self.hasLoaded = true
             }
         } catch {
             await MainActor.run {
                 self.errorMessage = error.localizedDescription
                 self.isLoading = false
+                self.hasLoaded = true
             }
         }
     }
@@ -1855,8 +1630,7 @@ struct ChatTabView: View {
                     ScrollView {
                         LazyVStack(spacing: 12) {
                             if userData.isLoadingChat {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: AppColors.primary))
+                                CustomSpinner(size: 32, lineWidth: 3)
                                     .padding(.top, 40)
                             } else if userData.chatMessages.isEmpty {
                                 VStack(spacing: 8) {
@@ -1988,9 +1762,7 @@ struct ChatTabView: View {
                     // Send button: same height as input
                     Button(action: sendMessage) {
                         if isUploading || isTyping {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: AppColors.primary))
-                                .frame(width: 24, height: 24)
+                            CustomSpinner(size: 24, lineWidth: 2.5)
                                 .frame(width: 48, height: 48)
                         } else {
                             Image(systemName: "arrow.up.circle.fill")
@@ -2591,8 +2363,7 @@ struct AnalyseModalView: View {
                     HStack {
                         Spacer()
                         if isUploading || isCheckingCredits {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            CustomSpinner(size: 24, lineWidth: 2.5)
                         } else {
                             Text("Continue")
                                 .font(.custom("ProductSans-Bold", size: 16))
@@ -2945,116 +2716,205 @@ struct HealthScoreInfoModal: View {
                         .font(.custom("ProductSans-Bold", size: 16))
                         .foregroundColor(AppColors.text(themeManager.colorScheme))
 
-                    Text("We analyse your most recent blood test and compute a score between 0 and 10 that reflects overall blood health. The score is a weighted combination of three components:")
+                    Text("Your health score (0–10) reflects how your biomarkers compare to outcome-based optimal ranges. The system uses sophisticated algorithms to provide a clinically meaningful summary that's personalized to your age, sex, and health conditions.")
                         .font(.custom("ProductSans-Regular", size: 14))
                         .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(alignment: .top) {
-                            Text("•")
-                                .font(.system(size: 14))
-                                .foregroundColor(AppColors.primary)
-                            VStack(alignment: .leading) {
-                                Text("Core Risk Biomarkers — 45%")
-                                    .font(.custom("ProductSans-Bold", size: 14))
-                                    .foregroundColor(AppColors.text(themeManager.colorScheme))
-                                Text("Key biomarkers (e.g. Hemoglobin, RBC, WBC, Platelets, ESR, Neutrophils, Lymphocytes, MCH/MCHC/MCV/RDW) are scored against optimal ranges. Each marker contributes a weighted value based on how far it is from the optimal range.")
-                                    .font(.custom("ProductSans-Regular", size: 13))
-                                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                            }
+                    Divider()
+
+                    Text("How It Works: 5-Step Process")
+                        .font(.custom("ProductSans-Bold", size: 16))
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        // ...existing code... (rest of the modal content will follow)
+                        
+                        // Step 1
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("1. Normalization (0–100 sub-scores)")
+                                .font(.custom("ProductSans-Bold", size: 14))
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+                            Text("Each biomarker is scored against outcome-based ranges:")
+                                .font(.custom("ProductSans-Regular", size: 13))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            Text("  • Optimal range → 90–100 points")
+                                .font(.custom("ProductSans-Regular", size: 12))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            Text("  • Good range → 70–89 points")
+                                .font(.custom("ProductSans-Regular", size: 12))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            Text("  • Acceptable range → 50–69 points")
+                                .font(.custom("ProductSans-Regular", size: 12))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            Text("  • Outside ranges → 0–49 points")
+                                .font(.custom("ProductSans-Regular", size: 12))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                         }
 
-                        HStack(alignment: .top) {
-                            Text("•")
-                                .font(.system(size: 14))
-                                .foregroundColor(AppColors.primary)
-                            VStack(alignment: .leading) {
-                                Text("Optimal vs Normal — 17.5%")
-                                    .font(.custom("ProductSans-Bold", size: 14))
-                                    .foregroundColor(AppColors.text(themeManager.colorScheme))
-                                Text("A broader check across all reported markers rewards values listed as 'normal' and gives partial credit for borderline values.")
-                                    .font(.custom("ProductSans-Regular", size: 13))
-                                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                            }
+                        // Step 2
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("2. Personalization")
+                                .font(.custom("ProductSans-Bold", size: 14))
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+                            Text("Risk weights are adjusted based on your profile:")
+                                .font(.custom("ProductSans-Regular", size: 13))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            Text("  • Age: Some markers become more important as you age")
+                                .font(.custom("ProductSans-Regular", size: 12))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            Text("  • Sex: Different optimal ranges for males vs females")
+                                .font(.custom("ProductSans-Regular", size: 12))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            Text("  • Conditions: CVD/diabetes markers weighted higher for at-risk users")
+                                .font(.custom("ProductSans-Regular", size: 12))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                         }
 
-                        HStack(alignment: .top) {
-                            Text("•")
-                                .font(.system(size: 14))
-                                .foregroundColor(AppColors.primary)
-                            VStack(alignment: .leading) {
-                                Text("Data Completeness — 5%")
-                                    .font(.custom("ProductSans-Bold", size: 14))
-                                    .foregroundColor(AppColors.text(themeManager.colorScheme))
-                                Text("We reward reports that include a full set of expected markers (e.g. a complete CBC). Missing markers reduce the completeness score.")
-                                    .font(.custom("ProductSans-Regular", size: 13))
-                                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                            }
+                        // Step 3
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("3. Risk Weighting")
+                                .font(.custom("ProductSans-Bold", size: 14))
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+                            Text("Clinical importance determines marker weight:")
+                                .font(.custom("ProductSans-Regular", size: 13))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            Text("  • High impact: ApoB (1.6×), HbA1c (1.5×), hs-CRP (1.4×)")
+                                .font(.custom("ProductSans-Regular", size: 12))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            Text("  • Medium impact: LDL (1.3×), Glucose (1.3×), eGFR (1.3×)")
+                                .font(.custom("ProductSans-Regular", size: 12))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            Text("  • Lower impact: Vitamins (0.5–0.7×), Electrolytes (0.5–0.7×)")
+                                .font(.custom("ProductSans-Regular", size: 12))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                        }
+
+                        // Step 4
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("4. Aggregation (Weighted Geometric Mean)")
+                                .font(.custom("ProductSans-Bold", size: 14))
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+                            Text("Uses geometric mean so one bad marker significantly impacts the score:")
+                                .font(.custom("ProductSans-Regular", size: 13))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            Text("  • Score = exp(Σ(weight × ln(subscore)) / Σ(weight))")
+                                .font(.custom("ProductSans-Regular", size: 12))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            Text("  • Converted to 0–10 scale")
+                                .font(.custom("ProductSans-Regular", size: 12))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            Text("This ensures safety-first: a single critical value matters more than many good ones.")
+                                .font(.custom("ProductSans-Regular", size: 12))
+                                .italic()
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                        }
+
+                        // Step 5
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("5. Trend Awareness")
+                                .font(.custom("ProductSans-Bold", size: 14))
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+                            Text("Compares to previous tests when available:")
+                                .font(.custom("ProductSans-Regular", size: 13))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            Text("  • Improving markers: +5% boost")
+                                .font(.custom("ProductSans-Regular", size: 12))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            Text("  • Worsening markers: -5% penalty")
+                                .font(.custom("ProductSans-Regular", size: 12))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            Text("  • Stable markers: no change")
+                                .font(.custom("ProductSans-Regular", size: 12))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                         }
                     }
 
                     Divider()
 
-                    Text("Calculation details")
+                    Text("Confidence Score")
                         .font(.custom("ProductSans-Bold", size: 16))
                         .foregroundColor(AppColors.text(themeManager.colorScheme))
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("1) For your most recent test, we compute:")
+                    Text("A confidence percentage (0–100%) indicates data completeness:")
+                        .font(.custom("ProductSans-Regular", size: 13))
+                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("  • 50% weight: Coverage of key markers (ApoB, HbA1c, LDL, HDL, etc.)")
+                            .font(.custom("ProductSans-Regular", size: 12))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                        Text("  • 50% weight: Total number of markers (15+ markers = full credit)")
+                            .font(.custom("ProductSans-Regular", size: 12))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                    }
+
+                    Text("Low confidence means important tests are missing—interpret the score cautiously.")
+                        .font(.custom("ProductSans-Regular", size: 12))
+                        .italic()
+                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                        .padding(.top, 4)
+
+                    Divider()
+
+                    Text("Score Interpretation")
+                        .font(.custom("ProductSans-Bold", size: 16))
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("  • 9.0–10.0: Excellent")
                             .font(.custom("ProductSans-Regular", size: 13))
                             .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-
-                        Text("   • coreRiskScore (0–1) — weighted sum of key biomarkers")
+                        Text("  • 7.5–9.0: Very Good")
                             .font(.custom("ProductSans-Regular", size: 13))
                             .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-
-                        Text("   • optimalRangeScore (0–1) — fraction of markers marked ‘normal’ (partial credit for borderline)")
+                        Text("  • 6.0–7.5: Good")
                             .font(.custom("ProductSans-Regular", size: 13))
                             .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-
-                        Text("   • completenessScore (0–1) — how complete the report is relative to expected markers")
+                        Text("  • 4.5–6.0: Fair")
                             .font(.custom("ProductSans-Regular", size: 13))
                             .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-
-                        Text("2) Combine with weights:")
+                        Text("  • 3.0–4.5: Needs Attention")
                             .font(.custom("ProductSans-Regular", size: 13))
                             .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-
-                        Text("   finalScore = coreRiskScore * 0.45 + optimalRangeScore * 0.175 + completenessScore * 0.05")
-                            .font(.custom("ProductSans-Regular", size: 13))
-                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-
-                        Text("3) Normalize to 0–10 scale and clamp values.")
+                        Text("  • <3.0: Critical")
                             .font(.custom("ProductSans-Regular", size: 13))
                             .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                     }
 
                     Divider()
 
-                    Text("Key markers and optimal ranges (examples)")
+                    Text("Key Biomarkers Tracked (60+)")
                         .font(.custom("ProductSans-Bold", size: 16))
                         .foregroundColor(AppColors.text(themeManager.colorScheme))
 
-                    // Show a concise list of markers and ranges used in calculation
-                    VStack(alignment: .leading, spacing: 8) {
-                        Group {
-                            Text("Hemoglobin (Hb): 13.0 - 17.0")
-                            Text("Total RBC count: 4.5 - 5.5")
-                            Text("Packed Cell Volume (PCV): 40.0 - 50.0")
-                            Text("Total WBC count: 4000 - 11000")
-                            Text("Platelet Count: 150000 - 410000")
-                        }
-                        .font(.custom("ProductSans-Regular", size: 13))
-                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-
-                        Group {
-                            Text("ESR: 0 - 15")
-                            Text("Neutrophils: 50 - 62")
-                            Text("Lymphocytes: 20 - 40")
-                            Text("MCH / MCHC / MCV / RDW: see ranges in code")
-                        }
-                        .font(.custom("ProductSans-Regular", size: 13))
-                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Cardiovascular: ApoB, LDL, HDL, Triglycerides, Lp(a)")
+                            .font(.custom("ProductSans-Regular", size: 12))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                        Text("Metabolic: HbA1c, Glucose, Insulin")
+                            .font(.custom("ProductSans-Regular", size: 12))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                        Text("Inflammation: hs-CRP, CRP, ESR")
+                            .font(.custom("ProductSans-Regular", size: 12))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                        Text("Kidney: eGFR, Creatinine, BUN, Uric Acid")
+                            .font(.custom("ProductSans-Regular", size: 12))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                        Text("Liver: ALT, AST, GGT, ALP, Bilirubin, Albumin")
+                            .font(.custom("ProductSans-Regular", size: 12))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                        Text("Hematology: Hemoglobin, RBC, WBC, Platelets, MCV, MCH, MCHC, RDW")
+                            .font(.custom("ProductSans-Regular", size: 12))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                        Text("Thyroid: TSH, Free T4, Free T3")
+                            .font(.custom("ProductSans-Regular", size: 12))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                        Text("Vitamins & Minerals: Vitamin D, B12, Folate, Iron, Ferritin")
+                            .font(.custom("ProductSans-Regular", size: 12))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                        Text("...and more")
+                            .font(.custom("ProductSans-Regular", size: 12))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                     }
 
                     Spacer().frame(height: 24)
@@ -3237,8 +3097,7 @@ struct EditInformationView: View {
                             .padding(.top, 20)
                         
                         if isLoadingProfile {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: AppColors.primary))
+                            CustomSpinner(size: 32, lineWidth: 3)
                                 .frame(maxWidth: .infinity, alignment: .center)
                                 .padding(.top, 40)
                         } else {

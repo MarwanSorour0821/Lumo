@@ -226,11 +226,6 @@ struct SignUpPersonalView: View {
         }
         .preferredColorScheme(themeManager.colorScheme)
         .navigationBarBackButtonHidden(true) // Hide top back button, use bottom button
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                ProgressBar(currentStep: 5, totalSteps: 7)
-            }
-        }
         .onAppear {
             startAnimations()
         }
