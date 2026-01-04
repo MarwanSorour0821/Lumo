@@ -589,56 +589,11 @@ struct HomeTabView: View {
                 )
                 .ignoresSafeArea()
                 
-                // Show loading indicator when initially loading
-                if userData.isLoadingHealthScore && userData.healthScore == 0.0 {
-                    VStack(spacing: 16) {
-                        CustomSpinner(size: 32, lineWidth: 3)
-                        
-                        Text("Loading your health data...")
-                            .font(.custom("ProductSans-Regular", size: 16))
-                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                    }
-                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
-                } else {
-                    homeContent
-                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
-                }
-            }
-            .animation(.easeInOut(duration: 0.4), value: userData.isLoadingHealthScore)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: {
-                        // Do nothing
-                    }) {
-                        if let name = userData.userName {
-                            Text(name)
-                                .font(.custom("ProductSans-Bold", size: 18))
-                                .foregroundColor(AppColors.text(themeManager.colorScheme))
-                        } else {
-                            Text("User")
-                                .font(.custom("ProductSans-Bold", size: 18))
-                                .foregroundColor(AppColors.text(themeManager.colorScheme))
-                        }
-                    }
-                }
-            }
-        }
-        .onAppear {
-            // Data is loaded centrally, no need to reload here
-        }
-        .sheet(isPresented: $showInfoModal) {
-            HealthScoreInfoModal(isPresented: $showInfoModal)
-        }
-    }
-    
-    // MARK: - Home Content
-    private var homeContent: some View {
-        ScrollView {
-            VStack(spacing: 40) {
-                
-                // Health Score Section
-                VStack(spacing: 12) {
+                ScrollView {
+                VStack(spacing: 40) {
+                    
+                    // Health Score Section
+                    VStack(spacing: 12) {
                         // Circular progress indicator
                         ZStack {
                             // Background circle (light gray, partial - cut off at bottom)
@@ -654,12 +609,11 @@ struct HomeTabView: View {
                                 .stroke(AppColors.text(themeManager.colorScheme), style: StrokeStyle(lineWidth: 8, lineCap: .round))
                                 .frame(width: 280, height: 280)
                                 .rotationEffect(.degrees(90)) // Rotate so gap is at bottom
-                                .animation(.easeOut(duration: 1.8), value: userData.animatedProgress)
+                                .animation(.easeInOut(duration: 1.5), value: userData.animatedProgress)
                             
                             // Center score display
                             if userData.isLoadingHealthScore {
                                 CustomSpinner(size: 24, lineWidth: 2.5)
-                                    .transition(.opacity.combined(with: .scale))
                             } else if let error = userData.healthScoreError {
                                 VStack(spacing: 4) {
                                     Text("Error")
@@ -669,13 +623,11 @@ struct HomeTabView: View {
                                         .font(.system(size: 14))
                                         .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                                 }
-                                .transition(.opacity)
                             } else {
                                 VStack(spacing: 4) {
-                                    AnimatedScoreView(
-                                        targetScore: userData.healthScore,
-                                        textColor: AppColors.text(themeManager.colorScheme)
-                                    )
+                                    Text(String(format: "%.1f", userData.healthScore))
+                                        .font(.system(size: 72, weight: .bold))
+                                        .foregroundColor(AppColors.text(themeManager.colorScheme))
                                     
                                     // "your health score" with info button
                                     HStack(spacing: 6) {
@@ -694,10 +646,8 @@ struct HomeTabView: View {
                                         }
                                     }
                                 }
-                                .transition(.opacity.combined(with: .scale(scale: 0.95)))
                             }
                         }
-                        .animation(.easeInOut(duration: 0.4), value: userData.isLoadingHealthScore)
                         .frame(width: 300, height: 300)
                         
                         // Your Trends Button with Icon
@@ -739,13 +689,8 @@ struct HomeTabView: View {
                             .padding(.horizontal, 24)
                             
                             if !userData.topBiomarkers.isEmpty {
-                                ForEach(Array(userData.topBiomarkers.enumerated()), id: \.element.id) { index, biomarker in
+                                ForEach(userData.topBiomarkers) { biomarker in
                                     BiomarkerCard(biomarker: biomarker)
-                                        .transition(.asymmetric(
-                                            insertion: .opacity.combined(with: .move(edge: .bottom)).combined(with: .scale(scale: 0.95)),
-                                            removal: .opacity
-                                        ))
-                                        .animation(.easeOut(duration: 0.4).delay(Double(index) * 0.1), value: userData.topBiomarkers.count)
                                 }
                             } else {
                                 // All biomarkers are optimal
@@ -768,30 +713,51 @@ struct HomeTabView: View {
                                 .background(AppColors.surface(themeManager.colorScheme))
                                 .cornerRadius(12)
                                 .padding(.horizontal, 24)
-                                .transition(.opacity.combined(with: .scale(scale: 0.95)))
                             }
                         }
                         .padding(.top, 20)
-                        .transition(.opacity.combined(with: .move(edge: .bottom)))
-                        .animation(.easeOut(duration: 0.5).delay(0.3), value: userData.hasAnalyses)
                     }
                 }
                 .padding(.bottom, 40)
             }
+            }
             .refreshable {
                 await userData.refreshHealthScore()
             }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(action: {
+                        // Do nothing
+                    }) {
+                        if let name = userData.userName {
+                            Text(name)
+                                .font(.custom("ProductSans-Bold", size: 18))
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+                        } else {
+                            Text("User")
+                                .font(.custom("ProductSans-Bold", size: 18))
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+                        }
+                    }
+                }
+            }
+        }
+        .onAppear {
+            // Data is loaded centrally, no need to reload here
+        }
+        .sheet(isPresented: $showInfoModal) {
+            HealthScoreInfoModal(isPresented: $showInfoModal)
         }
     }
-
+}
 
 // MARK: - History Tab View
 struct HistoryTabView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @StateObject private var processingManager = AnalysisProcessingManager.shared
     @State private var analyses: [Analysis] = []
-    @State private var isLoading: Bool = false // Changed: don't load on first appear
-    @State private var hasLoaded: Bool = false // Track if we've loaded once
+    @State private var isLoading: Bool = true
     @State private var errorMessage: String? = nil
     @State private var selectedAnalysis: Analysis? = nil
     @State private var showDeleteConfirmation: Bool = false
@@ -922,9 +888,7 @@ struct HistoryTabView: View {
                 }
                 .navigationBarTitle("History", displayMode: .inline)
                 .onAppear {
-                    if !hasLoaded {
-                        Task { await loadAnalyses() }
-                    }
+                    Task { await loadAnalyses() }
                 }
                 .navigationDestination(item: $selectedAnalysis) { analysis in
                     if let analysisData = analysis.toAnalysisData() {
@@ -972,13 +936,11 @@ struct HistoryTabView: View {
             await MainActor.run {
                 self.analyses = fetched
                 self.isLoading = false
-                self.hasLoaded = true
             }
         } catch {
             await MainActor.run {
                 self.errorMessage = error.localizedDescription
                 self.isLoading = false
-                self.hasLoaded = true
             }
         }
     }

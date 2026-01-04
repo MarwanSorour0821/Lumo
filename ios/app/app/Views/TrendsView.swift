@@ -34,19 +34,14 @@ struct TrendsView: View {
             )
             .ignoresSafeArea()
             
-            if viewModel.isLoading && !viewModel.hasLoaded {
+            if viewModel.isLoading {
                 loadingView
-                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
-            } else if viewModel.trends.isEmpty && viewModel.hasLoaded {
+            } else if viewModel.trends.isEmpty {
                 emptyStateView
-                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
             } else {
                 trendsContent
-                    .transition(.opacity)
             }
         }
-        .animation(.easeInOut(duration: 0.4), value: viewModel.isLoading)
-        .animation(.easeInOut(duration: 0.4), value: viewModel.hasLoaded)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
@@ -610,7 +605,6 @@ class TrendsViewModel: ObservableObject {
     @Published var trends: [BiomarkerTrend] = []
     @Published var isLoading: Bool = false
     @Published var testCount: Int = 0
-    @Published var hasLoaded: Bool = false
     
     var normalCount: Int {
         trends.filter { $0.latestStatus == "normal" }.count
@@ -622,10 +616,7 @@ class TrendsViewModel: ObservableObject {
     
     func loadTrends() async {
         isLoading = true
-        defer { 
-            isLoading = false
-            hasLoaded = true
-        }
+        defer { isLoading = false }
         
         // Get analyses from the shared UserDataViewModel
         let analyses = UserDataViewModel.shared.analyses
