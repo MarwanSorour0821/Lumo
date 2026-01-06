@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>API_URL</key>
-	<string>https://api.lumo-blood.com</string>
+	<string>http://localhost:8000</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -33,6 +33,10 @@
 	<string>We access photos so you can import lab reports for analysis and tracking.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>We access photos so you can import lab reports for analysis and tracking.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>We use speech recognition to let you quickly log supplements and food by speaking.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>We use the microphone to capture your voice for logging supplements and food.</string>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>com.lumo.analyzeBloodTest</string>

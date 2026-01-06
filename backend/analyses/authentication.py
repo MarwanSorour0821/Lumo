@@ -77,3 +77,36 @@ class SupabaseAuthentication(authentication.BaseAuthentication):
 
     def authenticate_header(self, request):
         return 'Bearer'
+
+
+def get_user_id_from_token(request):
+    """
+    Helper function to extract user ID from the Authorization header.
+    Returns the user ID string or None if authentication fails.
+    """
+    auth_header = request.META.get('HTTP_AUTHORIZATION')
+    
+    if not auth_header:
+        return None
+    
+    try:
+        parts = auth_header.split()
+        if len(parts) != 2 or parts[0].lower() != 'bearer':
+            return None
+        
+        token = parts[1]
+        jwt_secret = os.getenv('SUPABASE_JWT_SECRET')
+        
+        if not jwt_secret:
+            return None
+        
+        payload = jwt.decode(
+            token,
+            jwt_secret,
+            algorithms=['HS256'],
+            audience='authenticated'
+        )
+        
+        return payload.get('sub')
+    except Exception:
+        return None

@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     'auth.apps.AuthConfig',  # Use the full app config path
     'subscriptions',
     'credits',
+    'logging_app',
 ]
 
 MIDDLEWARE = [

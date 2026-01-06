@@ -12,12 +12,14 @@ import SwiftUI
 enum MainTab: Int, CaseIterable {
     case home = 0
     case history = 1
-    case me = 2
+    case log = 2
+    case me = 3
     
     var title: String {
         switch self {
         case .home: return "Home"
         case .history: return "History"
+        case .log: return "Log"
         case .me: return "Me"
         }
     }
@@ -26,6 +28,7 @@ enum MainTab: Int, CaseIterable {
         switch self {
         case .home: return "house.fill"
         case .history: return "chart.bar.fill"
+        case .log: return "book.pages.fill"
         case .me: return "person.fill"
         }
     }

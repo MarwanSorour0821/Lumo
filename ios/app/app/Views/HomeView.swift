@@ -483,19 +483,23 @@ struct HomeView: View {
                 HistoryTabView()
             }
             
-            Tab("Me", systemImage: "brain.filled.head.profile", value: 2) {
+            Tab("Log", systemImage: "book.pages.fill", value: 2) {
+                LoggingTabView()
+            }
+            
+            Tab("Me", systemImage: "brain.filled.head.profile", value: 3) {
                 SettingsTabView()
             }
             
             // Search role tab - will be separated to the right
-            Tab("Add", systemImage: "plus", value: 3, role: .search) {
+            Tab("Add", systemImage: "plus", value: 4, role: .search) {
                 Color.clear
             }
         }
         .tabViewStyle(.sidebarAdaptable)
         .tint(AppColors.primary)
         .onChange(of: selectedTab) { oldValue, newValue in
-            if newValue == 3 {
+            if newValue == 4 {
                 // Prevent switching to the plus tab
                 selectedTab = oldValue
                 // Open the modal
@@ -543,22 +547,28 @@ struct HomeView: View {
                     Label("History", systemImage: "chart.bar.fill")
                 }
             
-            SettingsTabView()
+            LoggingTabView()
                 .tag(2)
+                .tabItem {
+                    Label("Log", systemImage: "book.pages.fill")
+                }
+            
+            SettingsTabView()
+                .tag(3)
                 .tabItem {
                     Label("Me", systemImage: "person.fill")
                 }
             
             // Dummy tab for the plus button
             Color.clear
-                .tag(3)
+                .tag(4)
                 .tabItem {
                     Label("Add", systemImage: "plus")
                 }
         }
         .tint(AppColors.primary)
         .onChange(of: selectedTab) { oldValue in
-            if selectedTab == 3 {
+            if selectedTab == 4 {
                 // Prevent switching to the plus tab
                 selectedTab = oldValue
                 // Open the modal
