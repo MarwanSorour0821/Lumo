@@ -1,5 +1,6 @@
 import uuid
 from django.db import models
+from django.contrib.postgres.fields import ArrayField
 
 
 class FoodSupplementItem(models.Model):
@@ -32,7 +33,11 @@ class FoodSupplementItem(models.Model):
     # Reminder settings
     reminder_enabled = models.BooleanField(default=False)
     reminder_time = models.TimeField(blank=True, null=True)
-    reminder_days = models.JSONField(default=list)  # Array of day numbers (0-6)
+    reminder_days = ArrayField(
+        models.IntegerField(),
+        default=lambda: [0, 1, 2, 3, 4, 5, 6],
+        blank=True
+    )
     
     # Metadata
     is_archived = models.BooleanField(default=False)
