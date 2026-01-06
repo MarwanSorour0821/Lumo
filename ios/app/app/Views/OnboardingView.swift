@@ -81,7 +81,7 @@ struct OnboardingView: View {
 
                 // Particle / onboarding image on top so nothing covers it
                 particleView
-                    .zIndex(2)
+                    .zIndex(9999)
                     .ignoresSafeArea() // ensure image can extend into safe areas and won't be clipped
                     .allowsHitTesting(false) // don't block taps
             }
@@ -123,7 +123,7 @@ struct OnboardingView: View {
     var backgroundView: some View {
         Group {
             if colorScheme == .light {
-                Color(hex: "#FAFAFA")
+                Color(hex: "#FFFFFF")
             } else {
                 AppColors.background(themeManager.colorScheme)
             }
@@ -139,34 +139,27 @@ struct OnboardingView: View {
                 imageFromAssets(["Group6"]) // light-mode image variants
                     .resizable()
                     .scaledToFit()
-                    .frame(maxWidth: screenWidth * 0.30)
-                    .padding(.top, 140) // moved further down
+                    .scaleEffect(0.45, anchor: .top) // increased size from 0.30 -> 0.45
+                    .padding(.top, 120)
                     .offset(y: imageOffsetY)
                     .opacity(Double(imageReveal))
-                    .mask(
-                        // Reveal top-to-bottom by scaling the mask vertically
-                        Rectangle()
-                            .scaleEffect(x: 1, y: imageReveal, anchor: .top)
-                    )
+                    .clipShape(TopReveal(fraction: imageReveal)) // use clipShape for reveal
                     .animation(.easeOut(duration: 0.9), value: imageReveal)
             } else {
                 imageFromAssets(["Group7"]) // dark-mode image variants
                     .resizable()
                     .scaledToFit()
-                    .frame(maxWidth: screenWidth * 0.30)
-                    .padding(.top, 160) // match light mode
+                    .scaleEffect(0.45, anchor: .top)
+                    .padding(.top, 120)
                     .offset(y: imageOffsetY)
                     .opacity(Double(imageReveal))
-                    .mask(
-                        Rectangle()
-                            .scaleEffect(x: 1, y: imageReveal, anchor: .top)
-                    )
+                    .clipShape(TopReveal(fraction: imageReveal))
                     .animation(.easeOut(duration: 0.9), value: imageReveal)
             }
 
             Spacer()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top) // ensure image uses top alignment so it isn't centered/clipped
         .ignoresSafeArea(edges: .top)
     }
 
@@ -569,6 +562,22 @@ struct BottomTriangle: Shape {
         path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY)) // bottom right
         path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY)) // bottom left
         path.closeSubpath()
+        return path
+    }
+}
+
+// Top-to-bottom reveal shape used to clip the onboarding image reliably
+struct TopReveal: Shape {
+    var fraction: CGFloat
+    var animatableData: CGFloat {
+        get { fraction }
+        set { fraction = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let revealHeight = rect.height * fraction
+        path.addRect(CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: revealHeight))
         return path
     }
 }

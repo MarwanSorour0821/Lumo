@@ -348,8 +348,8 @@ class UserDataViewModel: ObservableObject {
             topBiomarkers = biomarkers
             hasAnalyses = !fetchedAnalyses.isEmpty
             
-            // Animate progress
-            withAnimation(.easeInOut(duration: 1.5)) {
+            // Animate progress with timing synced to score animation
+            withAnimation(.easeOut(duration: 1.8)) {
                 animatedProgress = min(max(score / 10.0, 0.0), 1.0)
             }
             

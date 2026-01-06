@@ -37,7 +37,10 @@ struct CustomSpinner: View {
     }
     
     private var spinnerColor: Color {
-        themeManager.colorScheme == .dark ? .white : .black
+        // Always white for dark mode, black for light mode
+        // Handle nil colorScheme (system default) by checking system appearance
+        let scheme = themeManager.colorScheme ?? (UITraitCollection.current.userInterfaceStyle == .dark ? .dark : .light)
+        return scheme == .dark ? Color.white : Color.black
     }
 }
 
