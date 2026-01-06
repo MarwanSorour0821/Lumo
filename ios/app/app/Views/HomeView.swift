@@ -464,95 +464,118 @@ struct HomeView: View {
     @StateObject private var processingManager = AnalysisProcessingManager.shared
     
     var body: some View {
-        ZStack {
-            TabView(selection: $selectedTab) {
+        if #available(iOS 18.0, *) {
+            modernTabView
+        } else {
+            legacyTabView
+        }
+    }
+    
+    // MARK: - iOS 18+ Modern TabView with sidebar adaptable style
+    @available(iOS 18.0, *)
+    private var modernTabView: some View {
+        TabView(selection: $selectedTab) {
+            Tab("Home", systemImage: "apple.homekit", value: 0) {
                 HomeTabView()
-                    .tag(0)
-                    .tabItem {
-                        Label("Home", systemImage: "apple.homekit")
-                    }
-                
-                HistoryTabView()
-                    .tag(1)
-                    .tabItem {
-                        Label("History", systemImage: "gauge.chart.lefthalf.righthalf")
-                    }
-                
-                SettingsTabView()
-                    .tag(2)
-                    .tabItem {
-                        Label("Me", systemImage: "brain.filled.head.profile")
-                    }
-            }
-            .accentColor(AppColors.primary)
-            .onChange(of: selectedTab) { _ in
-                // Trigger haptic feedback when switching tabs
-                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                impactFeedback.impactOccurred()
-            }
-            .onAppear {
-                // Customize tab bar appearance for even spacing
-                let appearance = UITabBarAppearance()
-                appearance.configureWithOpaqueBackground()
-                let bgColor = AppColors.background(themeManager.colorScheme)
-                appearance.backgroundColor = UIColor(bgColor)
-                
-                // Configure normal state
-                appearance.stackedLayoutAppearance.normal.iconColor = UIColor.gray
-                appearance.stackedLayoutAppearance.normal.titleTextAttributes = [
-                    .foregroundColor: UIColor.gray,
-                    .font: UIFont.systemFont(ofSize: 10)
-                ]
-                
-                // Configure selected state
-                let primaryColor = UIColor(red: 199/255.0, green: 0/255.0, blue: 43/255.0, alpha: 1.0) // #C7002B
-                appearance.stackedLayoutAppearance.selected.iconColor = primaryColor
-                appearance.stackedLayoutAppearance.selected.titleTextAttributes = [
-                    .foregroundColor: primaryColor,
-                    .font: UIFont.systemFont(ofSize: 10)
-                ]
-                
-                // Apply to all tab bars
-                UITabBar.appearance().standardAppearance = appearance
-                if #available(iOS 15.0, *) {
-                    UITabBar.appearance().scrollEdgeAppearance = appearance
-                }
             }
             
-            // Bottom-right + button (positioned next to navbar at the bottom)
-            VStack {
-                Spacer()
-                HStack {
-                    Spacer()
-                    Button {
-                        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                        impactFeedback.impactOccurred()
-                        showAnalyseModal = true
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(.white)
-                            .frame(width: 56, height: 56)
-                            .background(
-                                Circle()
-                                    .fill(AppColors.primary)
-                                    .shadow(color: AppColors.primary.opacity(0.4), radius: 12, x: 0, y: 4)
-                            )
-                    }
-                    .padding(.trailing, 16)
-                    .padding(.bottom, 90) // Position above the tab bar
-                }
+            Tab("History", systemImage: "gauge.chart.lefthalf.righthalf", value: 1) {
+                HistoryTabView()
+            }
+            
+            Tab("Me", systemImage: "brain.filled.head.profile", value: 2) {
+                SettingsTabView()
+            }
+            
+            // Search role tab - will be separated to the right
+            Tab("Add", systemImage: "plus", value: 3, role: .search) {
+                Color.clear
+            }
+        }
+        .tabViewStyle(.sidebarAdaptable)
+        .tint(AppColors.primary)
+        .onChange(of: selectedTab) { oldValue, newValue in
+            if newValue == 3 {
+                // Prevent switching to the plus tab
+                selectedTab = oldValue
+                // Open the modal
+                showAnalyseModal = true
+            } else {
+                // Normal tab switch - haptic feedback
+                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                impactFeedback.impactOccurred()
             }
         }
         .sheet(isPresented: $showAnalyseModal) {
             AnalyseModalView(
                 isPresented: $showAnalyseModal,
                 onAnalysisStarted: { fileName in
-                    // Switch to history tab and start processing
                     selectedTab = 1
                 },
                 onAnalysisComplete: { analysisData in
-                    // Analysis complete - show results
+                    self.analysisResultForDisplay = analysisData
+                    self.showAnalysisResultsFromHome = true
+                }
+            )
+        }
+        .fullScreenCover(isPresented: $showAnalysisResultsFromHome) {
+            if let analysisData = analysisResultForDisplay {
+                NavigationView {
+                    AnalysisResultsView(analysisData: analysisData)
+                        .environmentObject(themeManager)
+                }
+            }
+        }
+    }
+    
+    // MARK: - Legacy TabView for iOS < 18 (standard tab bar)
+    private var legacyTabView: some View {
+        TabView(selection: $selectedTab) {
+            HomeTabView()
+                .tag(0)
+                .tabItem {
+                    Label("Home", systemImage: "house.fill")
+                }
+            
+            HistoryTabView()
+                .tag(1)
+                .tabItem {
+                    Label("History", systemImage: "chart.bar.fill")
+                }
+            
+            SettingsTabView()
+                .tag(2)
+                .tabItem {
+                    Label("Me", systemImage: "person.fill")
+                }
+            
+            // Dummy tab for the plus button
+            Color.clear
+                .tag(3)
+                .tabItem {
+                    Label("Add", systemImage: "plus")
+                }
+        }
+        .tint(AppColors.primary)
+        .onChange(of: selectedTab) { oldValue in
+            if selectedTab == 3 {
+                // Prevent switching to the plus tab
+                selectedTab = oldValue
+                // Open the modal
+                showAnalyseModal = true
+            } else {
+                // Normal tab switch - haptic feedback
+                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                impactFeedback.impactOccurred()
+            }
+        }
+        .sheet(isPresented: $showAnalyseModal) {
+            AnalyseModalView(
+                isPresented: $showAnalyseModal,
+                onAnalysisStarted: { fileName in
+                    selectedTab = 1
+                },
+                onAnalysisComplete: { analysisData in
                     self.analysisResultForDisplay = analysisData
                     self.showAnalysisResultsFromHome = true
                 }
