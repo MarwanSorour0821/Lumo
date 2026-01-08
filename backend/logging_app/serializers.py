@@ -1,4 +1,6 @@
 from rest_framework import serializers
+from django.utils import timezone
+from datetime import datetime, time
 from .models import FoodSupplementItem, FoodSupplementLog, FoodSupplementBiomarkerImpact
 
 
@@ -29,25 +31,34 @@ class FoodSupplementItemSerializer(serializers.ModelSerializer):
     biomarker_impacts = FoodSupplementBiomarkerImpactSerializer(many=True, read_only=True)
     recent_logs = serializers.SerializerMethodField()
     log_count = serializers.SerializerMethodField()
-    
+    is_taken_today = serializers.SerializerMethodField()
+
     class Meta:
         model = FoodSupplementItem
         fields = [
             'id', 'user_id', 'name', 'type', 'description',
             'frequency', 'times_per_week',
             'reminder_enabled', 'reminder_time', 'reminder_days',
+            'last_taken_at', 'is_taken_today',
             'is_archived', 'created_at', 'updated_at',
             'biomarker_impacts', 'recent_logs', 'log_count'
         ]
         read_only_fields = ['id', 'user_id', 'created_at', 'updated_at']
-    
+
     def get_recent_logs(self, obj):
         # Get the 5 most recent logs
         recent = obj.logs.all()[:5]
         return FoodSupplementLogSerializer(recent, many=True).data
-    
+
     def get_log_count(self, obj):
         return obj.logs.count()
+
+    def get_is_taken_today(self, obj):
+        """Check if the item was marked as taken today"""
+        if not obj.last_taken_at:
+            return False
+        today = timezone.now().date()
+        return obj.last_taken_at.date() == today
 
 
 class FoodSupplementItemCreateSerializer(serializers.ModelSerializer):

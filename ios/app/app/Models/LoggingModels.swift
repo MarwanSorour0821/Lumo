@@ -2,27 +2,27 @@
 //  LoggingModels.swift
 //  app
 //
-//  Models for food and supplement logging
+//  Models for medication and supplement tracking
 //
 
 import Foundation
 
 // MARK: - Item Type Enum
 enum LogItemType: String, Codable, CaseIterable {
-    case food = "food"
     case supplement = "supplement"
-    
+    case medication = "medication"
+
     var displayName: String {
         switch self {
-        case .food: return "Food"
         case .supplement: return "Supplement"
+        case .medication: return "Medication"
         }
     }
-    
+
     var icon: String {
         switch self {
-        case .food: return "fork.knife"
         case .supplement: return "pills.fill"
+        case .medication: return "cross.case.fill"
         }
     }
 }
@@ -138,13 +138,15 @@ struct FoodSupplementItem: Codable, Identifiable {
     let reminderEnabled: Bool
     let reminderTime: String?
     let reminderDays: [Int]
+    let lastTakenAt: String?
+    let isTakenToday: Bool
     let isArchived: Bool
     let createdAt: String?
     let updatedAt: String?
     let biomarkerImpacts: [BiomarkerImpact]?
     let recentLogs: [LogEntry]?
     let logCount: Int?
-    
+
     enum CodingKeys: String, CodingKey {
         case id
         case userId = "user_id"
@@ -156,6 +158,8 @@ struct FoodSupplementItem: Codable, Identifiable {
         case reminderEnabled = "reminder_enabled"
         case reminderTime = "reminder_time"
         case reminderDays = "reminder_days"
+        case lastTakenAt = "last_taken_at"
+        case isTakenToday = "is_taken_today"
         case isArchived = "is_archived"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
@@ -163,7 +167,7 @@ struct FoodSupplementItem: Codable, Identifiable {
         case recentLogs = "recent_logs"
         case logCount = "log_count"
     }
-    
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
@@ -176,6 +180,8 @@ struct FoodSupplementItem: Codable, Identifiable {
         reminderEnabled = try container.decodeIfPresent(Bool.self, forKey: .reminderEnabled) ?? false
         reminderTime = try container.decodeIfPresent(String.self, forKey: .reminderTime)
         reminderDays = try container.decodeIfPresent([Int].self, forKey: .reminderDays) ?? [0,1,2,3,4,5,6]
+        lastTakenAt = try container.decodeIfPresent(String.self, forKey: .lastTakenAt)
+        isTakenToday = try container.decodeIfPresent(Bool.self, forKey: .isTakenToday) ?? false
         isArchived = try container.decodeIfPresent(Bool.self, forKey: .isArchived) ?? false
         createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt)
         updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
@@ -183,9 +189,9 @@ struct FoodSupplementItem: Codable, Identifiable {
         recentLogs = try container.decodeIfPresent([LogEntry].self, forKey: .recentLogs)
         logCount = try container.decodeIfPresent(Int.self, forKey: .logCount)
     }
-    
+
     // Manual init for creating items locally
-    init(id: String, name: String, type: LogItemType, description: String? = nil, frequency: LogFrequency = .daily, timesPerWeek: Int = 7, reminderEnabled: Bool = false, reminderTime: String? = nil, reminderDays: [Int] = [0,1,2,3,4,5,6], isArchived: Bool = false, biomarkerImpacts: [BiomarkerImpact]? = nil, recentLogs: [LogEntry]? = nil, logCount: Int? = nil) {
+    init(id: String, name: String, type: LogItemType, description: String? = nil, frequency: LogFrequency = .daily, timesPerWeek: Int = 7, reminderEnabled: Bool = false, reminderTime: String? = nil, reminderDays: [Int] = [0,1,2,3,4,5,6], lastTakenAt: String? = nil, isTakenToday: Bool = false, isArchived: Bool = false, biomarkerImpacts: [BiomarkerImpact]? = nil, recentLogs: [LogEntry]? = nil, logCount: Int? = nil) {
         self.id = id
         self.userId = nil
         self.name = name
@@ -196,6 +202,8 @@ struct FoodSupplementItem: Codable, Identifiable {
         self.reminderEnabled = reminderEnabled
         self.reminderTime = reminderTime
         self.reminderDays = reminderDays
+        self.lastTakenAt = lastTakenAt
+        self.isTakenToday = isTakenToday
         self.isArchived = isArchived
         self.createdAt = nil
         self.updatedAt = nil
@@ -224,9 +232,22 @@ struct QuickLogResponse: Codable {
 struct BiomarkerImpactsResponse: Codable {
     let itemName: String
     let impacts: [BiomarkerImpact]
-    
+
     enum CodingKeys: String, CodingKey {
         case itemName = "item_name"
         case impacts
+    }
+}
+
+// MARK: - Toggle Taken Response
+struct ToggleTakenResponse: Codable {
+    let item: FoodSupplementItem
+    let message: String
+    let isTakenToday: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case item
+        case message
+        case isTakenToday = "is_taken_today"
     }
 }

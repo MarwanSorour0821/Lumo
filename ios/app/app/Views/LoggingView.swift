@@ -2,7 +2,7 @@
 //  LoggingView.swift
 //  app
 //
-//  Main view for food and supplement logging
+//  Main view for medication and supplement tracking
 //
 
 import SwiftUI
@@ -15,25 +15,15 @@ struct LoggingTabView: View {
     @State private var selectedItem: FoodSupplementItem? = nil
     @State private var showImpactModal = false
     @State private var showReminderSheet = false
-    
+    @Environment(\.dismiss) private var dismiss
+
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 AppColors.background(themeManager.colorScheme)
                     .ignoresSafeArea()
                 
                 VStack(spacing: 0) {
-                    // Voice Input Section
-                    VoiceInputSection(viewModel: viewModel)
-                        .padding(.horizontal, 20)
-                        .padding(.top, 16)
-                    
-                    // Quick Actions
-                    if !viewModel.items.isEmpty {
-                        QuickLogSection(viewModel: viewModel)
-                            .padding(.top, 20)
-                    }
-                    
                     // Items List
                     if viewModel.isLoading && viewModel.items.isEmpty {
                         Spacer()
@@ -43,41 +33,90 @@ struct LoggingTabView: View {
                     } else if viewModel.items.isEmpty {
                         EmptyStateView(onAddTapped: { showAddSheet = true })
                     } else {
-                        ItemsListSection(
-                            viewModel: viewModel,
-                            onItemTapped: { item in
-                                selectedItem = item
-                            },
-                            onLogTapped: { item in
-                                Task {
-                                    await viewModel.logItem(item)
+                        ScrollView {
+                            LazyVStack(spacing: 12) {
+                                // Quick Actions
+                                QuickLogSection(viewModel: viewModel)
+                                    .padding(.top, 8)
+                                
+                                // Filter chips
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 8) {
+                                        FilterChip(title: "All", isSelected: viewModel.selectedFilter == nil) {
+                                            viewModel.selectedFilter = nil
+                                        }
+                                        FilterChip(title: "Supplements", isSelected: viewModel.selectedFilter == .supplement) {
+                                            viewModel.selectedFilter = .supplement
+                                        }
+                                        FilterChip(title: "Medication", isSelected: viewModel.selectedFilter == .medication) {
+                                            viewModel.selectedFilter = .medication
+                                        }
+                                    }
+                                    .padding(.horizontal, 20)
                                 }
-                            },
-                            onImpactTapped: { item in
-                                selectedItem = item
-                                showImpactModal = true
-                            },
-                            onReminderTapped: { item in
-                                selectedItem = item
-                                showReminderSheet = true
+                                .padding(.top, 8)
+                                
+                                // Items
+                                ForEach(viewModel.filteredItems) { item in
+                                    ItemCard(
+                                        item: item,
+                                        onLog: { 
+                                            Task {
+                                                await viewModel.logItem(item)
+                                            }
+                                        },
+                                        onImpact: { 
+                                            selectedItem = item
+                                            showImpactModal = true
+                                        },
+                                        onReminder: { 
+                                            selectedItem = item
+                                            showReminderSheet = true
+                                        },
+                                        onDelete: {
+                                            Task {
+                                                await viewModel.deleteItem(item)
+                                            }
+                                        }
+                                    )
+                                    .padding(.horizontal, 20)
+                                }
                             }
-                        )
+                            .padding(.bottom, 100) // Space for bottom input
+                        }
                     }
+                    
+                    Spacer()
+                }
+                
+                // Bottom Input Section (Fixed at bottom)
+                VStack {
+                    Spacer()
+                    VoiceInputSection(viewModel: viewModel)
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 20)
                 }
             }
-            .navigationTitle("Log")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitle("Medication", displayMode: .inline)
+            .navigationBarBackButtonHidden(true)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        showAddSheet = true
-                    } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 24))
-                            .foregroundColor(AppColors.primary)
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(action: {
+                        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                        impactFeedback.impactOccurred()
+                        NotificationCenter.default.post(name: .switchTab, object: nil, userInfo: ["tab": 0])
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 16, weight: .medium))
+                            Text("Back")
+                                .font(.custom("ProductSans-Regular", size: 17))
+                        }
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
                     }
                 }
             }
+            .toolbar(.hidden, for: .tabBar)
             .sheet(isPresented: $showAddSheet) {
                 AddItemSheet(viewModel: viewModel)
                     .environmentObject(themeManager)
@@ -86,12 +125,14 @@ struct LoggingTabView: View {
                 if let item = selectedItem {
                     BiomarkerImpactModal(item: item, viewModel: viewModel)
                         .environmentObject(themeManager)
+                        .presentationDetents([.medium, .large])
                 }
             }
             .sheet(isPresented: $showReminderSheet) {
                 if let item = selectedItem {
                     ReminderSheet(item: item, viewModel: viewModel)
                         .environmentObject(themeManager)
+                        .presentationDetents(item.reminderEnabled ? [.large] : [.medium, .large])
                 }
             }
             .task {
@@ -139,84 +180,88 @@ struct VoiceInputSection: View {
     @State private var manualInput: String = ""
     @FocusState private var isInputFocused: Bool
     
+    // Glass effect colors
+    private var glassBackground: Color {
+        themeManager.colorScheme == .dark
+            ? Color(white: 0.18).opacity(0.92)
+            : Color(white: 0.94).opacity(0.92)
+    }
+    
+    private var glassBorder: Color {
+        themeManager.colorScheme == .dark
+            ? Color.white.opacity(0.15)
+            : Color.black.opacity(0.08)
+    }
+    
+    // Helper to check if there's input text
+    private var hasInputText: Bool {
+        !manualInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || 
+        !viewModel.transcribedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+    
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 8) {
             // Input field with mic button
-            HStack(spacing: 12) {
-                // Text field
-                HStack {
-                    TextField("What did you take?", text: viewModel.isRecording ? $viewModel.transcribedText : $manualInput)
-                        .font(.custom("ProductSans-Regular", size: 16))
-                        .foregroundColor(AppColors.text(themeManager.colorScheme))
-                        .focused($isInputFocused)
-                        .submitLabel(.done)
-                        .onSubmit {
-                            submitInput()
-                        }
-                    
-                    if !manualInput.isEmpty || !viewModel.transcribedText.isEmpty {
-                        Button {
-                            submitInput()
-                        } label: {
-                            Image(systemName: "arrow.up.circle.fill")
-                                .font(.system(size: 24))
-                                .foregroundColor(AppColors.primary)
-                        }
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(
-                    RoundedRectangle(cornerRadius: 24)
-                        .fill(AppColors.inputBackground(themeManager.colorScheme))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 24)
-                                .stroke(viewModel.isRecording ? AppColors.primary : AppColors.border(themeManager.colorScheme), lineWidth: viewModel.isRecording ? 2 : 1)
-                        )
-                )
-                
-                // Microphone button
-                Button {
-                    Task {
-                        if viewModel.isRecording {
-                            viewModel.stopRecording()
-                        } else {
-                            await viewModel.startRecording()
-                        }
-                    }
-                } label: {
-                    ZStack {
-                        Circle()
-                            .fill(viewModel.isRecording ? AppColors.primary : AppColors.inputBackground(themeManager.colorScheme))
-                            .frame(width: 48, height: 48)
+            if #available(iOS 26.0, *) {
+                GlassEffectContainer{
+                    HStack(spacing: 12) {
+                        // Text field with padding
+                        TextField("Add medication or supplement...", text: viewModel.isRecording ? $viewModel.transcribedText : $manualInput)
+                            .font(.custom("ProductSans-Regular", size: 18))
+                            .focused($isInputFocused)
+                            .submitLabel(.done)
+                            .onSubmit {
+                                submitInput()
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 14)
+                            .glassEffect(.regular.interactive())
                         
-                        Image(systemName: viewModel.isRecording ? "stop.fill" : "mic.fill")
-                            .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(viewModel.isRecording ? .white : AppColors.primary)
+                        // Microphone / Send button (morphs based on input)
+                        Button {
+                            Task {
+                                if hasInputText {
+                                    // Send the message
+                                    submitInput()
+                                } else if viewModel.isRecording {
+                                    // Stop recording
+                                    viewModel.stopRecording()
+                                } else {
+                                    // Start recording
+                                    await viewModel.startRecording()
+                                }
+                            }
+                        } label: {
+                            // Icon morphs based on state
+                            if hasInputText {
+                                Image(systemName: "arrow.up")
+                                    .font(.system(size: 18, weight: .bold))
+                                    .foregroundColor(AppColors.primary)
+                            } else {
+                                Image(systemName: viewModel.isRecording ? "stop.fill" : "waveform")
+                                    .font(.system(size: 18, weight: .medium))
+                                    .foregroundColor(AppColors.primary)
+                            }
+                        }
+                        .scaleEffect(viewModel.isRecording ? 1.1 : 1.0)
+                        .animation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true), value: viewModel.isRecording)
+                        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: hasInputText)
+                    }
+                    
+                    // Processing indicator
+                    if viewModel.isProcessingVoice {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                                .tint(AppColors.primary)
+                                .scaleEffect(0.8)
+                            Text("Processing...")
+                                .font(.custom("ProductSans-Regular", size: 12))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                        }
                     }
                 }
-                .scaleEffect(viewModel.isRecording ? 1.1 : 1.0)
-                .animation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true), value: viewModel.isRecording)
-            }
-            
-            // Processing indicator
-            if viewModel.isProcessingVoice {
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .tint(AppColors.primary)
-                        .scaleEffect(0.8)
-                    Text("Processing...")
-                        .font(.custom("ProductSans-Regular", size: 14))
-                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                }
-            }
-            
-            // Hint text
-            if !viewModel.isRecording && manualInput.isEmpty && viewModel.transcribedText.isEmpty {
-                Text("Tap the mic or type: \"Vitamin D 1000IU\" or \"Fish oil and zinc\"")
-                    .font(.custom("ProductSans-Regular", size: 13))
-                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                    .multilineTextAlignment(.center)
+            } else {
+                // Fallback on earlier versions
             }
         }
     }
@@ -272,6 +317,19 @@ struct QuickLogChip: View {
     let item: FoodSupplementItem
     let onTap: () -> Void
     
+    // Color scheme for quick log buttons
+    private var textColor: Color {
+        themeManager.colorScheme == .dark
+            ? Color.black
+            : Color.white
+    }
+    
+    private var backgroundColor: Color {
+        themeManager.colorScheme == .dark
+            ? Color.white
+            : Color.black
+    }
+    
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 6) {
@@ -282,16 +340,12 @@ struct QuickLogChip: View {
                 Image(systemName: "plus")
                     .font(.system(size: 10, weight: .bold))
             }
-            .foregroundColor(AppColors.primary)
+            .foregroundColor(textColor)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
             .background(
                 Capsule()
-                    .fill(AppColors.primary.opacity(0.1))
-                    .overlay(
-                        Capsule()
-                            .stroke(AppColors.primary.opacity(0.3), lineWidth: 1)
-                    )
+                    .fill(backgroundColor)
             )
         }
     }
@@ -318,8 +372,8 @@ struct ItemsListSection: View {
                         FilterChip(title: "Supplements", isSelected: viewModel.selectedFilter == .supplement) {
                             viewModel.selectedFilter = .supplement
                         }
-                        FilterChip(title: "Food", isSelected: viewModel.selectedFilter == .food) {
-                            viewModel.selectedFilter = .food
+                        FilterChip(title: "Medication", isSelected: viewModel.selectedFilter == .medication) {
+                            viewModel.selectedFilter = .medication
                         }
                     }
                     .padding(.horizontal, 20)
@@ -378,112 +432,139 @@ struct ItemCard: View {
     let onReminder: () -> Void
     let onDelete: () -> Void
     
-    @State private var showActions = false
+    @State private var showDeleteConfirmation = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Header
-            HStack {
-                // Icon
-                ZStack {
-                    Circle()
-                        .fill(item.type == .supplement ? Color.purple.opacity(0.15) : Color.orange.opacity(0.15))
-                        .frame(width: 40, height: 40)
-                    
-                    Image(systemName: item.type.icon)
-                        .font(.system(size: 16))
-                        .foregroundColor(item.type == .supplement ? .purple : .orange)
-                }
+        HStack(spacing: 12) {
+            // Icon
+            ZStack {
+                Circle()
+                    .fill(item.type == .supplement ? Color.purple.opacity(0.15) : Color.blue.opacity(0.15))
+                    .frame(width: 36, height: 36)
+
+                Image(systemName: item.type.icon)
+                    .font(.system(size: 14))
+                    .foregroundColor(item.type == .supplement ? .purple : .blue)
+            }
+            
+            // Name and Metadata
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.name)
+                    .font(.custom("ProductSans-Bold", size: 15))
+                    .foregroundColor(AppColors.text(themeManager.colorScheme))
                 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(item.name)
-                        .font(.custom("ProductSans-Bold", size: 16))
-                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+                HStack(spacing: 6) {
+                    Text(item.frequency.displayName)
+                        .font(.custom("ProductSans-Regular", size: 11))
+                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                     
-                    HStack(spacing: 8) {
-                        Text(item.frequency.displayName)
-                            .font(.custom("ProductSans-Regular", size: 12))
+                    if let logCount = item.logCount, logCount > 0 {
+                        Text("•")
+                            .font(.custom("ProductSans-Regular", size: 11))
                             .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                        
-                        if let logCount = item.logCount, logCount > 0 {
-                            Text("•")
-                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                            Text("\(logCount) logs")
-                                .font(.custom("ProductSans-Regular", size: 12))
-                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                        }
-                        
-                        if item.reminderEnabled {
-                            Image(systemName: "bell.fill")
-                                .font(.system(size: 10))
-                                .foregroundColor(AppColors.primary)
-                        }
+                        Text("\(logCount) logs")
+                            .font(.custom("ProductSans-Regular", size: 11))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                     }
-                }
-                
-                Spacer()
-                
-                // Quick log button
-                Button(action: onLog) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 32))
-                        .foregroundColor(AppColors.primary)
                 }
             }
             
-            // Action buttons
-            HStack(spacing: 12) {
-                ActionButton(icon: "chart.bar.fill", title: "See Impact", color: .blue) {
-                    onImpact()
+            Spacer()
+            
+            // Action buttons in glass container
+            if #available(iOS 18.0, *) {
+                if #available(iOS 26.0, *) {
+                    HStack(spacing: 12) {
+                        Button {
+                            onReminder()
+                        } label: {
+                            Image(systemName: item.reminderEnabled ? "alarm.waves.left.and.right.fill" : "alarm.waves.left.and.right")
+                                .font(.system(size: 16))
+                                .foregroundColor(item.reminderEnabled ? AppColors.primary : AppColors.textSecondary(themeManager.colorScheme))
+                        }
+                        .buttonStyle(.plain)
+                        
+                        Button {
+                            onImpact()
+                        } label: {
+                            Image(systemName: "chart.xyaxis.line")
+                                .font(.system(size: 16))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                        }
+                        .buttonStyle(.plain)
+                        
+                        Menu {
+                            Button(role: .destructive) {
+                                onDelete()
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis")
+                                .font(.system(size: 16))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .glassEffect(.regular.interactive())
+                } else {
+                    // Fallback on earlier versions
                 }
-                
-                ActionButton(icon: "bell.fill", title: item.reminderEnabled ? "Edit Reminder" : "Set Reminder", color: .orange) {
-                    onReminder()
+            } else {
+                // Fallback for older iOS versions
+                HStack(spacing: 12) {
+                    Button {
+                        onReminder()
+                    } label: {
+                        Image(systemName: item.reminderEnabled ? "bell.fill" : "bell")
+                            .font(.system(size: 16))
+                            .foregroundColor(item.reminderEnabled ? AppColors.primary : AppColors.textSecondary(themeManager.colorScheme))
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Button {
+                        onImpact()
+                    } label: {
+                        Image(systemName: "chart.bar.fill")
+                            .font(.system(size: 16))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Menu {
+                        Button(role: .destructive) {
+                            onDelete()
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 16))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                    }
+                    .buttonStyle(.plain)
                 }
-                
-                Spacer()
-                
-                Button {
-                    onDelete()
-                } label: {
-                    Image(systemName: "trash")
-                        .font(.system(size: 14))
-                        .foregroundColor(.red.opacity(0.7))
-                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color(white: themeManager.colorScheme == .dark ? 0.18 : 0.94).opacity(0.92))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color(white: themeManager.colorScheme == .dark ? 1.0 : 0.0).opacity(themeManager.colorScheme == .dark ? 0.15 : 0.08), lineWidth: 0.5)
+                        )
+                )
             }
         }
-        .padding(16)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
         .background(
-            RoundedRectangle(cornerRadius: 16)
+            Capsule()
                 .fill(AppColors.surface(themeManager.colorScheme))
-                .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
+                .shadow(color: Color.black.opacity(0.05), radius: 6, x: 0, y: 2)
         )
-    }
-}
-
-// MARK: - Action Button
-struct ActionButton: View {
-    let icon: String
-    let title: String
-    let color: Color
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(.system(size: 12))
-                Text(title)
-                    .font(.custom("ProductSans-Medium", size: 12))
-            }
-            .foregroundColor(color)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(
-                Capsule()
-                    .fill(color.opacity(0.1))
-            )
-        }
     }
 }
 
@@ -504,7 +585,7 @@ struct EmptyStateView: View {
                 .font(.custom("ProductSans-Bold", size: 20))
                 .foregroundColor(AppColors.text(themeManager.colorScheme))
             
-            Text("Add supplements or foods you want to track\nand see their impact on your biomarkers")
+            Text("Add supplements or medications you want to track\nand set reminders to stay on schedule")
                 .font(.custom("ProductSans-Regular", size: 14))
                 .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                 .multilineTextAlignment(.center)

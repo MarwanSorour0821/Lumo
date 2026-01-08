@@ -15,6 +15,10 @@ import Photos
 import AVFoundation
 import Combine
 
+extension Notification.Name {
+    static let switchTab = Notification.Name("SwitchTabNotification")
+}
+
 // MARK: - Persistent Processing Analysis Item
 struct ProcessingAnalysis: Identifiable, Codable {
     let id: String
@@ -475,22 +479,22 @@ struct HomeView: View {
     @available(iOS 18.0, *)
     private var modernTabView: some View {
         TabView(selection: $selectedTab) {
-            Tab("Home", systemImage: "apple.homekit", value: 0) {
-                HomeTabView()
+            Tab("Today", systemImage: "point.bottomleft.forward.to.point.topright.filled.scurvepath", value: 0) {
+                TodayTabView()
             }
-            
-            Tab("History", systemImage: "gauge.chart.lefthalf.righthalf", value: 1) {
-                HistoryTabView()
-            }
-            
-            Tab("Log", systemImage: "book.pages.fill", value: 2) {
+
+            Tab("Medication", systemImage: "pills.fill", value: 1) {
                 LoggingTabView()
             }
-            
+
+            Tab("Health", systemImage: "stethoscope", value: 2) {
+                HomeTabView()
+            }
+
             Tab("Me", systemImage: "brain.filled.head.profile", value: 3) {
                 SettingsTabView()
             }
-            
+
             // Search role tab - will be separated to the right
             Tab("Add", systemImage: "plus", value: 4, role: .search) {
                 Color.clear
@@ -510,11 +514,16 @@ struct HomeView: View {
                 impactFeedback.impactOccurred()
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .switchTab)) { notification in
+            if let tab = notification.userInfo?["tab"] as? Int {
+                selectedTab = tab
+            }
+        }
         .sheet(isPresented: $showAnalyseModal) {
             AnalyseModalView(
                 isPresented: $showAnalyseModal,
                 onAnalysisStarted: { fileName in
-                    selectedTab = 1
+                    selectedTab = 2
                 },
                 onAnalysisComplete: { analysisData in
                     self.analysisResultForDisplay = analysisData
@@ -535,30 +544,30 @@ struct HomeView: View {
     // MARK: - Legacy TabView for iOS < 18 (standard tab bar)
     private var legacyTabView: some View {
         TabView(selection: $selectedTab) {
-            HomeTabView()
+            TodayTabView()
                 .tag(0)
                 .tabItem {
-                    Label("Home", systemImage: "house.fill")
+                    Label("Today", systemImage: "sun.max.fill")
                 }
-            
-            HistoryTabView()
+
+            LoggingTabView()
                 .tag(1)
                 .tabItem {
-                    Label("History", systemImage: "chart.bar.fill")
+                    Label("Medication", systemImage: "pills.fill")
                 }
-            
-            LoggingTabView()
+
+            HomeTabView()
                 .tag(2)
                 .tabItem {
-                    Label("Log", systemImage: "book.pages.fill")
+                    Label("Health", systemImage: "heart.fill")
                 }
-            
+
             SettingsTabView()
                 .tag(3)
                 .tabItem {
                     Label("Me", systemImage: "person.fill")
                 }
-            
+
             // Dummy tab for the plus button
             Color.clear
                 .tag(4)
@@ -579,11 +588,16 @@ struct HomeView: View {
                 impactFeedback.impactOccurred()
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .switchTab)) { notification in
+            if let tab = notification.userInfo?["tab"] as? Int {
+                selectedTab = tab
+            }
+        }
         .sheet(isPresented: $showAnalyseModal) {
             AnalyseModalView(
                 isPresented: $showAnalyseModal,
                 onAnalysisStarted: { fileName in
-                    selectedTab = 1
+                    selectedTab = 2
                 },
                 onAnalysisComplete: { analysisData in
                     self.analysisResultForDisplay = analysisData
@@ -599,6 +613,396 @@ struct HomeView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Today Tab View
+struct TodayTabView: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    @StateObject private var loggingViewModel = LoggingViewModel.shared
+    @State private var currentDate = Date()
+    @State private var selectedItem: FoodSupplementItem? = nil
+    @State private var showReminderSheet = false
+
+    private var greeting: String {
+        let hour = Calendar.current.component(.hour, from: currentDate)
+        if hour < 12 {
+            return "Good Morning"
+        } else if hour < 17 {
+            return "Good Afternoon"
+        } else {
+            return "Good Evening"
+        }
+    }
+
+    private var formattedDate: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE, MMMM d"
+        return formatter.string(from: currentDate)
+    }
+
+    // Get items with reminders enabled for today
+    private var todaysMedications: [FoodSupplementItem] {
+        let today = Calendar.current.component(.weekday, from: currentDate) - 1 // 0-6 (Sunday = 0)
+        return loggingViewModel.items.filter { item in
+            item.reminderEnabled && item.reminderDays.contains(today)
+        }
+    }
+
+    var body: some View {
+        NavigationView {
+            ZStack {
+                AppColors.background(themeManager.colorScheme)
+                    .ignoresSafeArea()
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        // Header
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(greeting)
+                                .font(.custom("ProductSans-Bold", size: 32))
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+
+                            Text(formattedDate)
+                                .font(.custom("ProductSans-Regular", size: 16))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                        }
+                        .padding(.horizontal, 24)
+                        .padding(.top, 20)
+
+                        // Today's Medications Section
+                        VStack(alignment: .leading, spacing: 16) {
+                            HStack {
+                                Text("Today's Medications")
+                                    .font(.custom("ProductSans-Bold", size: 20))
+                                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+
+                                Spacer()
+
+                                if !loggingViewModel.isLoading && !todaysMedications.isEmpty {
+                                    Text("\(todaysMedications.count) items")
+                                        .font(.custom("ProductSans-Regular", size: 14))
+                                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                                }
+                            }
+                            .padding(.horizontal, 24)
+
+                            if loggingViewModel.isLoading {
+                                // Loading state
+                                VStack(spacing: 16) {
+                                    CustomSpinner(size: 32, lineWidth: 3)
+
+                                    Text("Loading medications...")
+                                        .font(.custom("ProductSans-Regular", size: 16))
+                                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(32)
+                            } else if todaysMedications.isEmpty {
+                                // Empty state
+                                VStack(spacing: 16) {
+                                    Image(systemName: "pills.fill")
+                                        .font(.system(size: 48))
+                                        .foregroundColor(AppColors.primary.opacity(0.3))
+
+                                    Text("No medications scheduled for today")
+                                        .font(.custom("ProductSans-Medium", size: 16))
+                                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+
+                                    Text("Add medications and set reminders in the Medication tab")
+                                        .font(.custom("ProductSans-Regular", size: 14))
+                                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme).opacity(0.8))
+                                        .multilineTextAlignment(.center)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(32)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .fill(AppColors.surface(themeManager.colorScheme))
+                                )
+                                .padding(.horizontal, 24)
+                            } else {
+                                // Medications list
+                                ForEach(todaysMedications) { item in
+                                    TodayMedicationCard(
+                                        item: item,
+                                        onToggleTaken: {
+                                            Task {
+                                                await loggingViewModel.toggleTaken(item)
+                                            }
+                                        },
+                                        onReminder: {
+                                            selectedItem = item
+                                            showReminderSheet = true
+                                        },
+                                        onDelete: {
+                                            Task {
+                                                await loggingViewModel.deleteItem(item)
+                                            }
+                                        }
+                                    )
+                                    .padding(.horizontal, 20)
+                                }
+                            }
+                        }
+                        .animation(.easeInOut(duration: 0.3), value: loggingViewModel.isLoading)
+
+                        Spacer(minLength: 100)
+                    }
+                }
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        currentDate = Date()
+                        Task {
+                            await loggingViewModel.refreshData()
+                        }
+                    }) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(AppColors.text(themeManager.colorScheme))
+                    }
+                }
+            }
+            .sheet(isPresented: $showReminderSheet) {
+                if let item = selectedItem {
+                    ReminderSheet(item: item, viewModel: loggingViewModel)
+                        .environmentObject(themeManager)
+                        .presentationDetents(item.reminderEnabled ? [.large] : [.medium])
+                }
+            }
+            .overlay {
+                // Success/Error Toast
+                if let message = loggingViewModel.successMessage {
+                    ToastView(message: message, type: .success)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .onAppear {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                withAnimation {
+                                    loggingViewModel.clearMessages()
+                                }
+                            }
+                        }
+                }
+
+                if let error = loggingViewModel.error {
+                    ToastView(message: error, type: .error)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .onAppear {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                                withAnimation {
+                                    loggingViewModel.clearMessages()
+                                }
+                            }
+                        }
+                }
+            }
+            .animation(.easeInOut, value: loggingViewModel.successMessage)
+            .animation(.easeInOut, value: loggingViewModel.error)
+        }
+        .task {
+            await loggingViewModel.refreshData()
+        }
+    }
+}
+
+// MARK: - Today Medication Card (Pill-shaped UI matching ItemCard)
+struct TodayMedicationCard: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    let item: FoodSupplementItem
+    let onToggleTaken: () -> Void
+    let onReminder: () -> Void
+    let onDelete: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            // Icon
+            ZStack {
+                Circle()
+                    .fill(item.type == .supplement ? Color.purple.opacity(0.15) : Color.blue.opacity(0.15))
+                    .frame(width: 36, height: 36)
+
+                Image(systemName: item.type.icon)
+                    .font(.system(size: 14))
+                    .foregroundColor(item.type == .supplement ? .purple : .blue)
+            }
+
+            // Name and Metadata
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.name)
+                    .font(.custom("ProductSans-Bold", size: 15))
+                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+
+                HStack(spacing: 6) {
+                    if let time = item.reminderTime {
+                        Text(formatReminderTime(time))
+                            .font(.custom("ProductSans-Regular", size: 11))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                    }
+
+                    if item.isTakenToday {
+                        Text("•")
+                            .font(.custom("ProductSans-Regular", size: 11))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                        HStack(spacing: 2) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 10))
+                                .foregroundColor(.green)
+                            Text("Taken")
+                                .font(.custom("ProductSans-Regular", size: 11))
+                                .foregroundColor(.green)
+                        }
+                    }
+                }
+            }
+
+            Spacer()
+
+            // Action buttons in glass container
+            if #available(iOS 18.0, *) {
+                if #available(iOS 26.0, *) {
+                    HStack(spacing: 12) {
+                        // Toggle taken button
+                        Button {
+                            onToggleTaken()
+                        } label: {
+                            Image(systemName: item.isTakenToday ? "checkmark.circle.fill" : "checkmark.circle")
+                                .font(.system(size: 16))
+                                .foregroundColor(item.isTakenToday ? .green : AppColors.textSecondary(themeManager.colorScheme))
+                        }
+                        .buttonStyle(.plain)
+
+                        Button {
+                            onReminder()
+                        } label: {
+                            Image(systemName: item.reminderEnabled ? "alarm.waves.left.and.right.fill" : "alarm.waves.left.and.right")
+                                .font(.system(size: 16))
+                                .foregroundColor(item.reminderEnabled ? AppColors.primary : AppColors.textSecondary(themeManager.colorScheme))
+                        }
+                        .buttonStyle(.plain)
+
+                        Menu {
+                            Button(role: .destructive) {
+                                onDelete()
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis")
+                                .font(.system(size: 16))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .glassEffect(.regular.interactive())
+                } else {
+                    // iOS 18 but not iOS 26
+                    actionButtonsWithoutGlass
+                }
+            } else {
+                // Fallback for iOS < 18
+                actionButtonsWithoutGlass
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(
+            Capsule()
+                .fill(AppColors.surface(themeManager.colorScheme))
+                .shadow(color: Color.black.opacity(0.05), radius: 6, x: 0, y: 2)
+        )
+    }
+
+    // Action buttons without glass effect for older iOS
+    private var actionButtonsWithoutGlass: some View {
+        HStack(spacing: 12) {
+            // Toggle taken button
+            Button {
+                onToggleTaken()
+            } label: {
+                Image(systemName: item.isTakenToday ? "checkmark.circle.fill" : "checkmark.circle")
+                    .font(.system(size: 16))
+                    .foregroundColor(item.isTakenToday ? .green : AppColors.textSecondary(themeManager.colorScheme))
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                onReminder()
+            } label: {
+                Image(systemName: item.reminderEnabled ? "bell.fill" : "bell")
+                    .font(.system(size: 16))
+                    .foregroundColor(item.reminderEnabled ? AppColors.primary : AppColors.textSecondary(themeManager.colorScheme))
+            }
+            .buttonStyle(.plain)
+
+            Menu {
+                Button(role: .destructive) {
+                    onDelete()
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 16))
+                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(white: themeManager.colorScheme == .dark ? 0.18 : 0.94).opacity(0.92))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color(white: themeManager.colorScheme == .dark ? 1.0 : 0.0).opacity(themeManager.colorScheme == .dark ? 0.15 : 0.08), lineWidth: 0.5)
+                )
+        )
+    }
+
+    private func formatReminderTime(_ timeString: String) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss"
+        if let date = formatter.date(from: timeString) {
+            formatter.dateFormat = "h:mm a"
+            return formatter.string(from: date)
+        }
+        return timeString
+    }
+}
+
+// MARK: - Recent Log Card
+struct RecentLogCard: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    let log: LogEntry
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Circle()
+                .fill(AppColors.primary.opacity(0.1))
+                .frame(width: 8, height: 8)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(log.itemName ?? "Unknown")
+                    .font(.custom("ProductSans-Medium", size: 14))
+                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+
+                Text(log.formattedDate)
+                    .font(.custom("ProductSans-Regular", size: 12))
+                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+            }
+
+            Spacer()
+
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 16))
+                .foregroundColor(.green.opacity(0.7))
+        }
+        .padding(.vertical, 8)
     }
 }
 

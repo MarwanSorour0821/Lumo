@@ -39,6 +39,9 @@ class FoodSupplementItem(models.Model):
         blank=True
     )
     
+    # Taken tracking
+    last_taken_at = models.DateTimeField(blank=True, null=True)
+
     # Metadata
     is_archived = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)

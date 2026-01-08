@@ -464,71 +464,76 @@ struct ReminderSheet: View {
             ZStack {
                 AppColors.background(themeManager.colorScheme)
                     .ignoresSafeArea()
-                
-                VStack(spacing: 24) {
-                    // Enable toggle
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Enable Reminder")
-                                .font(.custom("ProductSans-Bold", size: 16))
-                                .foregroundColor(AppColors.text(themeManager.colorScheme))
-                            Text("Get notified to take \(item.name)")
-                                .font(.custom("ProductSans-Regular", size: 13))
-                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                        }
-                        Spacer()
-                        Toggle("", isOn: $reminderEnabled)
-                            .tint(AppColors.primary)
-                    }
-                    .padding(16)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(AppColors.surface(themeManager.colorScheme))
-                    )
-                    
-                    if reminderEnabled {
-                        // Time picker
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Reminder Time")
-                                .font(.custom("ProductSans-Bold", size: 14))
-                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                            
-                            DatePicker("", selection: $reminderTime, displayedComponents: .hourAndMinute)
-                                .datePickerStyle(.wheel)
-                                .labelsHidden()
-                                .frame(maxWidth: .infinity)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .fill(AppColors.surface(themeManager.colorScheme))
-                                )
-                        }
-                        
-                        // Day selector
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Repeat on")
-                                .font(.custom("ProductSans-Bold", size: 14))
-                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                            
-                            HStack(spacing: 8) {
-                                ForEach(0..<7, id: \.self) { day in
-                                    DayButton(
-                                        day: dayNames[day],
-                                        isSelected: selectedDays.contains(day)
-                                    ) {
-                                        if selectedDays.contains(day) {
-                                            selectedDays.remove(day)
-                                        } else {
-                                            selectedDays.insert(day)
+
+                VStack(spacing: 0) {
+                    ScrollView {
+                        VStack(spacing: 24) {
+                            // Enable toggle
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Enable Reminder")
+                                        .font(.custom("ProductSans-Bold", size: 16))
+                                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+                                    Text("Get notified to take \(item.name)")
+                                        .font(.custom("ProductSans-Regular", size: 13))
+                                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                                }
+                                Spacer()
+                                Toggle("", isOn: $reminderEnabled)
+                                    .tint(AppColors.primary)
+                            }
+                            .padding(16)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(AppColors.surface(themeManager.colorScheme))
+                            )
+
+                            if reminderEnabled {
+                                // Time picker
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Text("Reminder Time")
+                                        .font(.custom("ProductSans-Bold", size: 14))
+                                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+
+                                    DatePicker("", selection: $reminderTime, displayedComponents: .hourAndMinute)
+                                        .datePickerStyle(.wheel)
+                                        .labelsHidden()
+                                        .frame(maxWidth: .infinity)
+                                        .frame(height: 150)
+                                        .clipped()
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .fill(AppColors.surface(themeManager.colorScheme))
+                                        )
+                                }
+
+                                // Day selector
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Text("Repeat on")
+                                        .font(.custom("ProductSans-Bold", size: 14))
+                                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+
+                                    HStack(spacing: 8) {
+                                        ForEach(0..<7, id: \.self) { day in
+                                            DayButton(
+                                                day: dayNames[day],
+                                                isSelected: selectedDays.contains(day)
+                                            ) {
+                                                if selectedDays.contains(day) {
+                                                    selectedDays.remove(day)
+                                                } else {
+                                                    selectedDays.insert(day)
+                                                }
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
+                        .padding(20)
                     }
-                    
-                    Spacer()
-                    
-                    // Save button
+
+                    // Save button (fixed at bottom)
                     Button {
                         saveReminder()
                     } label: {
@@ -550,8 +555,9 @@ struct ReminderSheet: View {
                         )
                     }
                     .disabled(isSaving)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 20)
                 }
-                .padding(20)
             }
             .navigationTitle("Set Reminder")
             .navigationBarTitleDisplayMode(.inline)

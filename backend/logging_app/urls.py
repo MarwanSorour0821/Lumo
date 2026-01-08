@@ -9,7 +9,8 @@ urlpatterns = [
     path('items/<uuid:item_id>/impacts/', views.biomarker_impacts, name='biomarker_impacts'),
     path('items/<uuid:item_id>/reminder/', views.update_reminder, name='update_reminder'),
     path('items/<uuid:item_id>/archive/', views.archive_item, name='archive_item'),
-    
+    path('items/<uuid:item_id>/toggle-taken/', views.toggle_taken, name='toggle_taken'),
+
     # Logs endpoints
     path('logs/', views.logs_list, name='logs_list'),
     path('logs/<uuid:log_id>/', views.delete_log, name='delete_log'),

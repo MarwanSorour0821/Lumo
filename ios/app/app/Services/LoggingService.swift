@@ -333,8 +333,34 @@ class LoggingService {
         return try decoder.decode(BiomarkerImpactsResponse.self, from: data)
     }
     
+    // MARK: - Taken Status
+
+    /// Toggle the taken status of an item
+    func toggleTaken(itemId: String) async throws -> ToggleTakenResponse {
+        guard let apiURLString = SupabaseManager.shared.getAPIURL(),
+              let url = URL(string: "\(apiURLString)/api/logging/items/\(itemId)/toggle-taken/") else {
+            throw NSError(domain: "LoggingService", code: 1, userInfo: [NSLocalizedDescriptionKey: "API URL not configured"])
+        }
+
+        let accessToken = try await AuthService.shared.getAccessToken()
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw NSError(domain: "LoggingService", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to toggle taken status"])
+        }
+
+        let decoder = JSONDecoder()
+        return try decoder.decode(ToggleTakenResponse.self, from: data)
+    }
+
     // MARK: - Reminders
-    
+
     /// Update reminder settings for an item
     func updateReminder(itemId: String, enabled: Bool, time: String? = nil, days: [Int]? = nil) async throws -> FoodSupplementItem {
         guard let apiURLString = SupabaseManager.shared.getAPIURL(),

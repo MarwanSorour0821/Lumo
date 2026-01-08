@@ -10,25 +10,25 @@ import SwiftUI
 
 // MARK: - Tab Item Enum
 enum MainTab: Int, CaseIterable {
-    case home = 0
-    case history = 1
-    case log = 2
+    case today = 0
+    case medication = 1
+    case health = 2
     case me = 3
-    
+
     var title: String {
         switch self {
-        case .home: return "Home"
-        case .history: return "History"
-        case .log: return "Log"
+        case .today: return "Today"
+        case .medication: return "Medication"
+        case .health: return "Health"
         case .me: return "Me"
         }
     }
-    
+
     var icon: String {
         switch self {
-        case .home: return "house.fill"
-        case .history: return "chart.bar.fill"
-        case .log: return "book.pages.fill"
+        case .today: return "sun.max.fill"
+        case .medication: return "pills.fill"
+        case .health: return "heart.fill"
         case .me: return "person.fill"
         }
     }
@@ -152,11 +152,11 @@ struct SimpleMainTabView: View {
     ZStack {
         // Dark background to see the effect
         Color.black.ignoresSafeArea()
-        
+
         VStack {
             Spacer()
             SimpleMainTabView(
-                selectedTab: .constant(.home),
+                selectedTab: .constant(.today),
                 onPlusButtonTapped: {}
             )
             .environmentObject(ThemeManager.shared)

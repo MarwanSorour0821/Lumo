@@ -2,7 +2,7 @@
 //  LoggingViewModel.swift
 //  app
 //
-//  ViewModel for food and supplement logging
+//  ViewModel for medication and supplement tracking
 //
 
 import Foundation
@@ -119,6 +119,25 @@ class LoggingViewModel: ObservableObject {
             self.error = error.localizedDescription
         }
     }
+
+    func toggleTaken(_ item: FoodSupplementItem) async {
+        do {
+            let response = try await LoggingService.shared.toggleTaken(itemId: item.id)
+
+            // Update local item
+            if let index = items.firstIndex(where: { $0.id == item.id }) {
+                items[index] = response.item
+            }
+
+            successMessage = response.message
+
+            // Haptic feedback
+            let generator = UINotificationFeedbackGenerator()
+            generator.notificationOccurred(.success)
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
     
     // MARK: - Logging Actions
     
@@ -133,7 +152,7 @@ class LoggingViewModel: ObservableObject {
                 await loadItems()
             }
             
-            successMessage = "\(item.name) logged"
+            successMessage = "\(item.name) marked as taken"
             
             // Haptic feedback
             let generator = UINotificationFeedbackGenerator()
@@ -373,7 +392,7 @@ class LoggingViewModel: ObservableObject {
             
             let content = UNMutableNotificationContent()
             content.title = "Time to take \(item.name)"
-            content.body = "Don't forget your \(item.type == .supplement ? "supplement" : "healthy food")!"
+            content.body = "Don't forget your \(item.type == .supplement ? "supplement" : "medication")!"
             content.sound = .default
             
             let request = UNNotificationRequest(
@@ -407,8 +426,8 @@ class LoggingViewModel: ObservableObject {
     var supplementItems: [FoodSupplementItem] {
         items.filter { $0.type == .supplement }
     }
-    
-    var foodItems: [FoodSupplementItem] {
-        items.filter { $0.type == .food }
+
+    var medicationItems: [FoodSupplementItem] {
+        items.filter { $0.type == .medication }
     }
 }

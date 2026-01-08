@@ -5,6 +5,7 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from django.conf import settings
+from django.utils import timezone
 
 from .models import FoodSupplementItem, FoodSupplementLog, FoodSupplementBiomarkerImpact
 from .serializers import (
@@ -417,13 +418,51 @@ def archive_item(request, item_id):
     user_id = get_user_id_from_token(request)
     if not user_id:
         return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
-    
+
     try:
         item = FoodSupplementItem.objects.get(id=item_id, user_id=user_id)
     except FoodSupplementItem.DoesNotExist:
         return Response({'error': 'Item not found'}, status=status.HTTP_404_NOT_FOUND)
-    
+
     item.is_archived = request.data.get('is_archived', not item.is_archived)
     item.save()
-    
+
     return Response(FoodSupplementItemSerializer(item).data)
+
+
+@api_view(['PUT'])
+def toggle_taken(request, item_id):
+    """
+    Toggle the taken status of an item.
+    If currently taken today, marks as not taken (clears last_taken_at).
+    If not taken today, marks as taken (sets last_taken_at to now).
+    """
+    user_id = get_user_id_from_token(request)
+    if not user_id:
+        return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    try:
+        item = FoodSupplementItem.objects.get(id=item_id, user_id=user_id)
+    except FoodSupplementItem.DoesNotExist:
+        return Response({'error': 'Item not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    # Check if taken today
+    today = timezone.now().date()
+    is_taken_today = item.last_taken_at and item.last_taken_at.date() == today
+
+    if is_taken_today:
+        # Mark as not taken (clear the timestamp)
+        item.last_taken_at = None
+        message = f"{item.name} unmarked"
+    else:
+        # Mark as taken
+        item.last_taken_at = timezone.now()
+        message = f"{item.name} marked as taken"
+
+    item.save()
+
+    return Response({
+        'item': FoodSupplementItemSerializer(item).data,
+        'message': message,
+        'is_taken_today': not is_taken_today
+    })
