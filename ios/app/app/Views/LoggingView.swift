@@ -15,6 +15,7 @@ struct LoggingTabView: View {
     @State private var selectedItem: FoodSupplementItem? = nil
     @State private var showImpactModal = false
     @State private var showReminderSheet = false
+    @State private var showEditSheet = false
     @State private var selectedNavTab: MedicationNavTab = .new
     @Environment(\.dismiss) private var dismiss
 
@@ -69,6 +70,10 @@ struct LoggingTabView: View {
                                             selectedItem = item
                                             showReminderSheet = true
                                         },
+                                        onEdit: {
+                                            selectedItem = item
+                                            showEditSheet = true
+                                        },
                                         onDelete: {
                                             Task {
                                                 await viewModel.deleteItem(item)
@@ -109,6 +114,13 @@ struct LoggingTabView: View {
                         .presentationDetents([.medium, .large])
                 }
             }
+            .sheet(isPresented: $showEditSheet) {
+                if let item = selectedItem {
+                    EditItemSheet(item: item, viewModel: viewModel)
+                        .environmentObject(themeManager)
+                        .presentationDetents([.large])
+                }
+            }
             .task {
                 await viewModel.refreshData()
             }
@@ -129,21 +141,29 @@ struct ReminderInputCard: View {
     @EnvironmentObject var themeManager: ThemeManager
     @ObservedObject var viewModel: LoggingViewModel
     @State private var medicationName: String = ""
-    @State private var selectedDate: Date = Date()
+    @State private var startDate: Date = Date()
+    @State private var endDate: Date = Calendar.current.date(byAdding: .month, value: 1, to: Date()) ?? Date()
     @State private var selectedTime: Date = {
         var components = Calendar.current.dateComponents([.year, .month, .day], from: Date())
         components.hour = 9
         components.minute = 0
         return Calendar.current.date(from: components) ?? Date()
     }()
-    @State private var showDatePicker = false
-    @State private var showTimePicker = false
+    @State private var showStartDatePicker = false
+    @State private var showEndDatePicker = false
+    @State private var showTimePickerModal = false
     @FocusState private var isInputFocused: Bool
 
-    private var formattedDate: String {
+    private var formattedStartDate: String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d, yyyy"
-        return formatter.string(from: selectedDate)
+        formatter.dateFormat = "MMM d"
+        return formatter.string(from: startDate)
+    }
+    
+    private var formattedEndDate: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d"
+        return formatter.string(from: endDate)
     }
 
     private var formattedTime: String {
@@ -155,28 +175,53 @@ struct ReminderInputCard: View {
     private var hasInput: Bool {
         !medicationName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
+    
+    private var isShowingAnyPicker: Bool {
+        showStartDatePicker || showEndDatePicker
+    }
 
     var body: some View {
         VStack(spacing: 12) {
             // Date and Time chips row
             if #available(iOS 26.0, *) {
-                HStack(spacing: 10) {
-                    // Date chip
+                HStack(spacing: 8) {
+                    // Start date chip
                     Button {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            showDatePicker.toggle()
-                            showTimePicker = false
+                            showStartDatePicker.toggle()
+                            showEndDatePicker = false
                         }
                     } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "calendar")
-                                .font(.system(size: 14))
-                            Text(formattedDate)
-                                .font(.custom("ProductSans-Medium", size: 14))
+                        HStack(spacing: 4) {
+                            Image(systemName: "play.fill")
+                                .font(.system(size: 10))
+                            Text(formattedStartDate)
+                                .font(.custom("ProductSans-Medium", size: 13))
                         }
-                        .foregroundColor(showDatePicker ? AppColors.primary : AppColors.text(themeManager.colorScheme))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
+                        .foregroundColor(showStartDatePicker ? AppColors.primary : AppColors.text(themeManager.colorScheme))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .glassEffect(.regular.interactive())
+                    
+                    // End date chip
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            showEndDatePicker.toggle()
+                            showStartDatePicker = false
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "stop.fill")
+                                .font(.system(size: 10))
+                            Text(formattedEndDate)
+                                .font(.custom("ProductSans-Medium", size: 13))
+                        }
+                        .foregroundColor(showEndDatePicker ? AppColors.primary : AppColors.text(themeManager.colorScheme))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -184,20 +229,19 @@ struct ReminderInputCard: View {
 
                     // Time chip
                     Button {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            showTimePicker.toggle()
-                            showDatePicker = false
-                        }
+                        showTimePickerModal = true
+                        showStartDatePicker = false
+                        showEndDatePicker = false
                     } label: {
-                        HStack(spacing: 6) {
+                        HStack(spacing: 4) {
                             Image(systemName: "clock")
-                                .font(.system(size: 14))
+                                .font(.system(size: 12))
                             Text(formattedTime)
-                                .font(.custom("ProductSans-Medium", size: 14))
+                                .font(.custom("ProductSans-Medium", size: 13))
                         }
-                        .foregroundColor(showTimePicker ? AppColors.primary : AppColors.text(themeManager.colorScheme))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -205,19 +249,19 @@ struct ReminderInputCard: View {
 
                     Spacer()
 
-                    // Done button when picker is shown
-                    if showDatePicker || showTimePicker {
+                    // Done button when date picker is shown
+                    if isShowingAnyPicker {
                         Button {
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                showDatePicker = false
-                                showTimePicker = false
+                                showStartDatePicker = false
+                                showEndDatePicker = false
                             }
                         } label: {
                             Text("Done")
-                                .font(.custom("ProductSans-Medium", size: 14))
+                                .font(.custom("ProductSans-Medium", size: 13))
                                 .foregroundColor(AppColors.primary)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 10)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
@@ -226,41 +270,54 @@ struct ReminderInputCard: View {
                     }
                 }
 
-                // Date picker - compact graphical style
-                if showDatePicker {
-                    DatePicker("", selection: $selectedDate, displayedComponents: .date)
-                        .datePickerStyle(.graphical)
-                        .scaleEffect(0.9)
-                        .frame(height: 280)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(AppColors.surface(themeManager.colorScheme))
-                        )
-                        .transition(.asymmetric(
-                            insertion: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .top)),
-                            removal: .opacity.combined(with: .scale(scale: 0.95))
-                        ))
+                // Start Date picker - graphical style (shows calendar directly)
+                if showStartDatePicker {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Start Date")
+                            .font(.custom("ProductSans-Medium", size: 12))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            .padding(.horizontal, 12)
+                        
+                        DatePicker("", selection: $startDate, displayedComponents: .date)
+                            .datePickerStyle(.graphical)
+                            .scaleEffect(0.85)
+                            .frame(height: 300)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(AppColors.surface(themeManager.colorScheme))
+                    )
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .top)),
+                        removal: .opacity.combined(with: .scale(scale: 0.95))
+                    ))
                 }
-
-                // Time picker - compact wheel style
-                if showTimePicker {
-                    DatePicker("", selection: $selectedTime, displayedComponents: .hourAndMinute)
-                        .datePickerStyle(.wheel)
-                        .labelsHidden()
-                        .frame(height: 100)
-                        .clipped()
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 8)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(AppColors.surface(themeManager.colorScheme))
-                        )
-                        .transition(.asymmetric(
-                            insertion: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .top)),
-                            removal: .opacity.combined(with: .scale(scale: 0.95))
-                        ))
+                
+                // End Date picker - graphical style (shows calendar directly)
+                if showEndDatePicker {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("End Date")
+                            .font(.custom("ProductSans-Medium", size: 12))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            .padding(.horizontal, 12)
+                        
+                        DatePicker("", selection: $endDate, in: startDate..., displayedComponents: .date)
+                            .datePickerStyle(.graphical)
+                            .scaleEffect(0.85)
+                            .frame(height: 300)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(AppColors.surface(themeManager.colorScheme))
+                    )
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .top)),
+                        removal: .opacity.combined(with: .scale(scale: 0.95))
+                    ))
                 }
 
                 // Input card with extra height
@@ -305,27 +362,56 @@ struct ReminderInputCard: View {
                 fallbackInputCard
             }
         }
+        .sheet(isPresented: $showTimePickerModal) {
+            TimePickerModal(selectedTime: $selectedTime, isPresented: $showTimePickerModal)
+                .environmentObject(themeManager)
+                .presentationDetents([.height(280)])
+        }
     }
 
     private var fallbackInputCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Date/Time row
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
+                // Start date chip
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) {
-                        showDatePicker.toggle()
-                        showTimePicker = false
+                        showStartDatePicker.toggle()
+                        showEndDatePicker = false
                     }
                 } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "calendar")
-                            .font(.system(size: 14))
-                        Text(formattedDate)
-                            .font(.custom("ProductSans-Medium", size: 14))
+                    HStack(spacing: 4) {
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 10))
+                        Text(formattedStartDate)
+                            .font(.custom("ProductSans-Medium", size: 13))
                     }
-                    .foregroundColor(showDatePicker ? AppColors.primary : AppColors.text(themeManager.colorScheme))
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
+                    .foregroundColor(showStartDatePicker ? AppColors.primary : AppColors.text(themeManager.colorScheme))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(AppColors.surface(themeManager.colorScheme))
+                    )
+                    .contentShape(Rectangle())
+                }
+                
+                // End date chip
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        showEndDatePicker.toggle()
+                        showStartDatePicker = false
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "stop.fill")
+                            .font(.system(size: 10))
+                        Text(formattedEndDate)
+                            .font(.custom("ProductSans-Medium", size: 13))
+                    }
+                    .foregroundColor(showEndDatePicker ? AppColors.primary : AppColors.text(themeManager.colorScheme))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
                     .background(
                         RoundedRectangle(cornerRadius: 10)
                             .fill(AppColors.surface(themeManager.colorScheme))
@@ -333,21 +419,21 @@ struct ReminderInputCard: View {
                     .contentShape(Rectangle())
                 }
 
+                // Time chip
                 Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        showTimePicker.toggle()
-                        showDatePicker = false
-                    }
+                    showTimePickerModal = true
+                    showStartDatePicker = false
+                    showEndDatePicker = false
                 } label: {
-                    HStack(spacing: 6) {
+                    HStack(spacing: 4) {
                         Image(systemName: "clock")
-                            .font(.system(size: 14))
+                            .font(.system(size: 12))
                         Text(formattedTime)
-                            .font(.custom("ProductSans-Medium", size: 14))
+                            .font(.custom("ProductSans-Medium", size: 13))
                     }
-                    .foregroundColor(showTimePicker ? AppColors.primary : AppColors.text(themeManager.colorScheme))
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
+                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
                     .background(
                         RoundedRectangle(cornerRadius: 10)
                             .fill(AppColors.surface(themeManager.colorScheme))
@@ -357,19 +443,19 @@ struct ReminderInputCard: View {
 
                 Spacer()
 
-                // Done button when picker is shown
-                if showDatePicker || showTimePicker {
+                // Done button when date picker is shown
+                if isShowingAnyPicker {
                     Button {
                         withAnimation(.easeInOut(duration: 0.2)) {
-                            showDatePicker = false
-                            showTimePicker = false
+                            showStartDatePicker = false
+                            showEndDatePicker = false
                         }
                     } label: {
                         Text("Done")
-                            .font(.custom("ProductSans-Medium", size: 14))
+                            .font(.custom("ProductSans-Medium", size: 13))
                             .foregroundColor(AppColors.primary)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 10)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
                             .background(
                                 RoundedRectangle(cornerRadius: 10)
                                     .fill(AppColors.surface(themeManager.colorScheme))
@@ -380,35 +466,48 @@ struct ReminderInputCard: View {
                 }
             }
 
-            // Date picker - compact
-            if showDatePicker {
-                DatePicker("", selection: $selectedDate, displayedComponents: .date)
-                    .datePickerStyle(.graphical)
-                    .scaleEffect(0.9)
-                    .frame(height: 280)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(AppColors.surface(themeManager.colorScheme))
-                    )
-                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            // Start Date picker - graphical style
+            if showStartDatePicker {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Start Date")
+                        .font(.custom("ProductSans-Medium", size: 12))
+                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                        .padding(.horizontal, 12)
+                    
+                    DatePicker("", selection: $startDate, displayedComponents: .date)
+                        .datePickerStyle(.graphical)
+                        .scaleEffect(0.85)
+                        .frame(height: 300)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(AppColors.surface(themeManager.colorScheme))
+                )
+                .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
-
-            // Time picker - compact
-            if showTimePicker {
-                DatePicker("", selection: $selectedTime, displayedComponents: .hourAndMinute)
-                    .datePickerStyle(.wheel)
-                    .labelsHidden()
-                    .frame(height: 100)
-                    .clipped()
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(AppColors.surface(themeManager.colorScheme))
-                    )
-                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            
+            // End Date picker - graphical style
+            if showEndDatePicker {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("End Date")
+                        .font(.custom("ProductSans-Medium", size: 12))
+                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                        .padding(.horizontal, 12)
+                    
+                    DatePicker("", selection: $endDate, in: startDate..., displayedComponents: .date)
+                        .datePickerStyle(.graphical)
+                        .scaleEffect(0.85)
+                        .frame(height: 300)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(AppColors.surface(themeManager.colorScheme))
+                )
+                .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
 
             // Input card with extra height
@@ -445,20 +544,20 @@ struct ReminderInputCard: View {
                     .fill(AppColors.surface(themeManager.colorScheme))
             )
         }
-        .animation(.easeInOut(duration: 0.2), value: showDatePicker)
-        .animation(.easeInOut(duration: 0.2), value: showTimePicker)
+        .animation(.easeInOut(duration: 0.2), value: showStartDatePicker)
+        .animation(.easeInOut(duration: 0.2), value: showEndDatePicker)
     }
 
     private func formattedDateForDisplay() -> String {
         let calendar = Calendar.current
-        if calendar.isDateInToday(selectedDate) {
+        if calendar.isDateInToday(startDate) {
             return "today"
-        } else if calendar.isDateInTomorrow(selectedDate) {
+        } else if calendar.isDateInTomorrow(startDate) {
             return "tomorrow"
         } else {
             let formatter = DateFormatter()
             formatter.dateFormat = "EEEE"
-            return formatter.string(from: selectedDate).lowercased()
+            return formatter.string(from: startDate).lowercased()
         }
     }
 
@@ -472,17 +571,19 @@ struct ReminderInputCard: View {
         guard hasInput else { return }
 
         Task {
-            // Create the item with reminder
+            // Create the item with reminder and start/end dates
             await viewModel.createItem(
                 name: medicationName,
                 type: .supplement,
                 description: nil,
                 frequency: .daily,
-                timesPerWeek: 7
+                timesPerWeek: 7,
+                startDate: startDate,
+                endDate: endDate
             )
 
-            // Get the weekday for the selected date
-            let weekday = Calendar.current.component(.weekday, from: selectedDate) - 1
+            // Get the weekday for the start date
+            let weekday = Calendar.current.component(.weekday, from: startDate) - 1
 
             // Find the newly created item and set reminder
             if let newItem = viewModel.items.first(where: { $0.name == medicationName }) {
@@ -497,6 +598,50 @@ struct ReminderInputCard: View {
             // Reset input
             medicationName = ""
             isInputFocused = false
+        }
+    }
+}
+
+// MARK: - Time Picker Modal
+struct TimePickerModal: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    @Binding var selectedTime: Date
+    @Binding var isPresented: Bool
+    
+    var body: some View {
+        NavigationView {
+            ZStack {
+                AppColors.background(themeManager.colorScheme)
+                    .ignoresSafeArea()
+                
+                VStack(spacing: 20) {
+                    DatePicker("", selection: $selectedTime, displayedComponents: .hourAndMinute)
+                        .datePickerStyle(.wheel)
+                        .labelsHidden()
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 150)
+                        .clipped()
+                        .padding(.top, 20)
+                    
+                    Spacer()
+                }
+            }
+            .navigationTitle("Select Time")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        isPresented = false
+                    }
+                    .foregroundColor(AppColors.primary)
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        isPresented = false
+                    }
+                    .foregroundColor(AppColors.primary)
+                }
+            }
         }
     }
 }
@@ -577,6 +722,7 @@ struct ItemsListSection: View {
     let onLogTapped: (FoodSupplementItem) -> Void
     let onImpactTapped: (FoodSupplementItem) -> Void
     let onReminderTapped: (FoodSupplementItem) -> Void
+    let onEditTapped: (FoodSupplementItem) -> Void
     
     var body: some View {
         ScrollView {
@@ -605,6 +751,7 @@ struct ItemsListSection: View {
                         onLog: { onLogTapped(item) },
                         onImpact: { onImpactTapped(item) },
                         onReminder: { onReminderTapped(item) },
+                        onEdit: { onEditTapped(item) },
                         onDelete: {
                             Task {
                                 await viewModel.deleteItem(item)
@@ -648,6 +795,7 @@ struct ItemCard: View {
     let onLog: () -> Void
     let onImpact: () -> Void
     let onReminder: () -> Void
+    let onEdit: () -> Void
     let onDelete: () -> Void
     
     @State private var showDeleteConfirmation = false
@@ -712,6 +860,12 @@ struct ItemCard: View {
                         .buttonStyle(.plain)
                         
                         Menu {
+                            Button {
+                                onEdit()
+                            } label: {
+                                Label("Edit", systemImage: "pencil")
+                            }
+                            
                             Button(role: .destructive) {
                                 onDelete()
                             } label: {
@@ -752,6 +906,12 @@ struct ItemCard: View {
                     .buttonStyle(.plain)
                     
                     Menu {
+                        Button {
+                            onEdit()
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
+                        }
+                        
                         Button(role: .destructive) {
                             onDelete()
                         } label: {

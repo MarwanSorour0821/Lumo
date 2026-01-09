@@ -140,7 +140,7 @@ class LoggingViewModel: ObservableObject {
     
     // MARK: - Item Actions
     
-    func createItem(name: String, type: LogItemType, description: String? = nil, frequency: LogFrequency = .daily, timesPerWeek: Int = 7) async {
+    func createItem(name: String, type: LogItemType, description: String? = nil, frequency: LogFrequency = .daily, timesPerWeek: Int = 7, startDate: Date? = nil, endDate: Date? = nil) async {
         isLoading = true
         error = nil
         
@@ -150,10 +150,40 @@ class LoggingViewModel: ObservableObject {
                 type: type,
                 description: description,
                 frequency: frequency,
-                timesPerWeek: timesPerWeek
+                timesPerWeek: timesPerWeek,
+                startDate: startDate,
+                endDate: endDate
             )
             items.insert(newItem, at: 0)
             successMessage = "\(name) added successfully"
+            isLoading = false
+        } catch {
+            self.error = error.localizedDescription
+            isLoading = false
+        }
+    }
+    
+    func updateItem(_ item: FoodSupplementItem, name: String? = nil, type: LogItemType? = nil, description: String? = nil, frequency: LogFrequency? = nil, timesPerWeek: Int? = nil, startDate: Date? = nil, endDate: Date? = nil, clearStartDate: Bool = false, clearEndDate: Bool = false) async {
+        isLoading = true
+        error = nil
+        
+        do {
+            let updated = try await LoggingService.shared.updateItem(
+                itemId: item.id,
+                name: name,
+                type: type,
+                description: description,
+                frequency: frequency,
+                timesPerWeek: timesPerWeek,
+                startDate: startDate,
+                endDate: endDate,
+                clearStartDate: clearStartDate,
+                clearEndDate: clearEndDate
+            )
+            if let index = items.firstIndex(where: { $0.id == item.id }) {
+                items[index] = updated
+            }
+            successMessage = "\(updated.name) updated successfully"
             isLoading = false
         } catch {
             self.error = error.localizedDescription

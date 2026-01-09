@@ -53,7 +53,7 @@ class LoggingService {
     }
     
     /// Create a new food/supplement item
-    func createItem(name: String, type: LogItemType, description: String? = nil, frequency: LogFrequency = .daily, timesPerWeek: Int = 7) async throws -> FoodSupplementItem {
+    func createItem(name: String, type: LogItemType, description: String? = nil, frequency: LogFrequency = .daily, timesPerWeek: Int = 7, startDate: Date? = nil, endDate: Date? = nil) async throws -> FoodSupplementItem {
         guard let apiURLString = SupabaseManager.shared.getAPIURL(),
               let url = URL(string: "\(apiURLString)/api/logging/items/") else {
             throw NSError(domain: "LoggingService", code: 1, userInfo: [NSLocalizedDescriptionKey: "API URL not configured"])
@@ -66,6 +66,9 @@ class LoggingService {
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        
         var body: [String: Any] = [
             "name": name,
             "type": type.rawValue,
@@ -74,6 +77,12 @@ class LoggingService {
         ]
         if let description = description {
             body["description"] = description
+        }
+        if let startDate = startDate {
+            body["start_date"] = dateFormatter.string(from: startDate)
+        }
+        if let endDate = endDate {
+            body["end_date"] = dateFormatter.string(from: endDate)
         }
         
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -89,7 +98,7 @@ class LoggingService {
     }
     
     /// Update an existing item
-    func updateItem(itemId: String, name: String? = nil, type: LogItemType? = nil, description: String? = nil, frequency: LogFrequency? = nil, timesPerWeek: Int? = nil) async throws -> FoodSupplementItem {
+    func updateItem(itemId: String, name: String? = nil, type: LogItemType? = nil, description: String? = nil, frequency: LogFrequency? = nil, timesPerWeek: Int? = nil, startDate: Date? = nil, endDate: Date? = nil, clearStartDate: Bool = false, clearEndDate: Bool = false) async throws -> FoodSupplementItem {
         guard let apiURLString = SupabaseManager.shared.getAPIURL(),
               let url = URL(string: "\(apiURLString)/api/logging/items/\(itemId)/") else {
             throw NSError(domain: "LoggingService", code: 1, userInfo: [NSLocalizedDescriptionKey: "API URL not configured"])
@@ -102,12 +111,25 @@ class LoggingService {
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        
         var body: [String: Any] = [:]
         if let name = name { body["name"] = name }
         if let type = type { body["type"] = type.rawValue }
         if let description = description { body["description"] = description }
         if let frequency = frequency { body["frequency"] = frequency.rawValue }
         if let timesPerWeek = timesPerWeek { body["times_per_week"] = timesPerWeek }
+        if let startDate = startDate {
+            body["start_date"] = dateFormatter.string(from: startDate)
+        } else if clearStartDate {
+            body["start_date"] = NSNull()
+        }
+        if let endDate = endDate {
+            body["end_date"] = dateFormatter.string(from: endDate)
+        } else if clearEndDate {
+            body["end_date"] = NSNull()
+        }
         
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         

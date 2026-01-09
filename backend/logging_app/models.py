@@ -41,6 +41,10 @@ class FoodSupplementItem(models.Model):
     
     # Taken tracking
     last_taken_at = models.DateTimeField(blank=True, null=True)
+    
+    # Start and end dates for medication course
+    start_date = models.DateField(blank=True, null=True)
+    end_date = models.DateField(blank=True, null=True)
 
     # Metadata
     is_archived = models.BooleanField(default=False)

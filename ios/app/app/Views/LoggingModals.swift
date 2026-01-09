@@ -584,6 +584,321 @@ struct DayButton: View {
     }
 }
 
+// MARK: - Edit Item Sheet
+struct EditItemSheet: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    let item: FoodSupplementItem
+    @ObservedObject var viewModel: LoggingViewModel
+    @Environment(\.dismiss) var dismiss
+
+    @State private var name: String
+    @State private var selectedType: LogItemType
+    @State private var description: String
+    @State private var selectedFrequency: LogFrequency
+    @State private var timesPerWeek: Int
+    @State private var startDate: Date
+    @State private var endDate: Date
+    @State private var hasEndDate: Bool
+    @State private var isSubmitting = false
+    @State private var showStartDatePicker = false
+    @State private var showEndDatePicker = false
+
+    init(item: FoodSupplementItem, viewModel: LoggingViewModel) {
+        self.item = item
+        self.viewModel = viewModel
+        
+        _name = State(initialValue: item.name)
+        _selectedType = State(initialValue: item.type)
+        _description = State(initialValue: item.description ?? "")
+        _selectedFrequency = State(initialValue: item.frequency)
+        _timesPerWeek = State(initialValue: item.timesPerWeek)
+        
+        // Parse start date
+        if let startDateString = item.startDate {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd"
+            _startDate = State(initialValue: formatter.date(from: startDateString) ?? Date())
+        } else {
+            _startDate = State(initialValue: Date())
+        }
+        
+        // Parse end date
+        if let endDateString = item.endDate {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd"
+            _endDate = State(initialValue: formatter.date(from: endDateString) ?? Calendar.current.date(byAdding: .month, value: 1, to: Date())!)
+            _hasEndDate = State(initialValue: true)
+        } else {
+            _endDate = State(initialValue: Calendar.current.date(byAdding: .month, value: 1, to: Date()) ?? Date())
+            _hasEndDate = State(initialValue: false)
+        }
+    }
+
+    private var formattedStartDate: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d, yyyy"
+        return formatter.string(from: startDate)
+    }
+    
+    private var formattedEndDate: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d, yyyy"
+        return formatter.string(from: endDate)
+    }
+
+    var body: some View {
+        NavigationView {
+            ZStack {
+                AppColors.background(themeManager.colorScheme)
+                    .ignoresSafeArea()
+
+                ScrollView {
+                    VStack(spacing: 24) {
+                        // Name field
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Name")
+                                .font(.custom("ProductSans-Bold", size: 14))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+
+                            TextField("e.g., Vitamin D3, Fish Oil", text: $name)
+                                .font(.custom("ProductSans-Regular", size: 16))
+                                .padding(16)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(AppColors.inputBackground(themeManager.colorScheme))
+                                )
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+                        }
+
+                        // Type selector
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Type")
+                                .font(.custom("ProductSans-Bold", size: 14))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+
+                            HStack(spacing: 12) {
+                                ForEach(LogItemType.allCases, id: \.self) { type in
+                                    TypeButton(
+                                        type: type,
+                                        isSelected: selectedType == type
+                                    ) {
+                                        selectedType = type
+                                    }
+                                }
+                            }
+                        }
+
+                        // Frequency selector
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("How often do you take it?")
+                                .font(.custom("ProductSans-Bold", size: 14))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                                ForEach(LogFrequency.allCases, id: \.self) { frequency in
+                                    FrequencyButton(
+                                        frequency: frequency,
+                                        isSelected: selectedFrequency == frequency
+                                    ) {
+                                        selectedFrequency = frequency
+                                    }
+                                }
+                            }
+                        }
+
+                        // Times per week (only show if weekly selected)
+                        if selectedFrequency == .weekly {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Times per week: \(timesPerWeek)")
+                                    .font(.custom("ProductSans-Bold", size: 14))
+                                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+
+                                Slider(value: Binding(
+                                    get: { Double(timesPerWeek) },
+                                    set: { timesPerWeek = Int($0) }
+                                ), in: 1...7, step: 1)
+                                .tint(AppColors.primary)
+                            }
+                        }
+                        
+                        // Start and End dates
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Duration")
+                                .font(.custom("ProductSans-Bold", size: 14))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            
+                            HStack(spacing: 12) {
+                                // Start date
+                                Button {
+                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                        showStartDatePicker.toggle()
+                                        showEndDatePicker = false
+                                    }
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Start")
+                                            .font(.custom("ProductSans-Regular", size: 12))
+                                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                                        Text(formattedStartDate)
+                                            .font(.custom("ProductSans-Medium", size: 14))
+                                            .foregroundColor(showStartDatePicker ? AppColors.primary : AppColors.text(themeManager.colorScheme))
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(12)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .fill(AppColors.inputBackground(themeManager.colorScheme))
+                                    )
+                                }
+                                
+                                // End date
+                                Button {
+                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                        showEndDatePicker.toggle()
+                                        showStartDatePicker = false
+                                        if !hasEndDate {
+                                            hasEndDate = true
+                                        }
+                                    }
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("End")
+                                            .font(.custom("ProductSans-Regular", size: 12))
+                                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                                        Text(hasEndDate ? formattedEndDate : "No end date")
+                                            .font(.custom("ProductSans-Medium", size: 14))
+                                            .foregroundColor(showEndDatePicker ? AppColors.primary : (hasEndDate ? AppColors.text(themeManager.colorScheme) : AppColors.textSecondary(themeManager.colorScheme)))
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(12)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .fill(AppColors.inputBackground(themeManager.colorScheme))
+                                    )
+                                }
+                            }
+                            
+                            // Start date picker
+                            if showStartDatePicker {
+                                DatePicker("", selection: $startDate, displayedComponents: .date)
+                                    .datePickerStyle(.graphical)
+                                    .scaleEffect(0.9)
+                                    .frame(height: 300)
+                                    .padding(8)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .fill(AppColors.surface(themeManager.colorScheme))
+                                    )
+                                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                            }
+                            
+                            // End date picker
+                            if showEndDatePicker {
+                                VStack(spacing: 8) {
+                                    DatePicker("", selection: $endDate, in: startDate..., displayedComponents: .date)
+                                        .datePickerStyle(.graphical)
+                                        .scaleEffect(0.9)
+                                        .frame(height: 300)
+                                    
+                                    Button {
+                                        hasEndDate = false
+                                        showEndDatePicker = false
+                                    } label: {
+                                        Text("Remove end date")
+                                            .font(.custom("ProductSans-Medium", size: 14))
+                                            .foregroundColor(.red)
+                                    }
+                                }
+                                .padding(8)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(AppColors.surface(themeManager.colorScheme))
+                                )
+                                .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                            }
+                        }
+
+                        // Description (optional)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Notes (optional)")
+                                .font(.custom("ProductSans-Bold", size: 14))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+
+                            TextField("e.g., 1000 IU, take with food", text: $description)
+                                .font(.custom("ProductSans-Regular", size: 16))
+                                .padding(16)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(AppColors.inputBackground(themeManager.colorScheme))
+                                )
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+                        }
+
+                        Spacer(minLength: 40)
+
+                        // Save button
+                        Button {
+                            saveItem()
+                        } label: {
+                            HStack {
+                                if isSubmitting {
+                                    ProgressView()
+                                        .tint(.white)
+                                } else {
+                                    Image(systemName: "checkmark")
+                                    Text("Save Changes")
+                                }
+                            }
+                            .font(.custom("ProductSans-Bold", size: 16))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(
+                                RoundedRectangle(cornerRadius: 14)
+                                    .fill(name.isEmpty ? AppColors.primary.opacity(0.5) : AppColors.primary)
+                            )
+                        }
+                        .disabled(name.isEmpty || isSubmitting)
+                    }
+                    .padding(20)
+                }
+                .animation(.easeInOut(duration: 0.2), value: showStartDatePicker)
+                .animation(.easeInOut(duration: 0.2), value: showEndDatePicker)
+            }
+            .navigationTitle("Edit \(item.type.displayName)")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .foregroundColor(AppColors.primary)
+                }
+            }
+        }
+    }
+
+    private func saveItem() {
+        isSubmitting = true
+        Task {
+            await viewModel.updateItem(
+                item,
+                name: name,
+                type: selectedType,
+                description: description.isEmpty ? nil : description,
+                frequency: selectedFrequency,
+                timesPerWeek: timesPerWeek,
+                startDate: startDate,
+                endDate: hasEndDate ? endDate : nil,
+                clearStartDate: false,
+                clearEndDate: !hasEndDate
+            )
+            isSubmitting = false
+            dismiss()
+        }
+    }
+}
+
 // MARK: - Previews
 #Preview("Add Item") {
     AddItemSheet(viewModel: LoggingViewModel.shared)
@@ -597,5 +912,20 @@ struct DayButton: View {
         type: .supplement
     )
     return BiomarkerImpactModal(item: sampleItem, viewModel: LoggingViewModel.shared)
+        .environmentObject(ThemeManager.shared)
+}
+
+#Preview("Edit Item") {
+    let sampleItem = FoodSupplementItem(
+        id: "1",
+        name: "Vitamin D3",
+        type: .supplement,
+        description: "Take with food",
+        frequency: .daily,
+        timesPerWeek: 7,
+        startDate: "2026-01-01",
+        endDate: "2026-02-01"
+    )
+    return EditItemSheet(item: sampleItem, viewModel: LoggingViewModel.shared)
         .environmentObject(ThemeManager.shared)
 }

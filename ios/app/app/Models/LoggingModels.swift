@@ -138,6 +138,8 @@ struct FoodSupplementItem: Codable, Identifiable {
     let reminderEnabled: Bool
     let reminderTime: String?
     let reminderDays: [Int]
+    let startDate: String?
+    let endDate: String?
     let lastTakenAt: String?
     let isTakenToday: Bool
     let isArchived: Bool
@@ -158,6 +160,8 @@ struct FoodSupplementItem: Codable, Identifiable {
         case reminderEnabled = "reminder_enabled"
         case reminderTime = "reminder_time"
         case reminderDays = "reminder_days"
+        case startDate = "start_date"
+        case endDate = "end_date"
         case lastTakenAt = "last_taken_at"
         case isTakenToday = "is_taken_today"
         case isArchived = "is_archived"
@@ -180,6 +184,8 @@ struct FoodSupplementItem: Codable, Identifiable {
         reminderEnabled = try container.decodeIfPresent(Bool.self, forKey: .reminderEnabled) ?? false
         reminderTime = try container.decodeIfPresent(String.self, forKey: .reminderTime)
         reminderDays = try container.decodeIfPresent([Int].self, forKey: .reminderDays) ?? [0,1,2,3,4,5,6]
+        startDate = try container.decodeIfPresent(String.self, forKey: .startDate)
+        endDate = try container.decodeIfPresent(String.self, forKey: .endDate)
         lastTakenAt = try container.decodeIfPresent(String.self, forKey: .lastTakenAt)
         isTakenToday = try container.decodeIfPresent(Bool.self, forKey: .isTakenToday) ?? false
         isArchived = try container.decodeIfPresent(Bool.self, forKey: .isArchived) ?? false
@@ -191,7 +197,7 @@ struct FoodSupplementItem: Codable, Identifiable {
     }
 
     // Manual init for creating items locally
-    init(id: String, name: String, type: LogItemType, description: String? = nil, frequency: LogFrequency = .daily, timesPerWeek: Int = 7, reminderEnabled: Bool = false, reminderTime: String? = nil, reminderDays: [Int] = [0,1,2,3,4,5,6], lastTakenAt: String? = nil, isTakenToday: Bool = false, isArchived: Bool = false, biomarkerImpacts: [BiomarkerImpact]? = nil, recentLogs: [LogEntry]? = nil, logCount: Int? = nil) {
+    init(id: String, name: String, type: LogItemType, description: String? = nil, frequency: LogFrequency = .daily, timesPerWeek: Int = 7, reminderEnabled: Bool = false, reminderTime: String? = nil, reminderDays: [Int] = [0,1,2,3,4,5,6], startDate: String? = nil, endDate: String? = nil, lastTakenAt: String? = nil, isTakenToday: Bool = false, isArchived: Bool = false, biomarkerImpacts: [BiomarkerImpact]? = nil, recentLogs: [LogEntry]? = nil, logCount: Int? = nil) {
         self.id = id
         self.userId = nil
         self.name = name
@@ -202,6 +208,8 @@ struct FoodSupplementItem: Codable, Identifiable {
         self.reminderEnabled = reminderEnabled
         self.reminderTime = reminderTime
         self.reminderDays = reminderDays
+        self.startDate = startDate
+        self.endDate = endDate
         self.lastTakenAt = lastTakenAt
         self.isTakenToday = isTakenToday
         self.isArchived = isArchived

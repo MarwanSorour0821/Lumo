@@ -39,6 +39,7 @@ class FoodSupplementItemSerializer(serializers.ModelSerializer):
             'id', 'user_id', 'name', 'type', 'description',
             'frequency', 'times_per_week',
             'reminder_enabled', 'reminder_time', 'reminder_days',
+            'start_date', 'end_date',
             'last_taken_at', 'is_taken_today',
             'is_archived', 'created_at', 'updated_at',
             'biomarker_impacts', 'recent_logs', 'log_count'
@@ -68,7 +69,8 @@ class FoodSupplementItemCreateSerializer(serializers.ModelSerializer):
         fields = [
             'name', 'type', 'description',
             'frequency', 'times_per_week',
-            'reminder_enabled', 'reminder_time', 'reminder_days'
+            'reminder_enabled', 'reminder_time', 'reminder_days',
+            'start_date', 'end_date'
         ]
 
 
