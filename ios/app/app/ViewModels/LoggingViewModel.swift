@@ -16,10 +16,14 @@ class LoggingViewModel: ObservableObject {
     // MARK: - Published Properties
     @Published var items: [FoodSupplementItem] = []
     @Published var recentLogs: [LogEntry] = []
+    @Published var weekLogs: [Date: [LogEntry]] = [:] // Logs grouped by date for the week view
     @Published var isLoading: Bool = false
     @Published var isProcessingVoice: Bool = false
     @Published var error: String? = nil
     @Published var successMessage: String? = nil
+
+    // Track if initial load has happened to avoid reloading
+    private var hasLoadedOnce: Bool = false
     
     // Voice recording
     @Published var isRecording: Bool = false
@@ -73,6 +77,65 @@ class LoggingViewModel: ObservableObject {
     func refreshData() async {
         await loadItems()
         await loadRecentLogs()
+        await loadWeekLogs()
+        hasLoadedOnce = true
+    }
+
+    /// Load logs for the past week grouped by date
+    func loadWeekLogs() async {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        guard let weekAgo = calendar.date(byAdding: .day, value: -6, to: today) else { return }
+        guard let endOfToday = calendar.date(byAdding: .day, value: 1, to: today) else { return }
+
+        do {
+            let logs = try await LoggingService.shared.getLogsByDate(startDate: weekAgo, endDate: endOfToday)
+
+            // Group logs by date
+            var grouped: [Date: [LogEntry]] = [:]
+            let dateFormatter = ISO8601DateFormatter()
+            dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+            for log in logs {
+                if let logDate = dateFormatter.date(from: log.loggedAt) {
+                    let dayStart = calendar.startOfDay(for: logDate)
+                    if grouped[dayStart] != nil {
+                        grouped[dayStart]?.append(log)
+                    } else {
+                        grouped[dayStart] = [log]
+                    }
+                }
+            }
+
+            weekLogs = grouped
+        } catch {
+            print("Failed to load week logs: \(error.localizedDescription)")
+        }
+    }
+
+    /// Get logs for a specific date
+    func logsForDate(_ date: Date) -> [LogEntry] {
+        let calendar = Calendar.current
+        let dayStart = calendar.startOfDay(for: date)
+        return weekLogs[dayStart] ?? []
+    }
+
+    /// Get item names that were taken on a specific date
+    func itemsTakenOnDate(_ date: Date) -> Set<String> {
+        let logs = logsForDate(date)
+        return Set(logs.compactMap { $0.itemName })
+    }
+
+    /// Check if an item was taken on a specific date
+    func wasItemTaken(_ item: FoodSupplementItem, on date: Date) -> Bool {
+        let logs = logsForDate(date)
+        return logs.contains { $0.itemId == item.id }
+    }
+
+    /// Load data only if not already loaded (for views that shouldn't reload on every appear)
+    func loadDataIfNeeded() async {
+        guard !hasLoadedOnce else { return }
+        await refreshData()
     }
     
     // MARK: - Item Actions
@@ -129,9 +192,7 @@ class LoggingViewModel: ObservableObject {
                 items[index] = response.item
             }
 
-            successMessage = response.message
-
-            // Haptic feedback
+            // Haptic feedback only (no toast notification)
             let generator = UINotificationFeedbackGenerator()
             generator.notificationOccurred(.success)
         } catch {
@@ -323,7 +384,7 @@ class LoggingViewModel: ObservableObject {
     }
     
     // MARK: - Reminders
-    
+
     func updateReminder(for item: FoodSupplementItem, enabled: Bool, time: Date?, days: [Int]) async {
         do {
             var timeString: String? = nil
@@ -332,83 +393,77 @@ class LoggingViewModel: ObservableObject {
                 formatter.dateFormat = "HH:mm:ss"
                 timeString = formatter.string(from: time)
             }
-            
+
             let updated = try await LoggingService.shared.updateReminder(
                 itemId: item.id,
                 enabled: enabled,
                 time: timeString,
                 days: days
             )
-            
+
             // Update local item
             if let index = items.firstIndex(where: { $0.id == item.id }) {
                 items[index] = updated
             }
-            
+
             if enabled {
-                // Schedule local notification
+                // Schedule local notification with actionable buttons
                 await scheduleLocalReminder(for: updated)
-                successMessage = "Reminder set for \(item.name)"
             } else {
                 // Cancel local notification
-                cancelLocalReminder(for: item.id)
-                successMessage = "Reminder removed"
+                NotificationManager.shared.cancelReminders(for: item.id)
             }
         } catch {
             self.error = error.localizedDescription
         }
     }
-    
+
+    /// Check if notifications (including critical alerts) are enabled
+    func checkNotificationPermissions() async -> Bool {
+        // Request permissions including critical alerts
+        let granted = await NotificationManager.shared.requestPermissions()
+        return granted
+    }
+
     private func scheduleLocalReminder(for item: FoodSupplementItem) async {
         guard item.reminderEnabled, let timeString = item.reminderTime else { return }
-        
-        let center = UNUserNotificationCenter.current()
-        
-        // Request permission
-        do {
-            let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge])
-            guard granted else { return }
-        } catch {
+
+        // Request permission (including critical alerts)
+        let granted = await NotificationManager.shared.requestPermissions()
+        guard granted else {
+            self.error = "Please enable notifications in Settings to receive medication reminders"
             return
         }
-        
+
         // Parse time
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm:ss"
         guard let time = formatter.date(from: timeString) else { return }
-        
+
         let calendar = Calendar.current
         let hour = calendar.component(.hour, from: time)
         let minute = calendar.component(.minute, from: time)
-        
-        // Schedule for each reminder day
+
+        // Determine item type string
+        let itemType = item.type == .supplement ? "supplement" : "medication"
+
+        // Cancel existing reminders first
+        NotificationManager.shared.cancelReminders(for: item.id)
+
+        // Schedule for each reminder day using NotificationManager
         for day in item.reminderDays {
-            var dateComponents = DateComponents()
-            dateComponents.hour = hour
-            dateComponents.minute = minute
-            dateComponents.weekday = day + 1 // iOS uses 1-7 for Sunday-Saturday
-            
-            let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
-            
-            let content = UNMutableNotificationContent()
-            content.title = "Time to take \(item.name)"
-            content.body = "Don't forget your \(item.type == .supplement ? "supplement" : "medication")!"
-            content.sound = .default
-            
-            let request = UNNotificationRequest(
-                identifier: "\(item.id)_day\(day)",
-                content: content,
-                trigger: trigger
+            // Convert from 0-6 (Sun=0) to iOS weekday 1-7 (Sun=1)
+            let weekday = day + 1
+
+            await NotificationManager.shared.scheduleReminder(
+                itemId: item.id,
+                itemName: item.name,
+                itemType: itemType,
+                hour: hour,
+                minute: minute,
+                weekday: weekday
             )
-            
-            try? await center.add(request)
         }
-    }
-    
-    private func cancelLocalReminder(for itemId: String) {
-        let center = UNUserNotificationCenter.current()
-        let identifiers = (0...6).map { "\(itemId)_day\($0)" }
-        center.removePendingNotificationRequests(withIdentifiers: identifiers)
     }
     
     // MARK: - Helpers

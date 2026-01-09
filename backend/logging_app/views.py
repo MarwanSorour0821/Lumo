@@ -434,8 +434,8 @@ def archive_item(request, item_id):
 def toggle_taken(request, item_id):
     """
     Toggle the taken status of an item.
-    If currently taken today, marks as not taken (clears last_taken_at).
-    If not taken today, marks as taken (sets last_taken_at to now).
+    If currently taken today, marks as not taken (clears last_taken_at and deletes today's log).
+    If not taken today, marks as taken (sets last_taken_at to now and creates a log entry).
     """
     user_id = get_user_id_from_token(request)
     if not user_id:
@@ -454,10 +454,25 @@ def toggle_taken(request, item_id):
         # Mark as not taken (clear the timestamp)
         item.last_taken_at = None
         message = f"{item.name} unmarked"
+
+        # Delete today's log entry for this item
+        FoodSupplementLog.objects.filter(
+            user_id=user_id,
+            item=item,
+            logged_at__date=today
+        ).delete()
     else:
         # Mark as taken
-        item.last_taken_at = timezone.now()
+        now = timezone.now()
+        item.last_taken_at = now
         message = f"{item.name} marked as taken"
+
+        # Create a log entry
+        FoodSupplementLog.objects.create(
+            user_id=user_id,
+            item=item,
+            logged_at=now
+        )
 
     item.save()
 

@@ -239,18 +239,54 @@ class LoggingService {
               let url = URL(string: "\(apiURLString)/api/logging/logs/\(logId)/") else {
             throw NSError(domain: "LoggingService", code: 1, userInfo: [NSLocalizedDescriptionKey: "API URL not configured"])
         }
-        
+
         let accessToken = try await AuthService.shared.getAccessToken()
-        
+
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        
+
         let (_, response) = try await URLSession.shared.data(for: request)
-        
+
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 204 else {
             throw NSError(domain: "LoggingService", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to delete log"])
         }
+    }
+
+    /// Get logs for a specific date range
+    func getLogsByDate(startDate: Date, endDate: Date) async throws -> [LogEntry] {
+        guard let apiURLString = SupabaseManager.shared.getAPIURL(),
+              var urlComponents = URLComponents(string: "\(apiURLString)/api/logging/logs/") else {
+            throw NSError(domain: "LoggingService", code: 1, userInfo: [NSLocalizedDescriptionKey: "API URL not configured"])
+        }
+
+        let dateFormatter = ISO8601DateFormatter()
+        dateFormatter.formatOptions = [.withInternetDateTime]
+
+        urlComponents.queryItems = [
+            URLQueryItem(name: "start_date", value: dateFormatter.string(from: startDate)),
+            URLQueryItem(name: "end_date", value: dateFormatter.string(from: endDate)),
+            URLQueryItem(name: "limit", value: "100")
+        ]
+
+        guard let url = urlComponents.url else {
+            throw NSError(domain: "LoggingService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid URL"])
+        }
+
+        let accessToken = try await AuthService.shared.getAccessToken()
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw NSError(domain: "LoggingService", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch logs"])
+        }
+
+        let decoder = JSONDecoder()
+        return try decoder.decode([LogEntry].self, from: data)
     }
     
     // MARK: - Quick Log (Voice/Text)

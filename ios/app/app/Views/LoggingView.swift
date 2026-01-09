@@ -6,15 +6,16 @@
 //
 
 import SwiftUI
+import Combine
 
 // MARK: - Main Logging Tab View
 struct LoggingTabView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @StateObject private var viewModel = LoggingViewModel.shared
-    @State private var showAddSheet = false
     @State private var selectedItem: FoodSupplementItem? = nil
     @State private var showImpactModal = false
     @State private var showReminderSheet = false
+    @State private var selectedNavTab: MedicationNavTab = .new
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -22,23 +23,18 @@ struct LoggingTabView: View {
             ZStack {
                 AppColors.background(themeManager.colorScheme)
                     .ignoresSafeArea()
-                
+
                 VStack(spacing: 0) {
                     // Items List
                     if viewModel.isLoading && viewModel.items.isEmpty {
                         Spacer()
-                        ProgressView()
-                            .tint(AppColors.primary)
+                        CustomSpinner(size: 32, lineWidth: 3)
                         Spacer()
                     } else if viewModel.items.isEmpty {
-                        EmptyStateView(onAddTapped: { showAddSheet = true })
+                        EmptyStateView(onAddTapped: {})
                     } else {
                         ScrollView {
                             LazyVStack(spacing: 12) {
-                                // Quick Actions
-                                QuickLogSection(viewModel: viewModel)
-                                    .padding(.top, 8)
-                                
                                 // Filter chips
                                 ScrollView(.horizontal, showsIndicators: false) {
                                     HStack(spacing: 8) {
@@ -54,22 +50,22 @@ struct LoggingTabView: View {
                                     }
                                     .padding(.horizontal, 20)
                                 }
-                                .padding(.top, 8)
-                                
+                                .padding(.top, 16)
+
                                 // Items
                                 ForEach(viewModel.filteredItems) { item in
                                     ItemCard(
                                         item: item,
-                                        onLog: { 
+                                        onLog: {
                                             Task {
-                                                await viewModel.logItem(item)
+                                                await viewModel.toggleTaken(item)
                                             }
                                         },
-                                        onImpact: { 
+                                        onImpact: {
                                             selectedItem = item
                                             showImpactModal = true
                                         },
-                                        onReminder: { 
+                                        onReminder: {
                                             selectedItem = item
                                             showReminderSheet = true
                                         },
@@ -82,45 +78,23 @@ struct LoggingTabView: View {
                                     .padding(.horizontal, 20)
                                 }
                             }
-                            .padding(.bottom, 100) // Space for bottom input
+                            .padding(.bottom, 180) // Space for input
                         }
                     }
-                    
-                    Spacer()
+
+                    Spacer(minLength: 0)
                 }
-                
-                // Bottom Input Section (Fixed at bottom)
-                VStack {
+
+                // Bottom Input Section
+                VStack(spacing: 0) {
                     Spacer()
-                    VoiceInputSection(viewModel: viewModel)
+
+                    ReminderInputCard(viewModel: viewModel)
                         .padding(.horizontal, 20)
-                        .padding(.bottom, 20)
+                        .padding(.bottom, 16)
                 }
             }
             .navigationBarTitle("Medication", displayMode: .inline)
-            .navigationBarBackButtonHidden(true)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: {
-                        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                        impactFeedback.impactOccurred()
-                        NotificationCenter.default.post(name: .switchTab, object: nil, userInfo: ["tab": 0])
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 16, weight: .medium))
-                            Text("Back")
-                                .font(.custom("ProductSans-Regular", size: 17))
-                        }
-                        .foregroundColor(AppColors.text(themeManager.colorScheme))
-                    }
-                }
-            }
-            .toolbar(.hidden, for: .tabBar)
-            .sheet(isPresented: $showAddSheet) {
-                AddItemSheet(viewModel: viewModel)
-                    .environmentObject(themeManager)
-            }
             .sheet(isPresented: $showImpactModal) {
                 if let item = selectedItem {
                     BiomarkerImpactModal(item: item, viewModel: viewModel)
@@ -132,7 +106,7 @@ struct LoggingTabView: View {
                 if let item = selectedItem {
                     ReminderSheet(item: item, viewModel: viewModel)
                         .environmentObject(themeManager)
-                        .presentationDetents(item.reminderEnabled ? [.large] : [.medium, .large])
+                        .presentationDetents([.medium, .large])
                 }
             }
             .task {
@@ -141,145 +115,389 @@ struct LoggingTabView: View {
             .refreshable {
                 await viewModel.refreshData()
             }
-            .overlay {
-                // Success/Error Toast
-                if let message = viewModel.successMessage {
-                    ToastView(message: message, type: .success)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                        .onAppear {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                withAnimation {
-                                    viewModel.clearMessages()
-                                }
-                            }
-                        }
-                }
-                
-                if let error = viewModel.error {
-                    ToastView(message: error, type: .error)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                        .onAppear {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                                withAnimation {
-                                    viewModel.clearMessages()
-                                }
-                            }
-                        }
-                }
-            }
-            .animation(.easeInOut, value: viewModel.successMessage)
-            .animation(.easeInOut, value: viewModel.error)
         }
     }
 }
 
-// MARK: - Voice Input Section
-struct VoiceInputSection: View {
+// MARK: - Medication Nav Tab
+enum MedicationNavTab {
+    case new, reminders, settings
+}
+
+// MARK: - Reminder Input Card
+struct ReminderInputCard: View {
     @EnvironmentObject var themeManager: ThemeManager
     @ObservedObject var viewModel: LoggingViewModel
-    @State private var manualInput: String = ""
+    @State private var medicationName: String = ""
+    @State private var selectedDate: Date = Date()
+    @State private var selectedTime: Date = {
+        var components = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        components.hour = 9
+        components.minute = 0
+        return Calendar.current.date(from: components) ?? Date()
+    }()
+    @State private var showDatePicker = false
+    @State private var showTimePicker = false
     @FocusState private var isInputFocused: Bool
-    
-    // Glass effect colors
-    private var glassBackground: Color {
-        themeManager.colorScheme == .dark
-            ? Color(white: 0.18).opacity(0.92)
-            : Color(white: 0.94).opacity(0.92)
+
+    private var formattedDate: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d, yyyy"
+        return formatter.string(from: selectedDate)
     }
-    
-    private var glassBorder: Color {
-        themeManager.colorScheme == .dark
-            ? Color.white.opacity(0.15)
-            : Color.black.opacity(0.08)
+
+    private var formattedTime: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: selectedTime)
     }
-    
-    // Helper to check if there's input text
-    private var hasInputText: Bool {
-        !manualInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || 
-        !viewModel.transcribedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+
+    private var hasInput: Bool {
+        !medicationName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
-    
+
     var body: some View {
-        VStack(spacing: 8) {
-            // Input field with mic button
+        VStack(spacing: 12) {
+            // Date and Time chips row
             if #available(iOS 26.0, *) {
-                GlassEffectContainer{
-                    HStack(spacing: 12) {
-                        // Text field with padding
-                        TextField("Add medication or supplement...", text: viewModel.isRecording ? $viewModel.transcribedText : $manualInput)
-                            .font(.custom("ProductSans-Regular", size: 18))
+                HStack(spacing: 10) {
+                    // Date chip
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            showDatePicker.toggle()
+                            showTimePicker = false
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "calendar")
+                                .font(.system(size: 14))
+                            Text(formattedDate)
+                                .font(.custom("ProductSans-Medium", size: 14))
+                        }
+                        .foregroundColor(showDatePicker ? AppColors.primary : AppColors.text(themeManager.colorScheme))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .glassEffect(.regular.interactive())
+
+                    // Time chip
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            showTimePicker.toggle()
+                            showDatePicker = false
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "clock")
+                                .font(.system(size: 14))
+                            Text(formattedTime)
+                                .font(.custom("ProductSans-Medium", size: 14))
+                        }
+                        .foregroundColor(showTimePicker ? AppColors.primary : AppColors.text(themeManager.colorScheme))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .glassEffect(.regular.interactive())
+
+                    Spacer()
+
+                    // Done button when picker is shown
+                    if showDatePicker || showTimePicker {
+                        Button {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                showDatePicker = false
+                                showTimePicker = false
+                            }
+                        } label: {
+                            Text("Done")
+                                .font(.custom("ProductSans-Medium", size: 14))
+                                .foregroundColor(AppColors.primary)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 10)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .glassEffect(.regular.interactive())
+                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                    }
+                }
+
+                // Date picker - compact graphical style
+                if showDatePicker {
+                    DatePicker("", selection: $selectedDate, displayedComponents: .date)
+                        .datePickerStyle(.graphical)
+                        .scaleEffect(0.9)
+                        .frame(height: 280)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(AppColors.surface(themeManager.colorScheme))
+                        )
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .top)),
+                            removal: .opacity.combined(with: .scale(scale: 0.95))
+                        ))
+                }
+
+                // Time picker - compact wheel style
+                if showTimePicker {
+                    DatePicker("", selection: $selectedTime, displayedComponents: .hourAndMinute)
+                        .datePickerStyle(.wheel)
+                        .labelsHidden()
+                        .frame(height: 100)
+                        .clipped()
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(AppColors.surface(themeManager.colorScheme))
+                        )
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .top)),
+                            removal: .opacity.combined(with: .scale(scale: 0.95))
+                        ))
+                }
+
+                // Input card with extra height
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Remind me to take:")
+                        .font(.custom("ProductSans-Regular", size: 14))
+                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+
+                    HStack(alignment: .center, spacing: 12) {
+                        TextField("Vitamin D3", text: $medicationName)
+                            .font(.custom("ProductSans-Bold", size: 20))
                             .focused($isInputFocused)
                             .submitLabel(.done)
                             .onSubmit {
-                                submitInput()
+                                submitReminder()
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 14)
-                            .glassEffect(.regular.interactive())
-                        
-                        // Microphone / Send button (morphs based on input)
+
+                        Spacer()
+
+                        // Send button
                         Button {
-                            Task {
-                                if hasInputText {
-                                    // Send the message
-                                    submitInput()
-                                } else if viewModel.isRecording {
-                                    // Stop recording
-                                    viewModel.stopRecording()
-                                } else {
-                                    // Start recording
-                                    await viewModel.startRecording()
-                                }
-                            }
+                            submitReminder()
                         } label: {
-                            // Icon morphs based on state
-                            if hasInputText {
-                                Image(systemName: "arrow.up")
-                                    .font(.system(size: 18, weight: .bold))
-                                    .foregroundColor(AppColors.primary)
-                            } else {
-                                Image(systemName: viewModel.isRecording ? "stop.fill" : "waveform")
-                                    .font(.system(size: 18, weight: .medium))
-                                    .foregroundColor(AppColors.primary)
-                            }
+                            Circle()
+                                .fill(hasInput ? AppColors.primary : AppColors.primary.opacity(0.3))
+                                .frame(width: 52, height: 52)
+                                .overlay(
+                                    Image(systemName: "arrow.up")
+                                        .font(.system(size: 18, weight: .bold))
+                                        .foregroundColor(.white)
+                                )
                         }
-                        .scaleEffect(viewModel.isRecording ? 1.1 : 1.0)
-                        .animation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true), value: viewModel.isRecording)
-                        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: hasInputText)
-                    }
-                    
-                    // Processing indicator
-                    if viewModel.isProcessingVoice {
-                        HStack(spacing: 8) {
-                            ProgressView()
-                                .tint(AppColors.primary)
-                                .scaleEffect(0.8)
-                            Text("Processing...")
-                                .font(.custom("ProductSans-Regular", size: 12))
-                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                        }
+                        .buttonStyle(.plain)
+                        .disabled(!hasInput)
                     }
                 }
+                .padding(16)
+                .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 25))
+
             } else {
-                // Fallback on earlier versions
+                // Fallback for older iOS
+                fallbackInputCard
             }
         }
     }
-    
-    private func submitInput() {
-        let text = viewModel.isRecording ? viewModel.transcribedText : manualInput
-        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        
-        if viewModel.isRecording {
-            viewModel.stopRecording()
+
+    private var fallbackInputCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Date/Time row
+            HStack(spacing: 10) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        showDatePicker.toggle()
+                        showTimePicker = false
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "calendar")
+                            .font(.system(size: 14))
+                        Text(formattedDate)
+                            .font(.custom("ProductSans-Medium", size: 14))
+                    }
+                    .foregroundColor(showDatePicker ? AppColors.primary : AppColors.text(themeManager.colorScheme))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(AppColors.surface(themeManager.colorScheme))
+                    )
+                    .contentShape(Rectangle())
+                }
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        showTimePicker.toggle()
+                        showDatePicker = false
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "clock")
+                            .font(.system(size: 14))
+                        Text(formattedTime)
+                            .font(.custom("ProductSans-Medium", size: 14))
+                    }
+                    .foregroundColor(showTimePicker ? AppColors.primary : AppColors.text(themeManager.colorScheme))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(AppColors.surface(themeManager.colorScheme))
+                    )
+                    .contentShape(Rectangle())
+                }
+
+                Spacer()
+
+                // Done button when picker is shown
+                if showDatePicker || showTimePicker {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            showDatePicker = false
+                            showTimePicker = false
+                        }
+                    } label: {
+                        Text("Done")
+                            .font(.custom("ProductSans-Medium", size: 14))
+                            .foregroundColor(AppColors.primary)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .fill(AppColors.surface(themeManager.colorScheme))
+                            )
+                            .contentShape(Rectangle())
+                    }
+                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                }
+            }
+
+            // Date picker - compact
+            if showDatePicker {
+                DatePicker("", selection: $selectedDate, displayedComponents: .date)
+                    .datePickerStyle(.graphical)
+                    .scaleEffect(0.9)
+                    .frame(height: 280)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(AppColors.surface(themeManager.colorScheme))
+                    )
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            }
+
+            // Time picker - compact
+            if showTimePicker {
+                DatePicker("", selection: $selectedTime, displayedComponents: .hourAndMinute)
+                    .datePickerStyle(.wheel)
+                    .labelsHidden()
+                    .frame(height: 100)
+                    .clipped()
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(AppColors.surface(themeManager.colorScheme))
+                    )
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            }
+
+            // Input card with extra height
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Remind me to take:")
+                    .font(.custom("ProductSans-Regular", size: 14))
+                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+
+                HStack(alignment: .center, spacing: 12) {
+                    TextField("Vitamin D3", text: $medicationName)
+                        .font(.custom("ProductSans-Bold", size: 20))
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+
+                    Spacer()
+
+                    Button {
+                        submitReminder()
+                    } label: {
+                        Circle()
+                            .fill(hasInput ? AppColors.primary : AppColors.primary.opacity(0.3))
+                            .frame(width: 52, height: 52)
+                            .overlay(
+                                Image(systemName: "arrow.up")
+                                    .font(.system(size: 18, weight: .bold))
+                                    .foregroundColor(.white)
+                            )
+                    }
+                    .disabled(!hasInput)
+                }
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 22)
+                    .fill(AppColors.surface(themeManager.colorScheme))
+            )
         }
-        
+        .animation(.easeInOut(duration: 0.2), value: showDatePicker)
+        .animation(.easeInOut(duration: 0.2), value: showTimePicker)
+    }
+
+    private func formattedDateForDisplay() -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(selectedDate) {
+            return "today"
+        } else if calendar.isDateInTomorrow(selectedDate) {
+            return "tomorrow"
+        } else {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "EEEE"
+            return formatter.string(from: selectedDate).lowercased()
+        }
+    }
+
+    private func formattedTimeForDisplay() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mma"
+        return formatter.string(from: selectedTime).lowercased()
+    }
+
+    private func submitReminder() {
+        guard hasInput else { return }
+
         Task {
-            await viewModel.quickLog(text: text)
-            manualInput = ""
+            // Create the item with reminder
+            await viewModel.createItem(
+                name: medicationName,
+                type: .supplement,
+                description: nil,
+                frequency: .daily,
+                timesPerWeek: 7
+            )
+
+            // Get the weekday for the selected date
+            let weekday = Calendar.current.component(.weekday, from: selectedDate) - 1
+
+            // Find the newly created item and set reminder
+            if let newItem = viewModel.items.first(where: { $0.name == medicationName }) {
+                await viewModel.updateReminder(
+                    for: newItem,
+                    enabled: true,
+                    time: selectedTime,
+                    days: [weekday]
+                )
+            }
+
+            // Reset input
+            medicationName = ""
+            isInputFocused = false
         }
-        
-        isInputFocused = false
     }
 }
 

@@ -11,14 +11,51 @@ import Supabase
 import BackgroundTasks
 import UserNotifications
 
-// MARK: - App Delegate for Background Tasks
-class AppDelegate: NSObject, UIApplicationDelegate {
+// MARK: - App Delegate for Background Tasks and Notifications
+class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
         // Register background task
         BGTaskScheduler.shared.register(forTaskWithIdentifier: "com.lumo.analyzeBloodTest", using: nil) { task in
             self.handleBackgroundAnalysis(task: task as! BGProcessingTask)
         }
+
+        // Set up notification delegate and register categories
+        UNUserNotificationCenter.current().delegate = self
+        NotificationManager.shared.registerNotificationCategories()
+
         return true
+    }
+
+    // MARK: - UNUserNotificationCenterDelegate
+
+    /// Handle notification when app is in foreground
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        // Show notification even when app is in foreground
+        completionHandler([.banner, .sound, .badge])
+    }
+
+    /// Handle notification action response
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let userInfo = response.notification.request.content.userInfo
+
+        // Extract item ID from userInfo
+        if let itemId = userInfo["itemId"] as? String {
+            NotificationManager.shared.handleNotificationAction(
+                actionIdentifier: response.actionIdentifier,
+                itemId: itemId,
+                completion: completionHandler
+            )
+        } else {
+            completionHandler()
+        }
     }
     
     func scheduleBackgroundAnalysisIfNeeded() {
