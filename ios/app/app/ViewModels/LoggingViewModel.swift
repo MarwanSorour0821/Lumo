@@ -163,7 +163,7 @@ class LoggingViewModel: ObservableObject {
         }
     }
     
-    func updateItem(_ item: FoodSupplementItem, name: String? = nil, type: LogItemType? = nil, description: String? = nil, frequency: LogFrequency? = nil, timesPerWeek: Int? = nil, startDate: Date? = nil, endDate: Date? = nil, clearStartDate: Bool = false, clearEndDate: Bool = false) async {
+    func updateItem(_ item: FoodSupplementItem, name: String? = nil, type: LogItemType? = nil, description: String? = nil, frequency: LogFrequency? = nil, timesPerWeek: Int? = nil, reminderDays: [Int]? = nil, startDate: Date? = nil, endDate: Date? = nil, clearStartDate: Bool = false, clearEndDate: Bool = false) async {
         isLoading = true
         error = nil
         
@@ -175,6 +175,7 @@ class LoggingViewModel: ObservableObject {
                 description: description,
                 frequency: frequency,
                 timesPerWeek: timesPerWeek,
+                reminderDays: reminderDays,
                 startDate: startDate,
                 endDate: endDate,
                 clearStartDate: clearStartDate,
@@ -183,6 +184,18 @@ class LoggingViewModel: ObservableObject {
             if let index = items.firstIndex(where: { $0.id == item.id }) {
                 items[index] = updated
             }
+            
+            // If reminder is enabled and reminderDays were updated, reschedule reminders
+            if let reminderDays = reminderDays, updated.reminderEnabled {
+                if let timeString = updated.reminderTime {
+                    let formatter = DateFormatter()
+                    formatter.dateFormat = "HH:mm:ss"
+                    if let time = formatter.date(from: timeString) {
+                        await updateReminder(for: updated, enabled: true, time: time, days: reminderDays)
+                    }
+                }
+            }
+            
             successMessage = "\(updated.name) updated successfully"
             isLoading = false
         } catch {
@@ -441,7 +454,7 @@ class LoggingViewModel: ObservableObject {
                 await scheduleLocalReminder(for: updated)
             } else {
                 // Cancel local notification
-                NotificationManager.shared.cancelReminders(for: item.id)
+                await NotificationManager.shared.cancelReminders(for: item.id)
             }
         } catch {
             self.error = error.localizedDescription
@@ -474,11 +487,25 @@ class LoggingViewModel: ObservableObject {
         let hour = calendar.component(.hour, from: time)
         let minute = calendar.component(.minute, from: time)
 
+        // Parse start and end dates
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        
+        var startDate: Date? = nil
+        if let startDateString = item.startDate {
+            startDate = dateFormatter.date(from: startDateString)
+        }
+        
+        var endDate: Date? = nil
+        if let endDateString = item.endDate {
+            endDate = dateFormatter.date(from: endDateString)
+        }
+
         // Determine item type string
         let itemType = item.type == .supplement ? "supplement" : "medication"
 
         // Cancel existing reminders first
-        NotificationManager.shared.cancelReminders(for: item.id)
+        await NotificationManager.shared.cancelReminders(for: item.id)
 
         // Schedule for each reminder day using NotificationManager
         for day in item.reminderDays {
@@ -491,7 +518,9 @@ class LoggingViewModel: ObservableObject {
                 itemType: itemType,
                 hour: hour,
                 minute: minute,
-                weekday: weekday
+                weekday: weekday,
+                startDate: startDate,
+                endDate: endDate
             )
         }
     }

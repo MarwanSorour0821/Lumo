@@ -593,9 +593,7 @@ struct EditItemSheet: View {
 
     @State private var name: String
     @State private var selectedType: LogItemType
-    @State private var description: String
-    @State private var selectedFrequency: LogFrequency
-    @State private var timesPerWeek: Int
+    @State private var selectedDays: Set<Int>
     @State private var startDate: Date
     @State private var endDate: Date
     @State private var hasEndDate: Bool
@@ -603,15 +601,15 @@ struct EditItemSheet: View {
     @State private var showStartDatePicker = false
     @State private var showEndDatePicker = false
 
+    let dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
     init(item: FoodSupplementItem, viewModel: LoggingViewModel) {
         self.item = item
         self.viewModel = viewModel
         
         _name = State(initialValue: item.name)
         _selectedType = State(initialValue: item.type)
-        _description = State(initialValue: item.description ?? "")
-        _selectedFrequency = State(initialValue: item.frequency)
-        _timesPerWeek = State(initialValue: item.timesPerWeek)
+        _selectedDays = State(initialValue: Set(item.reminderDays.isEmpty ? [0,1,2,3,4,5,6] : item.reminderDays))
         
         // Parse start date
         if let startDateString = item.startDate {
@@ -688,36 +686,25 @@ struct EditItemSheet: View {
                             }
                         }
 
-                        // Frequency selector
+                        // Day selector (synced with reminder days)
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("How often do you take it?")
+                            Text("Days to take")
                                 .font(.custom("ProductSans-Bold", size: 14))
                                 .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
 
-                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                                ForEach(LogFrequency.allCases, id: \.self) { frequency in
-                                    FrequencyButton(
-                                        frequency: frequency,
-                                        isSelected: selectedFrequency == frequency
+                            HStack(spacing: 8) {
+                                ForEach(0..<7, id: \.self) { day in
+                                    DayButton(
+                                        day: dayNames[day],
+                                        isSelected: selectedDays.contains(day)
                                     ) {
-                                        selectedFrequency = frequency
+                                        if selectedDays.contains(day) {
+                                            selectedDays.remove(day)
+                                        } else {
+                                            selectedDays.insert(day)
+                                        }
                                     }
                                 }
-                            }
-                        }
-
-                        // Times per week (only show if weekly selected)
-                        if selectedFrequency == .weekly {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Times per week: \(timesPerWeek)")
-                                    .font(.custom("ProductSans-Bold", size: 14))
-                                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-
-                                Slider(value: Binding(
-                                    get: { Double(timesPerWeek) },
-                                    set: { timesPerWeek = Int($0) }
-                                ), in: 1...7, step: 1)
-                                .tint(AppColors.primary)
                             }
                         }
                         
@@ -818,34 +805,16 @@ struct EditItemSheet: View {
                             }
                         }
 
-                        // Description (optional)
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Notes (optional)")
-                                .font(.custom("ProductSans-Bold", size: 14))
-                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-
-                            TextField("e.g., 1000 IU, take with food", text: $description)
-                                .font(.custom("ProductSans-Regular", size: 16))
-                                .padding(16)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .fill(AppColors.inputBackground(themeManager.colorScheme))
-                                )
-                                .foregroundColor(AppColors.text(themeManager.colorScheme))
-                        }
-
                         Spacer(minLength: 40)
 
-                        // Save button
+                        // Save button (pill-shaped, fixed at bottom)
                         Button {
                             saveItem()
                         } label: {
                             HStack {
                                 if isSubmitting {
-                                    ProgressView()
-                                        .tint(.white)
+                                    CustomSpinner(size: 20, lineWidth: 2.5)
                                 } else {
-                                    Image(systemName: "checkmark")
                                     Text("Save Changes")
                                 }
                             }
@@ -854,13 +823,15 @@ struct EditItemSheet: View {
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 16)
                             .background(
-                                RoundedRectangle(cornerRadius: 14)
-                                    .fill(name.isEmpty ? AppColors.primary.opacity(0.5) : AppColors.primary)
+                                Capsule()
+                                    .fill(name.isEmpty || selectedDays.isEmpty ? AppColors.primary.opacity(0.5) : AppColors.primary)
                             )
                         }
-                        .disabled(name.isEmpty || isSubmitting)
+                        .disabled(name.isEmpty || selectedDays.isEmpty || isSubmitting)
+                        .opacity(name.isEmpty || selectedDays.isEmpty ? 0.5 : 1)
                     }
                     .padding(20)
+                    .padding(.bottom, 20)
                 }
                 .animation(.easeInOut(duration: 0.2), value: showStartDatePicker)
                 .animation(.easeInOut(duration: 0.2), value: showEndDatePicker)
@@ -879,18 +850,17 @@ struct EditItemSheet: View {
     }
 
     private func saveItem() {
+        guard !name.isEmpty && !selectedDays.isEmpty else { return }
         isSubmitting = true
+        
         Task {
             await viewModel.updateItem(
                 item,
                 name: name,
                 type: selectedType,
-                description: description.isEmpty ? nil : description,
-                frequency: selectedFrequency,
-                timesPerWeek: timesPerWeek,
+                reminderDays: Array(selectedDays),
                 startDate: startDate,
                 endDate: hasEndDate ? endDate : nil,
-                clearStartDate: false,
                 clearEndDate: !hasEndDate
             )
             isSubmitting = false
@@ -920,9 +890,7 @@ struct EditItemSheet: View {
         id: "1",
         name: "Vitamin D3",
         type: .supplement,
-        description: "Take with food",
-        frequency: .daily,
-        timesPerWeek: 7,
+        reminderDays: [0, 1, 2, 3, 4, 5, 6],
         startDate: "2026-01-01",
         endDate: "2026-02-01"
     )

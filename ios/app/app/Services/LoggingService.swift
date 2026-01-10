@@ -98,7 +98,7 @@ class LoggingService {
     }
     
     /// Update an existing item
-    func updateItem(itemId: String, name: String? = nil, type: LogItemType? = nil, description: String? = nil, frequency: LogFrequency? = nil, timesPerWeek: Int? = nil, startDate: Date? = nil, endDate: Date? = nil, clearStartDate: Bool = false, clearEndDate: Bool = false) async throws -> FoodSupplementItem {
+    func updateItem(itemId: String, name: String? = nil, type: LogItemType? = nil, description: String? = nil, frequency: LogFrequency? = nil, timesPerWeek: Int? = nil, reminderDays: [Int]? = nil, startDate: Date? = nil, endDate: Date? = nil, clearStartDate: Bool = false, clearEndDate: Bool = false) async throws -> FoodSupplementItem {
         guard let apiURLString = SupabaseManager.shared.getAPIURL(),
               let url = URL(string: "\(apiURLString)/api/logging/items/\(itemId)/") else {
             throw NSError(domain: "LoggingService", code: 1, userInfo: [NSLocalizedDescriptionKey: "API URL not configured"])
@@ -120,6 +120,7 @@ class LoggingService {
         if let description = description { body["description"] = description }
         if let frequency = frequency { body["frequency"] = frequency.rawValue }
         if let timesPerWeek = timesPerWeek { body["times_per_week"] = timesPerWeek }
+        if let reminderDays = reminderDays { body["reminder_days"] = reminderDays }
         if let startDate = startDate {
             body["start_date"] = dateFormatter.string(from: startDate)
         } else if clearStartDate {

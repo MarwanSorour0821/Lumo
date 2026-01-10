@@ -163,49 +163,137 @@ class NotificationManager: NSObject {
         itemType: String,
         hour: Int,
         minute: Int,
-        weekday: Int
+        weekday: Int,
+        startDate: Date? = nil,
+        endDate: Date? = nil
     ) async {
         let center = UNUserNotificationCenter.current()
-
+        let calendar = Calendar.current
+        
+        // Determine the start date (use provided or today)
+        let effectiveStartDate = startDate ?? calendar.startOfDay(for: Date())
+        let today = calendar.startOfDay(for: Date())
+        let actualStartDate = effectiveStartDate > today ? effectiveStartDate : today
+        
         // Create notification content
         let content = UNMutableNotificationContent()
         content.title = "Time to take \(itemName)"
         content.body = "Don't forget your \(itemType)!"
         content.sound = .default
         content.categoryIdentifier = NotificationManager.medicationReminderCategory
-
+        
         // Store the item ID in userInfo so we can use it when handling actions
         content.userInfo = ["itemId": itemId]
+        
+        // If there's an end date, schedule individual notifications for each occurrence
+        if let endDate = endDate {
+            let endDateStartOfDay = calendar.startOfDay(for: endDate)
+            
+            // Calculate all occurrences between start and end dates
+            var occurrences: [Date] = []
+            var currentDate = actualStartDate
+            
+            while currentDate <= endDateStartOfDay {
+                // Get the weekday component (1 = Sunday, 2 = Monday, etc.)
+                let currentWeekday = calendar.component(.weekday, from: currentDate)
+                
+                // If this day matches the reminder weekday
+                if currentWeekday == weekday {
+                    // Create a date with the specified hour and minute
+                    var components = calendar.dateComponents([.year, .month, .day], from: currentDate)
+                    components.hour = hour
+                    components.minute = minute
+                    components.second = 0
+                    
+                    if let notificationDate = calendar.date(from: components), notificationDate >= Date() {
+                        occurrences.append(notificationDate)
+                    }
+                }
+                
+                // Move to next day
+                guard let nextDate = calendar.date(byAdding: .day, value: 1, to: currentDate) else { break }
+                currentDate = nextDate
+            }
+            
+            // Schedule individual notifications for each occurrence
+            for (index, occurrenceDate) in occurrences.enumerated() {
+                let timeInterval = occurrenceDate.timeIntervalSinceNow
+                
+                // Only schedule if the date is in the future
+                guard timeInterval > 0 else { continue }
+                
+                let trigger = UNTimeIntervalNotificationTrigger(timeInterval: timeInterval, repeats: false)
+                let requestId = "\(itemId)_day\(weekday)_\(index)_\(Int(occurrenceDate.timeIntervalSince1970))"
+                
+                let request = UNNotificationRequest(
+                    identifier: requestId,
+                    content: content,
+                    trigger: trigger
+                )
+                
+                do {
+                    try await center.add(request)
+                    print("✅ Scheduled notification for \(itemName) on \(occurrenceDate) at \(hour):\(minute)")
+                } catch {
+                    print("❌ Failed to schedule notification: \(error.localizedDescription)")
+                }
+            }
+            
+            if !occurrences.isEmpty {
+                print("✅ Scheduled \(occurrences.count) notifications for \(itemName) until \(endDateStartOfDay)")
+            }
+        } else {
+            // No end date - use repeating notifications as before
+            // Create date components for the trigger
+            var dateComponents = DateComponents()
+            dateComponents.hour = hour
+            dateComponents.minute = minute
+            dateComponents.weekday = weekday // 1 = Sunday, 2 = Monday, etc.
 
-        // Create date components for the trigger
-        var dateComponents = DateComponents()
-        dateComponents.hour = hour
-        dateComponents.minute = minute
-        dateComponents.weekday = weekday // 1 = Sunday, 2 = Monday, etc.
+            let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
 
-        let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
+            // Create the request with a unique identifier
+            let requestId = "\(itemId)_day\(weekday)"
+            let request = UNNotificationRequest(
+                identifier: requestId,
+                content: content,
+                trigger: trigger
+            )
 
-        // Create the request with a unique identifier
-        let requestId = "\(itemId)_day\(weekday)"
-        let request = UNNotificationRequest(
-            identifier: requestId,
-            content: content,
-            trigger: trigger
-        )
-
-        do {
-            try await center.add(request)
-            print("✅ Scheduled notification for \(itemName) on weekday \(weekday) at \(hour):\(minute)")
-        } catch {
-            print("❌ Failed to schedule notification: \(error.localizedDescription)")
+            do {
+                try await center.add(request)
+                print("✅ Scheduled repeating notification for \(itemName) on weekday \(weekday) at \(hour):\(minute)")
+            } catch {
+                print("❌ Failed to schedule notification: \(error.localizedDescription)")
+            }
         }
     }
 
     /// Cancel all reminders for an item
-    func cancelReminders(for itemId: String) {
+    func cancelReminders(for itemId: String) async {
         let center = UNUserNotificationCenter.current()
-        let identifiers = (1...7).map { "\(itemId)_day\($0)" }
-        center.removePendingNotificationRequests(withIdentifiers: identifiers)
-        print("🗑️ Cancelled reminders for item: \(itemId)")
+        
+        // Get all pending notifications
+        let pendingRequests = await center.pendingNotificationRequests()
+        
+        // Filter notifications that belong to this item
+        let itemNotificationIds = pendingRequests.compactMap { request -> String? in
+            // Check if the notification ID starts with the item ID
+            // IDs can be in format: "\(itemId)_day\(weekday)" or "\(itemId)_day\(weekday)_\(index)_\(timestamp)"
+            if request.identifier.hasPrefix("\(itemId)_") {
+                return request.identifier
+            }
+            return nil
+        }
+        
+        if !itemNotificationIds.isEmpty {
+            center.removePendingNotificationRequests(withIdentifiers: itemNotificationIds)
+            print("🗑️ Cancelled \(itemNotificationIds.count) reminders for item: \(itemId)")
+        } else {
+            // Fallback: try the old format for backwards compatibility
+            let identifiers = (1...7).map { "\(itemId)_day\($0)" }
+            center.removePendingNotificationRequests(withIdentifiers: identifiers)
+            print("🗑️ Cancelled reminders for item: \(itemId) (fallback)")
+        }
     }
 }
