@@ -159,7 +159,7 @@ def logs_list(request):
     if end_date:
         logs = logs.filter(logged_at__lte=end_date)
     
-    logs = logs[:limit]
+    logs = logs.select_related('item')[:limit]
     
     serializer = FoodSupplementLogSerializer(logs, many=True)
     return Response(serializer.data)

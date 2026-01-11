@@ -37,7 +37,7 @@ class FoodSupplementItem(models.Model):
     
     # Reminder settings
     reminder_enabled = models.BooleanField(default=False)
-    reminder_times = models.JSONField(default=list, blank=True)  # List of time strings, e.g., ["09:00:00", "14:00:00", "21:00:00"]
+    reminder_times = models.JSONField(default=list, blank=True, db_column='reminder_times')  # List of time strings, e.g., ["09:00:00", "14:00:00", "21:00:00"]
     reminder_days = ArrayField(
         models.IntegerField(),
         default=default_reminder_days,
