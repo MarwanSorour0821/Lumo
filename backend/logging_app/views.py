@@ -391,22 +391,23 @@ Only return the JSON array, nothing else."""
 @api_view(['PUT'])
 def update_reminder(request, item_id):
     """
-    Update reminder settings for an item
+    Update reminder settings for an item.
+    Accepts reminder_times as an array of time strings (e.g., ["09:00:00", "14:00:00", "21:00:00"])
     """
     user_id = get_user_id_from_token(request)
     if not user_id:
         return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
-    
+
     try:
         item = FoodSupplementItem.objects.get(id=item_id, user_id=user_id)
     except FoodSupplementItem.DoesNotExist:
         return Response({'error': 'Item not found'}, status=status.HTTP_404_NOT_FOUND)
-    
+
     item.reminder_enabled = request.data.get('reminder_enabled', item.reminder_enabled)
-    item.reminder_time = request.data.get('reminder_time', item.reminder_time)
+    item.reminder_times = request.data.get('reminder_times', item.reminder_times)
     item.reminder_days = request.data.get('reminder_days', item.reminder_days)
     item.save()
-    
+
     return Response(FoodSupplementItemSerializer(item).data)
 
 

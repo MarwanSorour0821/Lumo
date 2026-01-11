@@ -157,6 +157,16 @@ class NotificationManager: NSObject {
     // MARK: - Schedule Notifications
 
     /// Schedule a medication reminder notification
+    /// - Parameters:
+    ///   - itemId: The unique ID of the medication/supplement item
+    ///   - itemName: The display name of the item
+    ///   - itemType: "supplement" or "medication"
+    ///   - hour: Hour of the reminder (0-23)
+    ///   - minute: Minute of the reminder (0-59)
+    ///   - weekday: Day of the week (1=Sunday, 7=Saturday)
+    ///   - timeIndex: Index of this time in the list of reminder times (for multiple times per day)
+    ///   - startDate: Optional start date for the reminder schedule
+    ///   - endDate: Optional end date for the reminder schedule
     func scheduleReminder(
         itemId: String,
         itemName: String,
@@ -164,39 +174,48 @@ class NotificationManager: NSObject {
         hour: Int,
         minute: Int,
         weekday: Int,
+        timeIndex: Int = 0,
         startDate: Date? = nil,
         endDate: Date? = nil
     ) async {
         let center = UNUserNotificationCenter.current()
         let calendar = Calendar.current
-        
+
         // Determine the start date (use provided or today)
         let effectiveStartDate = startDate ?? calendar.startOfDay(for: Date())
         let today = calendar.startOfDay(for: Date())
         let actualStartDate = effectiveStartDate > today ? effectiveStartDate : today
-        
+
+        // Format time for display
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "h:mm a"
+        var timeComponents = DateComponents()
+        timeComponents.hour = hour
+        timeComponents.minute = minute
+        let timeString = calendar.date(from: timeComponents).map { timeFormatter.string(from: $0) } ?? "\(hour):\(minute)"
+
         // Create notification content
         let content = UNMutableNotificationContent()
         content.title = "Time to take \(itemName)"
-        content.body = "Don't forget your \(itemType)!"
+        content.body = "Don't forget your \(itemType)! (\(timeString))"
         content.sound = .default
         content.categoryIdentifier = NotificationManager.medicationReminderCategory
-        
+
         // Store the item ID in userInfo so we can use it when handling actions
         content.userInfo = ["itemId": itemId]
-        
+
         // If there's an end date, schedule individual notifications for each occurrence
         if let endDate = endDate {
             let endDateStartOfDay = calendar.startOfDay(for: endDate)
-            
+
             // Calculate all occurrences between start and end dates
             var occurrences: [Date] = []
             var currentDate = actualStartDate
-            
+
             while currentDate <= endDateStartOfDay {
                 // Get the weekday component (1 = Sunday, 2 = Monday, etc.)
                 let currentWeekday = calendar.component(.weekday, from: currentDate)
-                
+
                 // If this day matches the reminder weekday
                 if currentWeekday == weekday {
                     // Create a date with the specified hour and minute
@@ -204,43 +223,44 @@ class NotificationManager: NSObject {
                     components.hour = hour
                     components.minute = minute
                     components.second = 0
-                    
+
                     if let notificationDate = calendar.date(from: components), notificationDate >= Date() {
                         occurrences.append(notificationDate)
                     }
                 }
-                
+
                 // Move to next day
                 guard let nextDate = calendar.date(byAdding: .day, value: 1, to: currentDate) else { break }
                 currentDate = nextDate
             }
-            
+
             // Schedule individual notifications for each occurrence
             for (index, occurrenceDate) in occurrences.enumerated() {
                 let timeInterval = occurrenceDate.timeIntervalSinceNow
-                
+
                 // Only schedule if the date is in the future
                 guard timeInterval > 0 else { continue }
-                
+
                 let trigger = UNTimeIntervalNotificationTrigger(timeInterval: timeInterval, repeats: false)
-                let requestId = "\(itemId)_day\(weekday)_\(index)_\(Int(occurrenceDate.timeIntervalSince1970))"
-                
+                // Include timeIndex in the request ID for multiple times per day
+                let requestId = "\(itemId)_time\(timeIndex)_day\(weekday)_\(index)_\(Int(occurrenceDate.timeIntervalSince1970))"
+
                 let request = UNNotificationRequest(
                     identifier: requestId,
                     content: content,
                     trigger: trigger
                 )
-                
+
                 do {
                     try await center.add(request)
-                    print("✅ Scheduled notification for \(itemName) on \(occurrenceDate) at \(hour):\(minute)")
+                    print("✅ Scheduled notification for \(itemName) on \(occurrenceDate) at \(hour):\(minute) (time \(timeIndex + 1))")
                 } catch {
                     print("❌ Failed to schedule notification: \(error.localizedDescription)")
                 }
             }
-            
+
             if !occurrences.isEmpty {
-                print("✅ Scheduled \(occurrences.count) notifications for \(itemName) until \(endDateStartOfDay)")
+                print("✅ Scheduled \(occurrences.count) notifications for \(itemName) at time slot \(timeIndex + 1) until \(endDateStartOfDay)")
             }
         } else {
             // No end date - use repeating notifications as before
@@ -252,8 +272,8 @@ class NotificationManager: NSObject {
 
             let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
 
-            // Create the request with a unique identifier
-            let requestId = "\(itemId)_day\(weekday)"
+            // Create the request with a unique identifier that includes timeIndex
+            let requestId = "\(itemId)_time\(timeIndex)_day\(weekday)"
             let request = UNNotificationRequest(
                 identifier: requestId,
                 content: content,
@@ -262,7 +282,7 @@ class NotificationManager: NSObject {
 
             do {
                 try await center.add(request)
-                print("✅ Scheduled repeating notification for \(itemName) on weekday \(weekday) at \(hour):\(minute)")
+                print("✅ Scheduled repeating notification for \(itemName) on weekday \(weekday) at \(hour):\(minute) (time \(timeIndex + 1))")
             } catch {
                 print("❌ Failed to schedule notification: \(error.localizedDescription)")
             }

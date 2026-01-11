@@ -623,7 +623,9 @@ struct TodayTabView: View {
     @State private var selectedDate = Date()
     @State private var selectedItem: FoodSupplementItem? = nil
     @State private var showReminderSheet = false
+    @State private var showEditSheet = false
     @State private var showDatePicker = false
+    @State private var gradientAnimation: Bool = false
 
     private var greeting: String {
         let hour = Calendar.current.component(.hour, from: Date())
@@ -669,8 +671,12 @@ struct TodayTabView: View {
     var body: some View {
         NavigationView {
             ZStack {
-                AppColors.background(themeManager.colorScheme)
-                    .ignoresSafeArea()
+                // Animated gradient background
+                AnimatedGradientBackground(
+                    animate: $gradientAnimation,
+                    colorScheme: themeManager.colorScheme
+                )
+                .ignoresSafeArea()
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
@@ -769,6 +775,10 @@ struct TodayTabView: View {
                                             selectedItem = item
                                             showReminderSheet = true
                                         },
+                                        onEdit: {
+                                            selectedItem = item
+                                            showEditSheet = true
+                                        },
                                         onDelete: {
                                             Task {
                                                 await loggingViewModel.deleteItem(item)
@@ -835,10 +845,49 @@ struct TodayTabView: View {
                 .environmentObject(themeManager)
                 .presentationDetents([.medium])
             }
+            .sheet(isPresented: $showEditSheet) {
+                if let item = selectedItem {
+                    EditItemSheet(item: item, viewModel: loggingViewModel)
+                        .environmentObject(themeManager)
+                        .presentationDetents([.large])
+                }
+            }
         }
         .task {
             await loggingViewModel.loadDataIfNeeded()
         }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 6.0).repeatForever(autoreverses: true)) {
+                gradientAnimation = true
+            }
+        }
+    }
+}
+
+// MARK: - Animated Gradient Background
+struct AnimatedGradientBackground: View {
+    @Binding var animate: Bool
+    let colorScheme: ColorScheme?
+
+    var body: some View {
+        LinearGradient(
+            colors: [
+                AppColors.gradientStart(colorScheme),
+                AppColors.gradientEnd(colorScheme)
+            ],
+            startPoint: animate ? .topLeading : .topTrailing,
+            endPoint: animate ? .bottomTrailing : .bottomLeading
+        )
+        .overlay(
+            LinearGradient(
+                colors: [
+                    AppColors.gradientEnd(colorScheme).opacity(animate ? 0.3 : 0),
+                    AppColors.gradientStart(colorScheme).opacity(animate ? 0 : 0.3)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
     }
 }
 
@@ -1090,6 +1139,7 @@ struct TodayMedicationCard: View {
     let item: FoodSupplementItem
     let onToggleTaken: () -> Void
     let onReminder: () -> Void
+    let onEdit: () -> Void
     let onDelete: () -> Void
 
     var body: some View {
@@ -1148,8 +1198,8 @@ struct TodayMedicationCard: View {
                         .font(.custom("ProductSans-Bold", size: 15))
                         .foregroundColor(AppColors.text(themeManager.colorScheme))
 
-                    if let time = item.reminderTime {
-                        Text(formatReminderTime(time))
+                    if !item.reminderTimes.isEmpty {
+                        Text(formatReminderTimes(item.reminderTimes))
                             .font(.custom("ProductSans-Regular", size: 11))
                             .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                     }
@@ -1170,6 +1220,12 @@ struct TodayMedicationCard: View {
                         .buttonStyle(.plain)
 
                         Menu {
+                            Button {
+                                onEdit()
+                            } label: {
+                                Label("Edit", systemImage: "scribble.variable")
+                            }
+
                             Button(role: .destructive) {
                                 onDelete()
                             } label: {
@@ -1236,6 +1292,12 @@ struct TodayMedicationCard: View {
             .buttonStyle(.plain)
 
             Menu {
+                Button {
+                    onEdit()
+                } label: {
+                    Label("Edit", systemImage: "scribble.variable")
+                }
+
                 Button(role: .destructive) {
                     onDelete()
                 } label: {
@@ -1260,14 +1322,27 @@ struct TodayMedicationCard: View {
         )
     }
 
-    private func formatReminderTime(_ timeString: String) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm:ss"
-        if let date = formatter.date(from: timeString) {
-            formatter.dateFormat = "h:mm a"
-            return formatter.string(from: date)
+    private func formatReminderTimes(_ timeStrings: [String]) -> String {
+        let inputFormatter = DateFormatter()
+        inputFormatter.dateFormat = "HH:mm:ss"
+
+        let outputFormatter = DateFormatter()
+        outputFormatter.dateFormat = "h:mm a"
+
+        let formattedTimes = timeStrings.compactMap { timeString -> String? in
+            if let date = inputFormatter.date(from: timeString) {
+                return outputFormatter.string(from: date)
+            }
+            return nil
         }
-        return timeString
+
+        if formattedTimes.count == 1 {
+            return formattedTimes[0]
+        } else if formattedTimes.count == 2 {
+            return formattedTimes.joined(separator: " & ")
+        } else {
+            return "\(formattedTimes.count) times daily"
+        }
     }
 }
 

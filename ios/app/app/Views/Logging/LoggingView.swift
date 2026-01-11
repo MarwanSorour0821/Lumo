@@ -17,13 +17,18 @@ struct LoggingTabView: View {
     @State private var showReminderSheet = false
     @State private var showEditSheet = false
     @State private var selectedNavTab: MedicationNavTab = .new
+    @State private var gradientAnimation: Bool = false
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
             ZStack {
-                AppColors.background(themeManager.colorScheme)
-                    .ignoresSafeArea()
+                // Animated gradient background
+                AnimatedGradientBackground(
+                    animate: $gradientAnimation,
+                    colorScheme: themeManager.colorScheme
+                )
+                .ignoresSafeArea()
 
                 VStack(spacing: 0) {
                     // Items List
@@ -126,6 +131,11 @@ struct LoggingTabView: View {
             }
             .refreshable {
                 await viewModel.refreshData()
+            }
+            .onAppear {
+                withAnimation(.easeInOut(duration: 6.0).repeatForever(autoreverses: true)) {
+                    gradientAnimation = true
+                }
             }
         }
     }
@@ -590,7 +600,7 @@ struct ReminderInputCard: View {
                 await viewModel.updateReminder(
                     for: newItem,
                     enabled: true,
-                    time: selectedTime,
+                    times: [selectedTime],
                     days: [weekday]
                 )
             }
@@ -863,7 +873,7 @@ struct ItemCard: View {
                             Button {
                                 onEdit()
                             } label: {
-                                Label("Edit", systemImage: "pencil")
+                                Label("Edit", systemImage: "scribble.variable")
                             }
                             
                             Button(role: .destructive) {
@@ -909,7 +919,7 @@ struct ItemCard: View {
                         Button {
                             onEdit()
                         } label: {
-                            Label("Edit", systemImage: "pencil")
+                            Label("Edit", systemImage: "scribble.variable")
                         }
                         
                         Button(role: .destructive) {

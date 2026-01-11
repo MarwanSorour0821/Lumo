@@ -3,6 +3,11 @@ from django.db import models
 from django.contrib.postgres.fields import ArrayField
 
 
+def default_reminder_days():
+    """Default reminder days (all days of the week)"""
+    return [0, 1, 2, 3, 4, 5, 6]
+
+
 class FoodSupplementItem(models.Model):
     """
     Model representing a food or supplement item that users can log.
@@ -32,10 +37,10 @@ class FoodSupplementItem(models.Model):
     
     # Reminder settings
     reminder_enabled = models.BooleanField(default=False)
-    reminder_time = models.TimeField(blank=True, null=True)
+    reminder_times = models.JSONField(default=list, blank=True)  # List of time strings, e.g., ["09:00:00", "14:00:00", "21:00:00"]
     reminder_days = ArrayField(
         models.IntegerField(),
-        default=lambda: [0, 1, 2, 3, 4, 5, 6],
+        default=default_reminder_days,
         blank=True
     )
     

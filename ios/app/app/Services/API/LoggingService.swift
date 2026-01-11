@@ -421,31 +421,36 @@ class LoggingService {
     // MARK: - Reminders
 
     /// Update reminder settings for an item
-    func updateReminder(itemId: String, enabled: Bool, time: String? = nil, days: [Int]? = nil) async throws -> FoodSupplementItem {
+    /// - Parameters:
+    ///   - itemId: The ID of the item to update
+    ///   - enabled: Whether reminders are enabled
+    ///   - times: Array of time strings in HH:mm:ss format (e.g., ["09:00:00", "14:00:00", "21:00:00"])
+    ///   - days: Array of day indices (0=Sunday, 6=Saturday)
+    func updateReminder(itemId: String, enabled: Bool, times: [String]? = nil, days: [Int]? = nil) async throws -> FoodSupplementItem {
         guard let apiURLString = SupabaseManager.shared.getAPIURL(),
               let url = URL(string: "\(apiURLString)/api/logging/items/\(itemId)/reminder/") else {
             throw NSError(domain: "LoggingService", code: 1, userInfo: [NSLocalizedDescriptionKey: "API URL not configured"])
         }
-        
+
         let accessToken = try await AuthService.shared.getAccessToken()
-        
+
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
+
         var body: [String: Any] = ["reminder_enabled": enabled]
-        if let time = time { body["reminder_time"] = time }
+        if let times = times { body["reminder_times"] = times }
         if let days = days { body["reminder_days"] = days }
-        
+
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
-        
+
         let (data, response) = try await URLSession.shared.data(for: request)
-        
+
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw NSError(domain: "LoggingService", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to update reminder"])
         }
-        
+
         let decoder = JSONDecoder()
         return try decoder.decode(FoodSupplementItem.self, from: data)
     }

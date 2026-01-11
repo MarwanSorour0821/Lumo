@@ -187,11 +187,12 @@ class LoggingViewModel: ObservableObject {
             
             // If reminder is enabled and reminderDays were updated, reschedule reminders
             if let reminderDays = reminderDays, updated.reminderEnabled {
-                if let timeString = updated.reminderTime {
+                if !updated.reminderTimes.isEmpty {
                     let formatter = DateFormatter()
                     formatter.dateFormat = "HH:mm:ss"
-                    if let time = formatter.date(from: timeString) {
-                        await updateReminder(for: updated, enabled: true, time: time, days: reminderDays)
+                    let times = updated.reminderTimes.compactMap { formatter.date(from: $0) }
+                    if !times.isEmpty {
+                        await updateReminder(for: updated, enabled: true, times: times, days: reminderDays)
                     }
                 }
             }
@@ -428,19 +429,22 @@ class LoggingViewModel: ObservableObject {
     
     // MARK: - Reminders
 
-    func updateReminder(for item: FoodSupplementItem, enabled: Bool, time: Date?, days: [Int]) async {
+    /// Update reminder settings for an item with multiple times per day
+    /// - Parameters:
+    ///   - item: The item to update
+    ///   - enabled: Whether reminders are enabled
+    ///   - times: Array of Date objects representing reminder times
+    ///   - days: Array of day indices (0=Sunday, 6=Saturday)
+    func updateReminder(for item: FoodSupplementItem, enabled: Bool, times: [Date], days: [Int]) async {
         do {
-            var timeString: String? = nil
-            if let time = time {
-                let formatter = DateFormatter()
-                formatter.dateFormat = "HH:mm:ss"
-                timeString = formatter.string(from: time)
-            }
+            let formatter = DateFormatter()
+            formatter.dateFormat = "HH:mm:ss"
+            let timeStrings = times.map { formatter.string(from: $0) }
 
             let updated = try await LoggingService.shared.updateReminder(
                 itemId: item.id,
                 enabled: enabled,
-                time: timeString,
+                times: timeStrings.isEmpty ? nil : timeStrings,
                 days: days
             )
 
@@ -449,8 +453,8 @@ class LoggingViewModel: ObservableObject {
                 items[index] = updated
             }
 
-            if enabled {
-                // Schedule local notification with actionable buttons
+            if enabled && !timeStrings.isEmpty {
+                // Schedule local notifications for all times
                 await scheduleLocalReminder(for: updated)
             } else {
                 // Cancel local notification
@@ -469,7 +473,7 @@ class LoggingViewModel: ObservableObject {
     }
 
     private func scheduleLocalReminder(for item: FoodSupplementItem) async {
-        guard item.reminderEnabled, let timeString = item.reminderTime else { return }
+        guard item.reminderEnabled, !item.reminderTimes.isEmpty else { return }
 
         // Request permission (including critical alerts)
         let granted = await NotificationManager.shared.requestPermissions()
@@ -478,24 +482,20 @@ class LoggingViewModel: ObservableObject {
             return
         }
 
-        // Parse time
+        // Parse times
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm:ss"
-        guard let time = formatter.date(from: timeString) else { return }
-
         let calendar = Calendar.current
-        let hour = calendar.component(.hour, from: time)
-        let minute = calendar.component(.minute, from: time)
 
         // Parse start and end dates
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
-        
+
         var startDate: Date? = nil
         if let startDateString = item.startDate {
             startDate = dateFormatter.date(from: startDateString)
         }
-        
+
         var endDate: Date? = nil
         if let endDateString = item.endDate {
             endDate = dateFormatter.date(from: endDateString)
@@ -507,21 +507,29 @@ class LoggingViewModel: ObservableObject {
         // Cancel existing reminders first
         await NotificationManager.shared.cancelReminders(for: item.id)
 
-        // Schedule for each reminder day using NotificationManager
-        for day in item.reminderDays {
-            // Convert from 0-6 (Sun=0) to iOS weekday 1-7 (Sun=1)
-            let weekday = day + 1
+        // Schedule for each reminder time and each reminder day
+        for (timeIndex, timeString) in item.reminderTimes.enumerated() {
+            guard let time = formatter.date(from: timeString) else { continue }
 
-            await NotificationManager.shared.scheduleReminder(
-                itemId: item.id,
-                itemName: item.name,
-                itemType: itemType,
-                hour: hour,
-                minute: minute,
-                weekday: weekday,
-                startDate: startDate,
-                endDate: endDate
-            )
+            let hour = calendar.component(.hour, from: time)
+            let minute = calendar.component(.minute, from: time)
+
+            for day in item.reminderDays {
+                // Convert from 0-6 (Sun=0) to iOS weekday 1-7 (Sun=1)
+                let weekday = day + 1
+
+                await NotificationManager.shared.scheduleReminder(
+                    itemId: item.id,
+                    itemName: item.name,
+                    itemType: itemType,
+                    hour: hour,
+                    minute: minute,
+                    weekday: weekday,
+                    timeIndex: timeIndex,
+                    startDate: startDate,
+                    endDate: endDate
+                )
+            }
         }
     }
     

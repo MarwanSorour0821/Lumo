@@ -136,7 +136,7 @@ struct FoodSupplementItem: Codable, Identifiable {
     let frequency: LogFrequency
     let timesPerWeek: Int
     let reminderEnabled: Bool
-    let reminderTime: String?
+    let reminderTimes: [String]  // Array of time strings, e.g., ["09:00:00", "14:00:00", "21:00:00"]
     let reminderDays: [Int]
     let startDate: String?
     let endDate: String?
@@ -158,7 +158,7 @@ struct FoodSupplementItem: Codable, Identifiable {
         case frequency
         case timesPerWeek = "times_per_week"
         case reminderEnabled = "reminder_enabled"
-        case reminderTime = "reminder_time"
+        case reminderTimes = "reminder_times"
         case reminderDays = "reminder_days"
         case startDate = "start_date"
         case endDate = "end_date"
@@ -182,7 +182,7 @@ struct FoodSupplementItem: Codable, Identifiable {
         frequency = try container.decodeIfPresent(LogFrequency.self, forKey: .frequency) ?? .daily
         timesPerWeek = try container.decodeIfPresent(Int.self, forKey: .timesPerWeek) ?? 7
         reminderEnabled = try container.decodeIfPresent(Bool.self, forKey: .reminderEnabled) ?? false
-        reminderTime = try container.decodeIfPresent(String.self, forKey: .reminderTime)
+        reminderTimes = try container.decodeIfPresent([String].self, forKey: .reminderTimes) ?? []
         reminderDays = try container.decodeIfPresent([Int].self, forKey: .reminderDays) ?? [0,1,2,3,4,5,6]
         startDate = try container.decodeIfPresent(String.self, forKey: .startDate)
         endDate = try container.decodeIfPresent(String.self, forKey: .endDate)
@@ -197,7 +197,7 @@ struct FoodSupplementItem: Codable, Identifiable {
     }
 
     // Manual init for creating items locally
-    init(id: String, name: String, type: LogItemType, description: String? = nil, frequency: LogFrequency = .daily, timesPerWeek: Int = 7, reminderEnabled: Bool = false, reminderTime: String? = nil, reminderDays: [Int] = [0,1,2,3,4,5,6], startDate: String? = nil, endDate: String? = nil, lastTakenAt: String? = nil, isTakenToday: Bool = false, isArchived: Bool = false, biomarkerImpacts: [BiomarkerImpact]? = nil, recentLogs: [LogEntry]? = nil, logCount: Int? = nil) {
+    init(id: String, name: String, type: LogItemType, description: String? = nil, frequency: LogFrequency = .daily, timesPerWeek: Int = 7, reminderEnabled: Bool = false, reminderTimes: [String] = [], reminderDays: [Int] = [0,1,2,3,4,5,6], startDate: String? = nil, endDate: String? = nil, lastTakenAt: String? = nil, isTakenToday: Bool = false, isArchived: Bool = false, biomarkerImpacts: [BiomarkerImpact]? = nil, recentLogs: [LogEntry]? = nil, logCount: Int? = nil) {
         self.id = id
         self.userId = nil
         self.name = name
@@ -206,7 +206,7 @@ struct FoodSupplementItem: Codable, Identifiable {
         self.frequency = frequency
         self.timesPerWeek = timesPerWeek
         self.reminderEnabled = reminderEnabled
-        self.reminderTime = reminderTime
+        self.reminderTimes = reminderTimes
         self.reminderDays = reminderDays
         self.startDate = startDate
         self.endDate = endDate
