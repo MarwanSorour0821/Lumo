@@ -123,6 +123,12 @@ struct LumoApp: App {
             case .active:
                 // App became active - processing manager will resume automatically
                 print("🔵 App became active")
+                // Check subscription status and cancel notifications if subscription ended
+                if appState.isAuthenticated {
+                    Task {
+                        await SubscriptionService.shared.checkAndHandleSubscriptionStatus()
+                    }
+                }
             case .inactive:
                 break
             @unknown default:
@@ -168,6 +174,8 @@ class AppState: ObservableObject {
                 // Load user data if authenticated
                 if hasSession {
                     await UserDataViewModel.shared.loadAllUserData()
+                    // Check subscription status and cancel notifications if subscription ended
+                    await SubscriptionService.shared.checkAndHandleSubscriptionStatus()
                 }
             } catch {
                 await MainActor.run {

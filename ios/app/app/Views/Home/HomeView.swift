@@ -305,9 +305,6 @@ class AnalysisProcessingManager: ObservableObject {
                     savedResponse: savedResult
                 )
                 
-                // Step 4: NOW deduct credit (only on success)
-                _ = try? await CreditService.shared.deductCredit()
-                
                 // Cleanup temp file
                 try? FileManager.default.removeItem(at: fileURL)
                 
@@ -360,9 +357,6 @@ class AnalysisProcessingManager: ObservableObject {
                     analyzeResponse: analyzeResult,
                     savedResponse: savedResult
                 )
-                
-                // Step 4: NOW deduct credit (only on success)
-                _ = try? await CreditService.shared.deductCredit()
                 
                 await MainActor.run {
                     print("✅ Processing complete for \(id)")
@@ -834,7 +828,7 @@ struct TodayTabView: View {
                 if let item = selectedItem {
                     ReminderSheet(item: item, viewModel: loggingViewModel)
                         .environmentObject(themeManager)
-                        .presentationDetents([.medium, .large])
+                        .presentationDetents([.large])
                 }
             }
             .sheet(isPresented: $showDatePicker) {
@@ -1209,12 +1203,12 @@ struct TodayMedicationCard: View {
 
                 // Action buttons in glass container
                 if #available(iOS 26.0, *) {
-                    HStack(spacing: 12) {
+                    HStack(spacing: 16) {
                         Button {
                             onReminder()
                         } label: {
                             Image(systemName: item.reminderEnabled ? "alarm.waves.left.and.right.fill" : "alarm.waves.left.and.right")
-                                .font(.system(size: 16))
+                                .font(.system(size: 20))
                                 .foregroundColor(item.reminderEnabled ? AppColors.primary : AppColors.textSecondary(themeManager.colorScheme))
                         }
                         .buttonStyle(.plain)
@@ -1233,13 +1227,13 @@ struct TodayMedicationCard: View {
                             }
                         } label: {
                             Image(systemName: "ellipsis")
-                                .font(.system(size: 16))
+                                .font(.system(size: 20))
                                 .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                         }
                         .buttonStyle(.plain)
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
                     .glassEffect(.regular.interactive())
                 } else {
                     actionButtonsWithoutGlass
@@ -1254,6 +1248,7 @@ struct TodayMedicationCard: View {
             )
         }
     }
+
 
     // Checkmark button fallback for older iOS
     private var checkmarkButtonFallback: some View {
@@ -1281,12 +1276,12 @@ struct TodayMedicationCard: View {
 
     // Action buttons without glass effect for older iOS
     private var actionButtonsWithoutGlass: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 16) {
             Button {
                 onReminder()
             } label: {
                 Image(systemName: item.reminderEnabled ? "bell.fill" : "bell")
-                    .font(.system(size: 16))
+                    .font(.system(size: 20))
                     .foregroundColor(item.reminderEnabled ? AppColors.primary : AppColors.textSecondary(themeManager.colorScheme))
             }
             .buttonStyle(.plain)
@@ -1305,13 +1300,13 @@ struct TodayMedicationCard: View {
                 }
             } label: {
                 Image(systemName: "ellipsis")
-                    .font(.system(size: 16))
+                    .font(.system(size: 20))
                     .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
         .background(
             RoundedRectangle(cornerRadius: 8)
                 .fill(Color(white: themeManager.colorScheme == .dark ? 0.18 : 0.94).opacity(0.92))
@@ -3087,8 +3082,9 @@ struct SettingsTabView: View {
     @State private var isRefreshing = false
     @State private var hasActiveSubscription = false
     @State private var showAppearancePicker = false
-    @State private var creditBalance: Int = 0
-    @State private var showCreditsModal = false
+    @State private var showPaywall = false
+    @State private var showManageSubscription = false
+    @State private var manageSubscriptionURL: URL?
     @State private var showSupportModal = false
 
     var body: some View {
@@ -3117,10 +3113,12 @@ struct SettingsTabView: View {
 
                         // Settings Items
                         VStack(spacing: 0) {
-                            // Credit Balance Card
-                            CreditBalanceCard(credits: creditBalance) {
-                                showCreditsModal = true
-                            }
+                            // Subscription Card
+                            SubscriptionCard(
+                                hasActiveSubscription: hasActiveSubscription,
+                                onUpgrade: { showPaywall = true },
+                                onManage: { handleManageSubscription() }
+                            )
                             .environmentObject(themeManager)
                             .padding(.bottom, 16)
                             
@@ -3173,10 +3171,16 @@ struct SettingsTabView: View {
         .sheet(isPresented: $showNotificationSettings) {
             NotificationSettingsView(isPresented: $showNotificationSettings)
         }
-        .sheet(isPresented: $showCreditsModal) {
-            CreditsModalView(isPresented: $showCreditsModal) {
-                // Refresh credits after purchase
+        .sheet(isPresented: $showPaywall) {
+            PaywallView(isPresented: $showPaywall) {
+                // Refresh subscription status after purchase
                 Task { await refreshSettings() }
+            }
+            .environmentObject(themeManager)
+        }
+        .sheet(isPresented: $showManageSubscription) {
+            if let url = manageSubscriptionURL {
+                SafariView(url: url)
             }
         }
         .sheet(isPresented: $showSupportModal) {
@@ -3221,17 +3225,33 @@ struct SettingsTabView: View {
     private func refreshSettings() async {
         isRefreshing = true
         
-        // Fetch credit balance
+        // Check subscription status
         do {
-            let credits = try await CreditService.shared.getCredits()
+            let isSubscribed = try await SubscriptionService.shared.hasActiveSubscription(forceRefresh: true)
             await MainActor.run {
-                creditBalance = credits
+                hasActiveSubscription = isSubscribed
             }
         } catch {
-            print("Error fetching credits: \(error.localizedDescription)")
+            print("Error checking subscription: \(error.localizedDescription)")
         }
         
         isRefreshing = false
+    }
+    
+    private func handleManageSubscription() {
+        Task {
+            do {
+                let portalURLString = try await SubscriptionService.shared.createPortalSession()
+                await MainActor.run {
+                    if let url = URL(string: portalURLString) {
+                        manageSubscriptionURL = url
+                        showManageSubscription = true
+                    }
+                }
+            } catch {
+                print("Error opening subscription portal: \(error.localizedDescription)")
+            }
+        }
     }
 
     private func handleSignOut() {
@@ -3306,8 +3326,8 @@ struct AnalyseModalView: View {
     @State private var permissionAlertTitle = ""
     @State private var permissionAlertMessage = ""
     @State private var isUploading = false
-    @State private var showCreditsModal = false
-    @State private var isCheckingCredits = false
+    @State private var showPaywall = false
+    @State private var isCheckingSubscription = false
     @State private var showErrorAlert = false
     @State private var errorMessage = ""
     
@@ -3368,7 +3388,7 @@ struct AnalyseModalView: View {
                 }) {
                     HStack {
                         Spacer()
-                        if isUploading || isCheckingCredits {
+                        if isUploading || isCheckingSubscription {
                             CustomSpinner(size: 24, lineWidth: 2.5)
                         } else {
                             Text("Continue")
@@ -3386,7 +3406,7 @@ struct AnalyseModalView: View {
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 16)
-                .disabled(selectedFile == nil || isUploading || isCheckingCredits)
+                .disabled(selectedFile == nil || isUploading || isCheckingSubscription)
             }
             .frame(maxWidth: .infinity)
             .frame(height: 350)
@@ -3437,13 +3457,14 @@ struct AnalyseModalView: View {
             } message: {
                 Text(permissionAlertMessage)
             }
-            .sheet(isPresented: $showCreditsModal) {
-                CreditsModalView(isPresented: $showCreditsModal) {
-                    // On purchase complete, retry the upload
+            .sheet(isPresented: $showPaywall) {
+                PaywallView(isPresented: $showPaywall) {
+                    // On subscription complete, retry the upload
                     if let file = selectedFile {
                         performUpload(file: file)
                     }
                 }
+                .environmentObject(themeManager)
             }
             .alert("Analysis Failed", isPresented: $showErrorAlert) {
                 Button("OK", role: .cancel) { }
@@ -3528,31 +3549,30 @@ struct AnalyseModalView: View {
     
     private func handleContinue() {
         guard let file = selectedFile else { return }
-        
-        isCheckingCredits = true
-        
+
+        isCheckingSubscription = true
+
         Task {
             do {
-                // Check if user has credits (but don't deduct yet)
-                let credits = try await CreditService.shared.getCredits()
-                
+                // Check if user has active subscription
+                let hasSubscription = try await SubscriptionService.shared.hasActiveSubscription()
+
                 await MainActor.run {
-                    isCheckingCredits = false
-                    
-                    if credits > 0 {
-                        // User has credits, proceed with upload
-                        // Credits will be deducted ONLY after successful analysis
+                    isCheckingSubscription = false
+
+                    if hasSubscription {
+                        // User has subscription, proceed with upload
                         performUpload(file: file)
                     } else {
-                        // Insufficient credits, show purchase modal
-                        showCreditsModal = true
+                        // No subscription, show paywall
+                        showPaywall = true
                     }
                 }
             } catch {
                 await MainActor.run {
-                    isCheckingCredits = false
-                    // On error, show credits modal as fallback
-                    showCreditsModal = true
+                    isCheckingSubscription = false
+                    // On error, show paywall as fallback
+                    showPaywall = true
                 }
             }
         }
@@ -3984,48 +4004,49 @@ struct BiomarkerCard: View {
 }
 
 // MARK: - Credit Balance Card
-struct CreditBalanceCard: View {
+struct SubscriptionCard: View {
     @EnvironmentObject var themeManager: ThemeManager
-    let credits: Int
-    let onBuyCredits: () -> Void
-    
+    let hasActiveSubscription: Bool
+    let onUpgrade: () -> Void
+    let onManage: () -> Void
+
     var body: some View {
         HStack(spacing: 16) {
-            // Credit icon and count
+            // Icon and status
             HStack(spacing: 12) {
                 ZStack {
                     Circle()
-                        .fill(AppColors.primary.opacity(0.15))
+                        .fill(hasActiveSubscription ? Color.green.opacity(0.15) : AppColors.primary.opacity(0.15))
                         .frame(width: 48, height: 48)
-                    
-                    Image(systemName: "creditcard.fill")
+
+                    Image(systemName: hasActiveSubscription ? "crown.fill" : "sparkles")
                         .font(.system(size: 22))
-                        .foregroundColor(AppColors.primary)
+                        .foregroundColor(hasActiveSubscription ? .green : AppColors.primary)
                 }
-                
+
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("\(credits)")
-                        .font(.custom("ProductSans-Bold", size: 24))
+                    Text(hasActiveSubscription ? "Pro Member" : "Free Plan")
+                        .font(.custom("ProductSans-Bold", size: 18))
                         .foregroundColor(AppColors.text(themeManager.colorScheme))
-                    
-                    Text("Credit\(credits == 1 ? "" : "s") Available")
+
+                    Text(hasActiveSubscription ? "All features unlocked" : "Upgrade for full access")
                         .font(.custom("ProductSans-Regular", size: 13))
                         .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                 }
             }
-            
+
             Spacer()
-            
-            // Buy button
-            Button(action: onBuyCredits) {
-                Text("Buy More")
+
+            // Action button
+            Button(action: hasActiveSubscription ? onManage : onUpgrade) {
+                Text(hasActiveSubscription ? "Manage" : "Upgrade")
                     .font(.custom("ProductSans-Bold", size: 14))
                     .foregroundColor(.white)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
                     .background(
                         RoundedRectangle(cornerRadius: 20)
-                            .fill(AppColors.primary)
+                            .fill(hasActiveSubscription ? Color.green : AppColors.primary)
                     )
             }
         }

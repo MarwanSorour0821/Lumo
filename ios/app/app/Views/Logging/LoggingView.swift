@@ -153,15 +153,19 @@ struct ReminderInputCard: View {
     @State private var medicationName: String = ""
     @State private var startDate: Date = Date()
     @State private var endDate: Date = Calendar.current.date(byAdding: .month, value: 1, to: Date()) ?? Date()
-    @State private var selectedTime: Date = {
+    @State private var reminderTimes: [Date] = [{
         var components = Calendar.current.dateComponents([.year, .month, .day], from: Date())
         components.hour = 9
         components.minute = 0
         return Calendar.current.date(from: components) ?? Date()
-    }()
+    }()]
+    @State private var reminderDays: Set<Int> = Set([0, 1, 2, 3, 4, 5, 6])
     @State private var showStartDatePicker = false
     @State private var showEndDatePicker = false
-    @State private var showTimePickerModal = false
+    @State private var showReminderModal = false
+    @State private var hasConfiguredReminder = false
+    @State private var showPaywall = false
+    @State private var isCheckingSubscription = false
     @FocusState private var isInputFocused: Bool
 
     private var formattedStartDate: String {
@@ -176,10 +180,17 @@ struct ReminderInputCard: View {
         return formatter.string(from: endDate)
     }
 
-    private var formattedTime: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        return formatter.string(from: selectedTime)
+    private var reminderChipText: String {
+        if hasConfiguredReminder && !reminderTimes.isEmpty {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "h:mm a"
+            if reminderTimes.count == 1 {
+                return formatter.string(from: reminderTimes[0])
+            } else {
+                return "\(reminderTimes.count) times"
+            }
+        }
+        return "Set reminder"
     }
 
     private var hasInput: Bool {
@@ -237,19 +248,19 @@ struct ReminderInputCard: View {
                     .buttonStyle(.plain)
                     .glassEffect(.regular.interactive())
 
-                    // Time chip
+                    // Reminder chip
                     Button {
-                        showTimePickerModal = true
+                        showReminderModal = true
                         showStartDatePicker = false
                         showEndDatePicker = false
                     } label: {
                         HStack(spacing: 4) {
-                            Image(systemName: "clock")
+                            Image(systemName: hasConfiguredReminder ? "alarm.fill" : "alarm")
                                 .font(.system(size: 12))
-                            Text(formattedTime)
+                            Text(reminderChipText)
                                 .font(.custom("ProductSans-Medium", size: 13))
                         }
-                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+                        .foregroundColor(hasConfiguredReminder ? AppColors.primary : AppColors.text(themeManager.colorScheme))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
                         .contentShape(Rectangle())
@@ -372,10 +383,25 @@ struct ReminderInputCard: View {
                 fallbackInputCard
             }
         }
-        .sheet(isPresented: $showTimePickerModal) {
-            TimePickerModal(selectedTime: $selectedTime, isPresented: $showTimePickerModal)
-                .environmentObject(themeManager)
-                .presentationDetents([.height(280)])
+        .sheet(isPresented: $showReminderModal) {
+            ReminderConfigSheet(
+                reminderTimes: $reminderTimes,
+                reminderDays: $reminderDays,
+                startDate: $startDate,
+                endDate: $endDate,
+                onSave: {
+                    hasConfiguredReminder = true
+                }
+            )
+            .environmentObject(themeManager)
+            .presentationDetents([.large])
+        }
+        .sheet(isPresented: $showPaywall) {
+            PaywallView(isPresented: $showPaywall) {
+                // On subscription complete, create the item
+                createItem()
+            }
+            .environmentObject(themeManager)
         }
     }
 
@@ -429,27 +455,27 @@ struct ReminderInputCard: View {
                     .contentShape(Rectangle())
                 }
 
-                // Time chip
-                Button {
-                    showTimePickerModal = true
-                    showStartDatePicker = false
-                    showEndDatePicker = false
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "clock")
-                            .font(.system(size: 12))
-                        Text(formattedTime)
-                            .font(.custom("ProductSans-Medium", size: 13))
+                    // Reminder chip
+                    Button {
+                        showReminderModal = true
+                        showStartDatePicker = false
+                        showEndDatePicker = false
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: hasConfiguredReminder ? "alarm.fill" : "alarm")
+                                .font(.system(size: 12))
+                            Text(reminderChipText)
+                                .font(.custom("ProductSans-Medium", size: 13))
+                        }
+                        .foregroundColor(hasConfiguredReminder ? AppColors.primary : AppColors.text(themeManager.colorScheme))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(AppColors.surface(themeManager.colorScheme))
+                        )
+                        .contentShape(Rectangle())
                     }
-                    .foregroundColor(AppColors.text(themeManager.colorScheme))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(AppColors.surface(themeManager.colorScheme))
-                    )
-                    .contentShape(Rectangle())
-                }
 
                 Spacer()
 
@@ -571,15 +597,38 @@ struct ReminderInputCard: View {
         }
     }
 
-    private func formattedTimeForDisplay() -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "h:mma"
-        return formatter.string(from: selectedTime).lowercased()
-    }
-
     private func submitReminder() {
         guard hasInput else { return }
+        
+        isCheckingSubscription = true
 
+        Task {
+            do {
+                // Check if user has active subscription
+                let hasSubscription = try await SubscriptionService.shared.hasActiveSubscription()
+                
+                await MainActor.run {
+                    isCheckingSubscription = false
+                    
+                    if hasSubscription {
+                        // User has subscription, proceed with creating the item
+                        createItem()
+                    } else {
+                        // No subscription, show paywall
+                        showPaywall = true
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    isCheckingSubscription = false
+                    // On error, show paywall as fallback
+                    showPaywall = true
+                }
+            }
+        }
+    }
+    
+    private func createItem() {
         Task {
             // Create the item with reminder and start/end dates
             await viewModel.createItem(
@@ -592,21 +641,26 @@ struct ReminderInputCard: View {
                 endDate: endDate
             )
 
-            // Get the weekday for the start date
-            let weekday = Calendar.current.component(.weekday, from: startDate) - 1
-
-            // Find the newly created item and set reminder
+            // Find the newly created item and set reminder with configured times and days
             if let newItem = viewModel.items.first(where: { $0.name == medicationName }) {
                 await viewModel.updateReminder(
                     for: newItem,
                     enabled: true,
-                    times: [selectedTime],
-                    days: [weekday]
+                    times: reminderTimes,
+                    days: Array(reminderDays)
                 )
             }
 
             // Reset input
             medicationName = ""
+            hasConfiguredReminder = false
+            reminderTimes = [{
+                var components = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+                components.hour = 9
+                components.minute = 0
+                return Calendar.current.date(from: components) ?? Date()
+            }()]
+            reminderDays = Set([0, 1, 2, 3, 4, 5, 6])
             isInputFocused = false
         }
     }
@@ -850,22 +904,13 @@ struct ItemCard: View {
             // Action buttons in glass container
             if #available(iOS 18.0, *) {
                 if #available(iOS 26.0, *) {
-                    HStack(spacing: 12) {
+                    HStack(spacing: 16) {
                         Button {
                             onReminder()
                         } label: {
                             Image(systemName: item.reminderEnabled ? "alarm.waves.left.and.right.fill" : "alarm.waves.left.and.right")
-                                .font(.system(size: 16))
+                                .font(.system(size: 20))
                                 .foregroundColor(item.reminderEnabled ? AppColors.primary : AppColors.textSecondary(themeManager.colorScheme))
-                        }
-                        .buttonStyle(.plain)
-                        
-                        Button {
-                            onImpact()
-                        } label: {
-                            Image(systemName: "chart.xyaxis.line")
-                                .font(.system(size: 16))
-                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                         }
                         .buttonStyle(.plain)
                         
@@ -883,35 +928,26 @@ struct ItemCard: View {
                             }
                         } label: {
                             Image(systemName: "ellipsis")
-                                .font(.system(size: 16))
+                                .font(.system(size: 20))
                                 .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                         }
                         .buttonStyle(.plain)
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
                     .glassEffect(.regular.interactive())
                 } else {
                     // Fallback on earlier versions
                 }
             } else {
                 // Fallback for older iOS versions
-                HStack(spacing: 12) {
+                HStack(spacing: 16) {
                     Button {
                         onReminder()
                     } label: {
                         Image(systemName: item.reminderEnabled ? "bell.fill" : "bell")
-                            .font(.system(size: 16))
+                            .font(.system(size: 20))
                             .foregroundColor(item.reminderEnabled ? AppColors.primary : AppColors.textSecondary(themeManager.colorScheme))
-                    }
-                    .buttonStyle(.plain)
-                    
-                    Button {
-                        onImpact()
-                    } label: {
-                        Image(systemName: "chart.bar.fill")
-                            .font(.system(size: 16))
-                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                     }
                     .buttonStyle(.plain)
                     
@@ -929,13 +965,13 @@ struct ItemCard: View {
                         }
                     } label: {
                         Image(systemName: "ellipsis")
-                            .font(.system(size: 16))
+                            .font(.system(size: 20))
                             .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                     }
                     .buttonStyle(.plain)
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
                 .background(
                     RoundedRectangle(cornerRadius: 8)
                         .fill(Color(white: themeManager.colorScheme == .dark ? 0.18 : 0.94).opacity(0.92))

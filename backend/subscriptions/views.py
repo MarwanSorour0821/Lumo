@@ -50,12 +50,15 @@ class CreateCheckoutSessionView(APIView):
             user_id = request.user.user_id
             plan = request.data.get('plan', 'yearly')
             
-            # Get Stripe product/price IDs from environment variables
-            # You'll need to set these based on your Stripe products
-            if plan == 'yearly':
-                price_id = os.environ.get('STRIPE_YEARLY_PRICE_ID')
-            else:  # monthly
-                price_id = os.environ.get('STRIPE_MONTHLY_PRICE_ID')
+            # Get price ID from request body (sent by iOS app) or use hardcoded values
+            price_id = request.data.get('price_id')
+            
+            # Fallback to hardcoded price IDs if not provided in request
+            if not price_id:
+                if plan == 'yearly':
+                    price_id = 'price_1SoUAeEACKuyUvsylzSPlvyT'
+                else:  # monthly
+                    price_id = 'price_1SoU8jEACKuyUvsydbx0Wn9D'
             
             if not price_id:
                 return Response(
@@ -255,10 +258,21 @@ class StripeWebhookView(APIView):
             subscription_id = subscription.get('id')
             subscription_status = subscription.get('status')
             customer_id = subscription.get('customer')
+            cancel_at_period_end = subscription.get('cancel_at_period_end', False)
             
-            # If subscription is canceled, delete the record
-            if subscription_status == 'canceled':
-                supabase.table('subscriptions').delete().eq('stripe_subscription_id', subscription_id).execute()
+            # If subscription is canceled (immediately or at period end), mark as cancelled
+            if subscription_status == 'canceled' or cancel_at_period_end:
+                # If cancelled at period end, mark as cancelled now (even though still active until period ends)
+                # This allows the app to disable notifications immediately
+                if cancel_at_period_end and subscription_status == 'active':
+                    # Subscription is cancelled but still active until period end
+                    # Mark as cancelled so app knows to disable notifications
+                    supabase.table('subscriptions').update({
+                        'status': 'cancelled',
+                    }).eq('stripe_subscription_id', subscription_id).execute()
+                else:
+                    # Fully cancelled - delete the record
+                    supabase.table('subscriptions').delete().eq('stripe_subscription_id', subscription_id).execute()
             else:
                 # Map Stripe subscription status to our status
                 status_map = {

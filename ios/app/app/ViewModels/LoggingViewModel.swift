@@ -207,6 +207,9 @@ class LoggingViewModel: ObservableObject {
     
     func deleteItem(_ item: FoodSupplementItem) async {
         do {
+            // Cancel all notifications for this item before deleting
+            await NotificationManager.shared.cancelReminders(for: item.id)
+            
             try await LoggingService.shared.deleteItem(itemId: item.id)
             items.removeAll { $0.id == item.id }
             successMessage = "\(item.name) removed"
@@ -454,8 +457,22 @@ class LoggingViewModel: ObservableObject {
             }
 
             if enabled && !timeStrings.isEmpty {
-                // Schedule local notifications for all times
-                await scheduleLocalReminder(for: updated)
+                // Check if user has active subscription before scheduling
+                do {
+                    let hasSubscription = try await SubscriptionService.shared.hasActiveSubscription()
+                    if hasSubscription {
+                        // Schedule local notifications for all times
+                        await scheduleLocalReminder(for: updated)
+                    } else {
+                        // No subscription - cancel notifications instead
+                        await NotificationManager.shared.cancelReminders(for: item.id)
+                        print("⚠️ Cannot schedule reminders - subscription not active")
+                    }
+                } catch {
+                    // On error, don't schedule to be safe
+                    await NotificationManager.shared.cancelReminders(for: item.id)
+                    print("⚠️ Error checking subscription before scheduling: \(error.localizedDescription)")
+                }
             } else {
                 // Cancel local notification
                 await NotificationManager.shared.cancelReminders(for: item.id)

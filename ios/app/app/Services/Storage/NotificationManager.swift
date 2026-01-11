@@ -316,4 +316,45 @@ class NotificationManager: NSObject {
             print("🗑️ Cancelled reminders for item: \(itemId) (fallback)")
         }
     }
+    
+    /// Cancel ALL medication reminders (used when subscription ends)
+    func cancelAllMedicationReminders() async {
+        let center = UNUserNotificationCenter.current()
+        
+        // Get all pending notifications
+        let pendingRequests = await center.pendingNotificationRequests()
+        
+        // Filter notifications that are medication reminders
+        // Medication reminder IDs contain item IDs, so we need to identify them differently
+        // We'll check the category identifier in userInfo or check all notifications
+        // Since we can't easily filter by category, we'll remove all notifications
+        // that match the medication reminder pattern (contain item IDs from the database)
+        
+        // Get all item IDs from LoggingViewModel to identify which notifications to cancel
+        let allItemIds = await MainActor.run {
+            LoggingViewModel.shared.items.map { $0.id }
+        }
+        
+        // Find all notification IDs that belong to any medication item
+        var notificationIdsToRemove: [String] = []
+        
+        for request in pendingRequests {
+            // Check if this notification belongs to any medication item
+            for itemId in allItemIds {
+                if request.identifier.hasPrefix("\(itemId)_") {
+                    notificationIdsToRemove.append(request.identifier)
+                    break
+                }
+            }
+        }
+        
+        if !notificationIdsToRemove.isEmpty {
+            center.removePendingNotificationRequests(withIdentifiers: notificationIdsToRemove)
+            print("🗑️ Cancelled all \(notificationIdsToRemove.count) medication reminders due to subscription cancellation")
+        } else {
+            // Fallback: remove all pending notifications if we can't identify them
+            // This is a last resort - be careful with this
+            print("⚠️ No medication reminders found to cancel, or unable to identify them")
+        }
+    }
 }
