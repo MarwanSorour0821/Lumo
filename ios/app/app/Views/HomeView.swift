@@ -623,6 +623,7 @@ struct TodayTabView: View {
     @State private var selectedDate = Date()
     @State private var selectedItem: FoodSupplementItem? = nil
     @State private var showReminderSheet = false
+    @State private var showDatePicker = false
 
     private var greeting: String {
         let hour = Calendar.current.component(.hour, from: Date())
@@ -673,11 +674,20 @@ struct TodayTabView: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        // Week Calendar at the very top
-                        WeekCalendarView(
-                            selectedDate: $selectedDate,
-                            loggingViewModel: loggingViewModel
-                        )
+                        // Week Calendar with Date Picker Button
+                        HStack(spacing: 8) {
+                            // Date Picker Button on the left
+                            DatePickerButton(
+                                showDatePicker: $showDatePicker,
+                                selectedDate: $selectedDate
+                            )
+
+                            // Week Calendar
+                            WeekCalendarView(
+                                selectedDate: $selectedDate,
+                                loggingViewModel: loggingViewModel
+                            )
+                        }
                         .padding(.horizontal, 20)
                         .padding(.top, 8)
 
@@ -817,6 +827,14 @@ struct TodayTabView: View {
                         .presentationDetents([.medium, .large])
                 }
             }
+            .sheet(isPresented: $showDatePicker) {
+                HistoryDatePickerSheet(
+                    selectedDate: $selectedDate,
+                    isPresented: $showDatePicker
+                )
+                .environmentObject(themeManager)
+                .presentationDetents([.medium])
+            }
         }
         .task {
             await loggingViewModel.loadDataIfNeeded()
@@ -947,6 +965,122 @@ struct WeekDayButton: View {
             )
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Date Picker Button
+struct DatePickerButton: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    @Binding var showDatePicker: Bool
+    @Binding var selectedDate: Date
+
+    var body: some View {
+        if #available(iOS 26.0, *) {
+            Button {
+                showDatePicker = true
+            } label: {
+                VStack(spacing: 6) {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+
+                    Text("Pick")
+                        .font(.custom("ProductSans-Medium", size: 10))
+                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                }
+                .frame(width: 48)
+                .padding(.vertical, 12)
+            }
+            .buttonStyle(.plain)
+            .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 16))
+        } else {
+            Button {
+                showDatePicker = true
+            } label: {
+                VStack(spacing: 6) {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+
+                    Text("Pick")
+                        .font(.custom("ProductSans-Medium", size: 10))
+                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                }
+                .frame(width: 48)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(themeManager.colorScheme == .dark
+                            ? Color(white: 0.15).opacity(0.9)
+                            : Color(white: 0.96).opacity(0.95))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(themeManager.colorScheme == .dark
+                                    ? Color.white.opacity(0.12)
+                                    : Color.black.opacity(0.06), lineWidth: 0.5)
+                        )
+                        .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 4)
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}
+
+// MARK: - History Date Picker Sheet
+struct HistoryDatePickerSheet: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    @Binding var selectedDate: Date
+    @Binding var isPresented: Bool
+    @State private var tempDate: Date = Date()
+
+    var body: some View {
+        NavigationView {
+            ZStack {
+                AppColors.background(themeManager.colorScheme)
+                    .ignoresSafeArea()
+
+                VStack(spacing: 20) {
+                    Text("Select a date to view your history")
+                        .font(.custom("ProductSans-Regular", size: 14))
+                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                        .padding(.top, 8)
+
+                    DatePicker(
+                        "",
+                        selection: $tempDate,
+                        in: ...Date(),
+                        displayedComponents: .date
+                    )
+                    .datePickerStyle(.graphical)
+                    .labelsHidden()
+                    .padding(.horizontal, 16)
+
+                    Spacer()
+                }
+            }
+            .navigationTitle("View History")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        isPresented = false
+                    }
+                    .foregroundColor(AppColors.primary)
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        selectedDate = tempDate
+                        isPresented = false
+                    }
+                    .font(.custom("ProductSans-Bold", size: 16))
+                    .foregroundColor(AppColors.primary)
+                }
+            }
+        }
+        .onAppear {
+            tempDate = selectedDate
+        }
     }
 }
 
