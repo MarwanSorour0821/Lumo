@@ -363,130 +363,68 @@ struct BiomarkerTrendCard: View {
         }
     }
     
-    // MARK: - Trend Chart (iOS 16+)
-    @ViewBuilder
+    // MARK: - Trend Chart
     private var trendChart: some View {
-        if #available(iOS 16.0, *) {
-            Chart {
-                // Reference range area
-                if let min = trend.referenceMin, let max = trend.referenceMax {
-                    RectangleMark(
-                        xStart: nil,
-                        xEnd: nil,
-                        yStart: .value("Min", min),
-                        yEnd: .value("Max", max)
-                    )
-                    .foregroundStyle(Color.green.opacity(0.1))
-                }
-                
-                // Line
-                ForEach(trend.dataPoints) { point in
-                    LineMark(
-                        x: .value("Date", point.date),
-                        y: .value("Value", point.value)
-                    )
-                    .foregroundStyle(AppColors.primary)
-                    .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                    .interpolationMethod(.catmullRom)
-                }
-                
-                // Points
-                ForEach(trend.dataPoints) { point in
-                    PointMark(
-                        x: .value("Date", point.date),
-                        y: .value("Value", point.value)
-                    )
-                    .foregroundStyle(point.status == "normal" ? Color.green : AppColors.primary)
-                    .symbolSize(50)
-                }
+        Chart {
+            // Reference range area
+            if let min = trend.referenceMin, let max = trend.referenceMax {
+                RectangleMark(
+                    xStart: nil,
+                    xEnd: nil,
+                    yStart: .value("Min", min),
+                    yEnd: .value("Max", max)
+                )
+                .foregroundStyle(Color.green.opacity(0.1))
             }
-            .chartXAxis {
-                AxisMarks(values: .automatic(desiredCount: min(trend.dataPoints.count, 5))) { value in
-                    AxisValueLabel {
-                        if let date = value.as(Date.self) {
-                            Text(formatAxisDate(date))
-                                .font(.custom("ProductSans-Regular", size: 10))
-                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                        }
-                    }
-                }
+
+            // Line
+            ForEach(trend.dataPoints) { point in
+                LineMark(
+                    x: .value("Date", point.date),
+                    y: .value("Value", point.value)
+                )
+                .foregroundStyle(AppColors.primary)
+                .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                .interpolationMethod(.catmullRom)
             }
-            .chartYAxis {
-                AxisMarks(position: .leading) { value in
-                    AxisValueLabel {
-                        if let doubleValue = value.as(Double.self) {
-                            Text(formatValue(doubleValue))
-                                .font(.custom("ProductSans-Regular", size: 10))
-                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                        }
-                    }
-                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
-                        .foregroundStyle(AppColors.border(themeManager.colorScheme))
-                }
+
+            // Points
+            ForEach(trend.dataPoints) { point in
+                PointMark(
+                    x: .value("Date", point.date),
+                    y: .value("Value", point.value)
+                )
+                .foregroundStyle(point.status == "normal" ? Color.green : AppColors.primary)
+                .symbolSize(50)
             }
-            .chartYScale(domain: chartYDomain)
-            .frame(height: 180)
-            .padding(.horizontal, 4)
-        } else {
-            // Fallback for iOS 15
-            legacyChart
         }
-    }
-    
-    // MARK: - Legacy Chart (iOS 15)
-    private var legacyChart: some View {
-        GeometryReader { geometry in
-            let width = geometry.size.width
-            let height = geometry.size.height
-            let points = trend.dataPoints
-            
-            ZStack {
-                // Reference range
-                if let min = trend.referenceMin, let max = trend.referenceMax {
-                    let yRange = chartYDomain.upperBound - chartYDomain.lowerBound
-                    let minY = height - ((min - chartYDomain.lowerBound) / yRange * height)
-                    let maxY = height - ((max - chartYDomain.lowerBound) / yRange * height)
-                    
-                    Rectangle()
-                        .fill(Color.green.opacity(0.1))
-                        .frame(height: abs(maxY - minY))
-                        .position(x: width / 2, y: (minY + maxY) / 2)
-                }
-                
-                // Line Path
-                Path { path in
-                    guard points.count > 1 else { return }
-                    
-                    let yRange = chartYDomain.upperBound - chartYDomain.lowerBound
-                    
-                    for (index, point) in points.enumerated() {
-                        let x = CGFloat(index) / CGFloat(points.count - 1) * width
-                        let y = height - ((point.value - chartYDomain.lowerBound) / yRange * height)
-                        
-                        if index == 0 {
-                            path.move(to: CGPoint(x: x, y: y))
-                        } else {
-                            path.addLine(to: CGPoint(x: x, y: y))
-                        }
+        .chartXAxis {
+            AxisMarks(values: .automatic(desiredCount: min(trend.dataPoints.count, 5))) { value in
+                AxisValueLabel {
+                    if let date = value.as(Date.self) {
+                        Text(formatAxisDate(date))
+                            .font(.custom("ProductSans-Regular", size: 10))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                     }
-                }
-                .stroke(AppColors.primary, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                
-                // Points
-                ForEach(Array(points.enumerated()), id: \.element.id) { index, point in
-                    let yRange = chartYDomain.upperBound - chartYDomain.lowerBound
-                    let x = CGFloat(index) / CGFloat(max(points.count - 1, 1)) * width
-                    let y = height - ((point.value - chartYDomain.lowerBound) / yRange * height)
-                    
-                    Circle()
-                        .fill(point.status == "normal" ? Color.green : AppColors.primary)
-                        .frame(width: 8, height: 8)
-                        .position(x: x, y: y)
                 }
             }
         }
-        .frame(height: 150)
-        .padding(.horizontal, 8)
+        .chartYAxis {
+            AxisMarks(position: .leading) { value in
+                AxisValueLabel {
+                    if let doubleValue = value.as(Double.self) {
+                        Text(formatValue(doubleValue))
+                            .font(.custom("ProductSans-Regular", size: 10))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                    }
+                }
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                    .foregroundStyle(AppColors.border(themeManager.colorScheme))
+            }
+        }
+        .chartYScale(domain: chartYDomain)
+        .frame(height: 180)
+        .padding(.horizontal, 4)
     }
     
     // MARK: - Single Data Point View

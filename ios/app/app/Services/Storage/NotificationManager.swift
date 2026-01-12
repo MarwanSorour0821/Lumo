@@ -115,6 +115,21 @@ class NotificationManager: NSObject {
         return settings.criticalAlertSetting == .enabled
     }
 
+    /// Check if notifications are enabled (authorized or provisional)
+    func areNotificationsEnabled() async -> Bool {
+        let status = await checkPermissionStatus()
+        return status == .authorized || status == .provisional
+    }
+
+    /// Open the app's notification settings in iOS Settings
+    func openNotificationSettings() {
+        if let settingsUrl = URL(string: UIApplication.openSettingsURLString) {
+            DispatchQueue.main.async {
+                UIApplication.shared.open(settingsUrl)
+            }
+        }
+    }
+
     // MARK: - Handle Notification Actions
 
     /// Handle when user taps on a notification action
@@ -148,7 +163,7 @@ class NotificationManager: NSObject {
             print("📝 User requested snooze for item: \(itemId)")
             Task {
                 await scheduleSnoozeReminder(itemId: itemId)
-                completion()
+            completion()
             }
 
         case UNNotificationDefaultActionIdentifier:

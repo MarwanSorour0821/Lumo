@@ -38,17 +38,22 @@ struct StatisticsOnboardingView: View {
     let screenWidth = UIScreen.main.bounds.width
     let screenHeight = UIScreen.main.bounds.height
 
+    private var isDarkMode: Bool {
+        let scheme = themeManager.colorScheme ?? (UITraitCollection.current.userInterfaceStyle == .dark ? .dark : .light)
+        return scheme == .dark
+    }
+
     var body: some View {
         ZStack {
-            // Dark background
-            Color.black
+            // Adaptive background
+            AppColors.background(themeManager.colorScheme)
                 .ignoresSafeArea()
 
             // Radial gradient "light" effect from top
             RadialGradient(
                 gradient: Gradient(colors: [
-                    AppColors.primary.opacity(0.3),
-                    AppColors.primary.opacity(0.1),
+                    AppColors.primary.opacity(isDarkMode ? 0.3 : 0.15),
+                    AppColors.primary.opacity(isDarkMode ? 0.1 : 0.05),
                     Color.clear
                 ]),
                 center: .top,
@@ -57,13 +62,15 @@ struct StatisticsOnboardingView: View {
             )
             .ignoresSafeArea()
 
-            // Star particles
-            ForEach(stars) { star in
-                Circle()
-                    .fill(Color.white)
-                    .frame(width: star.size, height: star.size)
-                    .position(x: star.x, y: star.y)
-                    .opacity(star.opacity * starsOpacity)
+            // Star particles (only visible in dark mode)
+            if isDarkMode {
+                ForEach(stars) { star in
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: star.size, height: star.size)
+                        .position(x: star.x, y: star.y)
+                        .opacity(star.opacity * starsOpacity)
+                }
             }
 
             // Main content
@@ -73,14 +80,17 @@ struct StatisticsOnboardingView: View {
                 // Statistics text - bigger font
                 VStack(spacing: 8) {
                     (Text("On average, ")
-                        .foregroundColor(.white) +
+                        .font(.custom("ProductSans-Bold", size: 34))
+                        .foregroundColor(AppColors.text(themeManager.colorScheme)) +
                      Text("40-50%")
+                        .font(.custom("InstrumentSerif-Italic", size: 34))
                         .foregroundColor(AppColors.primary) +
                      Text(" of people forget to take their ")
-                        .foregroundColor(.white) +
-                     Text("medication")
-                        .foregroundColor(AppColors.primary))
                         .font(.custom("ProductSans-Bold", size: 34))
+                        .foregroundColor(AppColors.text(themeManager.colorScheme)) +
+                     Text("medication.")
+                        .font(.custom("ProductSans-Bold", size: 34))
+                        .foregroundColor(AppColors.text(themeManager.colorScheme)))
                         .multilineTextAlignment(.center)
                         .lineSpacing(6)
                 }
@@ -108,7 +118,7 @@ struct StatisticsOnboardingView: View {
                 // Source citation
                 Text("Source: National Institutes of Health (NIH)")
                     .font(.custom("ProductSans-Regular", size: 13))
-                    .foregroundColor(Color.white.opacity(0.5))
+                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                     .blur(radius: buttonBlur)
                     .opacity(buttonOpacity)
                     .padding(.bottom, 24)

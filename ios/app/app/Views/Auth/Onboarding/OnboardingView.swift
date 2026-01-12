@@ -37,14 +37,15 @@ struct OnboardingView: View {
     @StateObject private var signUpCoordinator = SignUpFlowCoordinator()
     @State private var isSignedIn = false
 
-    // Animation states
-    @State private var mainTextOpacity: Double = 0
-    @State private var mainTextOffset: CGFloat = 30
+    // Animation states (matching StatisticsOnboardingView)
+    @State private var contentBlur: CGFloat = 20
+    @State private var contentOpacity: Double = 0
+    @State private var buttonBlur: CGFloat = 20
     @State private var buttonOpacity: Double = 0
+    @State private var starsOpacity: Double = 0
 
     // Image reveal animation state
     @State private var imageReveal: CGFloat = 0.0
-    @State private var imageOffsetY: CGFloat = -24
 
     // Particle animation states
     @State private var particles: [Particle] = []
@@ -142,8 +143,7 @@ struct OnboardingView: View {
                     .resizable()
                     .scaledToFit()
                     .scaleEffect(0.45, anchor: .top) // increased size from 0.30 -> 0.45
-                    .padding(.top, 120)
-                    .offset(y: imageOffsetY)
+                    .padding(.top, 180)
                     .opacity(Double(imageReveal))
                     .clipShape(TopReveal(fraction: imageReveal)) // use clipShape for reveal
                     .animation(.easeOut(duration: 0.9), value: imageReveal)
@@ -152,8 +152,7 @@ struct OnboardingView: View {
                     .resizable()
                     .scaledToFit()
                     .scaleEffect(0.45, anchor: .top)
-                    .padding(.top, 120)
-                    .offset(y: imageOffsetY)
+                    .padding(.top, 180)
                     .opacity(Double(imageReveal))
                     .clipShape(TopReveal(fraction: imageReveal))
                     .animation(.easeOut(duration: 0.9), value: imageReveal)
@@ -191,8 +190,11 @@ struct OnboardingView: View {
             textContent
             getStartedButton
                 .padding(.bottom, 16)
+                .blur(radius: buttonBlur)
                 .opacity(buttonOpacity)
             signInLink
+                .blur(radius: buttonBlur)
+                .opacity(buttonOpacity)
         }
         .padding(.horizontal, 24)
         .padding(.bottom, 40)
@@ -200,17 +202,17 @@ struct OnboardingView: View {
     
     var textContent: some View {
         VStack(spacing: 24) {
-            (Text("Build the ")
+            (Text("Your personal ")
                 .font(.custom("ProductSans-Regular", size: 30)) +
-             Text("healthiest")
+             Text("\nhealth")
                 .font(.custom("instrumentserif-italic", size: 30)) +
-             Text(" \nversion of you.")
+             Text(" cabinet.")
                 .font(.custom("ProductSans-Regular", size: 30)))
                 .foregroundColor(AppColors.text(themeManager.colorScheme))
                 .multilineTextAlignment(.center)
                 .lineLimit(nil)
-                .opacity(mainTextOpacity)
-                .offset(y: mainTextOffset)
+                .blur(radius: contentBlur)
+                .opacity(contentOpacity)
         }
         .padding(.bottom, 32)
     }
@@ -367,28 +369,29 @@ struct OnboardingView: View {
         }
     }
     
-    // MARK: - Animations
+    // MARK: - Animations (matching StatisticsOnboardingView)
     func startAnimations() {
-        // Main headline fades in quickly
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            withAnimation(.easeOut(duration: 0.8)) {
-                mainTextOpacity = 1
-                mainTextOffset = 0
-            }
-        }
-        
-        // Button fades in after headline
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            withAnimation(.easeOut(duration: 0.6)) {
-                buttonOpacity = 1
-            }
+        // Stars fade in first (if we add stars later)
+        withAnimation(.easeOut(duration: 0.8)) {
+            starsOpacity = 1
         }
 
-        // Image reveal animation (top-to-bottom) and slide down further
+        // Main content blurs in (matching StatisticsOnboardingView timing)
+        withAnimation(.easeOut(duration: 0.8).delay(0.3)) {
+            contentBlur = 0
+            contentOpacity = 1
+        }
+
+        // Button blurs in (matching StatisticsOnboardingView timing)
+        withAnimation(.easeOut(duration: 0.8).delay(0.6)) {
+            buttonBlur = 0
+            buttonOpacity = 1
+        }
+
+        // Image reveal animation (top-to-bottom)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             withAnimation(.easeOut(duration: 0.9)) {
                 imageReveal = 1.0
-                imageOffsetY = 64 // settle lower on the screen
             }
         }
     }

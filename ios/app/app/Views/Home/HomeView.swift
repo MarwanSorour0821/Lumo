@@ -14,6 +14,7 @@ import UserNotifications
 import Photos
 import AVFoundation
 import Combine
+import StoreKit
 
 extension Notification.Name {
     static let switchTab = Notification.Name("SwitchTabNotification")
@@ -455,23 +456,56 @@ class AnalysisProcessingManager: ObservableObject {
 
 struct HomeView: View {
     @EnvironmentObject var themeManager: ThemeManager
+    @Environment(\.scenePhase) private var scenePhase
     @State private var showAnalyseModal = false
     @State private var selectedTab: Int = 0
     @State private var analysisResultForDisplay: AnalysisData? = nil
     @State private var showAnalysisResultsFromHome = false
+    @State private var showNotificationPrompt = false
+    @State private var hasCheckedNotifications = false
     @StateObject private var processingManager = AnalysisProcessingManager.shared
-    
+
     var body: some View {
-        if #available(iOS 18.0, *) {
-            modernTabView
-        } else {
-            legacyTabView
+        tabViewContent
+            .onAppear {
+                checkNotificationPermissions()
+            }
+            .onChange(of: scenePhase) { oldPhase, newPhase in
+                if newPhase == .active {
+                    // Re-check when app becomes active (user might have changed settings)
+                    checkNotificationPermissions()
+                }
+            }
+            .fullScreenCover(isPresented: $showNotificationPrompt) {
+                NotificationPermissionView(
+                    isPresented: $showNotificationPrompt,
+                    isPostSignUp: false
+                )
+                .environmentObject(themeManager)
+            }
+    }
+
+    private func checkNotificationPermissions() {
+        // Only show once per app session unless user changes settings
+        guard !hasCheckedNotifications else { return }
+
+        Task {
+            let enabled = await NotificationManager.shared.areNotificationsEnabled()
+            let status = await NotificationManager.shared.checkPermissionStatus()
+
+            await MainActor.run {
+                // Only prompt if notifications are denied (not if never asked)
+                // If status is .notDetermined, we'll ask when they try to enable a reminder
+                if status == .denied && !enabled {
+                    hasCheckedNotifications = true
+                    showNotificationPrompt = true
+                }
+            }
         }
     }
-    
-    // MARK: - iOS 18+ Modern TabView with sidebar adaptable style
-    @available(iOS 18.0, *)
-    private var modernTabView: some View {
+
+    // MARK: - TabView with sidebar adaptable style
+    private var tabViewContent: some View {
         TabView(selection: $selectedTab) {
             Tab("Today", systemImage: "point.bottomleft.forward.to.point.topright.filled.scurvepath", value: 0) {
                 TodayTabView()
@@ -535,79 +569,6 @@ struct HomeView: View {
         }
     }
     
-    // MARK: - Legacy TabView for iOS < 18 (standard tab bar)
-    private var legacyTabView: some View {
-        TabView(selection: $selectedTab) {
-            TodayTabView()
-                .tag(0)
-                .tabItem {
-                    Label("Today", systemImage: "sun.max.fill")
-                }
-
-            LoggingTabView()
-                .tag(1)
-                .tabItem {
-                    Label("Medication", systemImage: "pills.fill")
-                }
-
-            HomeTabView()
-                .tag(2)
-                .tabItem {
-                    Label("Health", systemImage: "heart.fill")
-                }
-
-            SettingsTabView()
-                .tag(3)
-                .tabItem {
-                    Label("Me", systemImage: "person.fill")
-                }
-
-            // Dummy tab for the plus button
-            Color.clear
-                .tag(4)
-                .tabItem {
-                    Label("Add", systemImage: "plus")
-                }
-        }
-        .tint(AppColors.primary)
-        .onChange(of: selectedTab) { oldValue in
-            if selectedTab == 4 {
-                // Prevent switching to the plus tab
-                selectedTab = oldValue
-                // Open the modal
-                showAnalyseModal = true
-            } else {
-                // Normal tab switch - haptic feedback
-                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                impactFeedback.impactOccurred()
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .switchTab)) { notification in
-            if let tab = notification.userInfo?["tab"] as? Int {
-                selectedTab = tab
-            }
-        }
-        .sheet(isPresented: $showAnalyseModal) {
-            AnalyseModalView(
-                isPresented: $showAnalyseModal,
-                onAnalysisStarted: { fileName in
-                    selectedTab = 2
-                },
-                onAnalysisComplete: { analysisData in
-                    self.analysisResultForDisplay = analysisData
-                    self.showAnalysisResultsFromHome = true
-                }
-            )
-        }
-        .fullScreenCover(isPresented: $showAnalysisResultsFromHome) {
-            if let analysisData = analysisResultForDisplay {
-                NavigationView {
-                    AnalysisResultsView(analysisData: analysisData)
-                        .environmentObject(themeManager)
-                }
-            }
-        }
-    }
 }
 
 // MARK: - Today Tab View
@@ -1786,164 +1747,160 @@ struct HistoryTabView: View {
 
     var body: some View {
         NavigationStack {
-            if #available(iOS 17.0, *) {
-                ZStack {
-                    AppColors.background(themeManager.colorScheme)
-                        .ignoresSafeArea()
-                    
-                    if isLoading && processingManager.processingItems.isEmpty {
-                        CustomSpinner(size: 32, lineWidth: 3)
-                    } else if let error = errorMessage {
-                        VStack(spacing: 12) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .font(.system(size: 36))
-                                .foregroundColor(.yellow)
-                            Text("Failed to load analyses")
-                                .font(.custom("ProductSans-Bold", size: 18))
-                                .foregroundColor(AppColors.text(themeManager.colorScheme))
-                            Text(error)
-                                .font(.custom("ProductSans-Regular", size: 14))
-                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                                .multilineTextAlignment(.center)
-                        }
-                        .padding(24)
-                    } else if analyses.isEmpty && processingManager.processingItems.isEmpty {
-                        VStack(spacing: 12) {
-                            Image(systemName: "tray")
-                                .font(.system(size: 44))
-                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                            Text("No analyses yet")
-                                .font(.custom("ProductSans-Bold", size: 20))
-                                .foregroundColor(AppColors.text(themeManager.colorScheme))
-                            Text("Upload a lab report to see your history")
-                                .font(.custom("ProductSans-Regular", size: 14))
-                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                                .multilineTextAlignment(.center)
-                        }
-                        .padding(24)
-                    } else {
-                        ScrollView {
-                            LazyVGrid(columns: [
-                                GridItem(.flexible(), spacing: 12),
-                                GridItem(.flexible(), spacing: 12)
-                            ], spacing: 12) {
-                                // Show processing items first
-                                ForEach(processingManager.processingItems) { item in
-                                    if item.isCancelled {
-                                        // Show cancelled item - can be dismissed
-                                        ProcessingCancelledCard(
-                                            item: item,
-                                            onDismiss: {
-                                                processingManager.removeProcessingItem(id: item.id)
-                                            }
-                                        )
-                                        .environmentObject(themeManager)
-                                    } else if let error = item.error {
-                                        // Show error item - can retry or dismiss
-                                        ProcessingErrorCard(
-                                            item: item,
-                                            onRetry: {
-                                                processingManager.retryProcessing(for: item.id)
-                                            },
-                                            onDismiss: {
-                                                processingManager.removeProcessingItem(id: item.id)
-                                            }
-                                        )
-                                        .environmentObject(themeManager)
-                                    } else if item.isComplete, let analysisData = item.analysisData {
-                                        // Show completed processing item as tappable
-                                        ProcessingCompleteCard(
-                                            item: item,
-                                            onTap: {
-                                                completedProcessingAnalysis = analysisData
-                                                processingManager.removeProcessingItem(id: item.id)
-                                                Task { await loadAnalyses() }
-                                            }
-                                        )
-                                        .environmentObject(themeManager)
-                                    } else {
-                                        // Show processing progress with cancel option
-                                        ProcessingAnalysisCard(
-                                            item: item,
-                                            onCancel: {
-                                                processingManager.cancelProcessing(for: item.id)
-                                            }
-                                        )
-                                        .environmentObject(themeManager)
-                                    }
-                                }
-                                
-                                // Show completed analyses
-                                ForEach(analyses, id: \.id) { analysis in
-                                    AnalysisGridCard(
-                                        analysis: analysis,
-                                        onTap: {
-                                            selectedAnalysis = analysis
+            ZStack {
+                AppColors.background(themeManager.colorScheme)
+                    .ignoresSafeArea()
+
+                if isLoading && processingManager.processingItems.isEmpty {
+                    CustomSpinner(size: 32, lineWidth: 3)
+                } else if let error = errorMessage {
+                    VStack(spacing: 12) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 36))
+                            .foregroundColor(.yellow)
+                        Text("Failed to load analyses")
+                            .font(.custom("ProductSans-Bold", size: 18))
+                            .foregroundColor(AppColors.text(themeManager.colorScheme))
+                        Text(error)
+                            .font(.custom("ProductSans-Regular", size: 14))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(24)
+                } else if analyses.isEmpty && processingManager.processingItems.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "tray")
+                            .font(.system(size: 44))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                        Text("No analyses yet")
+                            .font(.custom("ProductSans-Bold", size: 20))
+                            .foregroundColor(AppColors.text(themeManager.colorScheme))
+                        Text("Upload a lab report to see your history")
+                            .font(.custom("ProductSans-Regular", size: 14))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(24)
+                } else {
+                    ScrollView {
+                        LazyVGrid(columns: [
+                            GridItem(.flexible(), spacing: 12),
+                            GridItem(.flexible(), spacing: 12)
+                        ], spacing: 12) {
+                            // Show processing items first
+                            ForEach(processingManager.processingItems) { item in
+                                if item.isCancelled {
+                                    // Show cancelled item - can be dismissed
+                                    ProcessingCancelledCard(
+                                        item: item,
+                                        onDismiss: {
+                                            processingManager.removeProcessingItem(id: item.id)
+                                        }
+                                    )
+                                    .environmentObject(themeManager)
+                                } else if let error = item.error {
+                                    // Show error item - can retry or dismiss
+                                    ProcessingErrorCard(
+                                        item: item,
+                                        onRetry: {
+                                            processingManager.retryProcessing(for: item.id)
                                         },
-                                        onDelete: {
-                                            analysisToDelete = analysis
-                                            showDeleteConfirmation = true
+                                        onDismiss: {
+                                            processingManager.removeProcessingItem(id: item.id)
+                                        }
+                                    )
+                                    .environmentObject(themeManager)
+                                } else if item.isComplete, let analysisData = item.analysisData {
+                                    // Show completed processing item as tappable
+                                    ProcessingCompleteCard(
+                                        item: item,
+                                        onTap: {
+                                            completedProcessingAnalysis = analysisData
+                                            processingManager.removeProcessingItem(id: item.id)
+                                            Task { await loadAnalyses() }
+                                        }
+                                    )
+                                    .environmentObject(themeManager)
+                                } else {
+                                    // Show processing progress with cancel option
+                                    ProcessingAnalysisCard(
+                                        item: item,
+                                        onCancel: {
+                                            processingManager.cancelProcessing(for: item.id)
                                         }
                                     )
                                     .environmentObject(themeManager)
                                 }
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 20)
-                        }
-                        .refreshable {
-                            await loadAnalyses()
-                        }
-                    }
-                    
-                    // Delete loading overlay
-                    if isDeleting {
-                        ZStack {
-                            Color.black.opacity(0.3)
-                                .ignoresSafeArea()
-                            CustomSpinner(size: 36, lineWidth: 3)
-                        }
-                    }
-                }
-                .navigationBarTitle("History", displayMode: .inline)
-                .onAppear {
-                    if !hasLoaded {
-                        Task { await loadAnalyses() }
-                    }
-                }
-                .navigationDestination(item: $selectedAnalysis) { analysis in
-                    if let analysisData = analysis.toAnalysisData() {
-                        AnalysisResultsView(analysisData: analysisData)
-                            .environmentObject(themeManager)
-                    } else {
-                        Text("Unable to load analysis")
-                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                    }
-                }
-                .navigationDestination(item: $completedProcessingAnalysis) { analysisData in
-                    AnalysisResultsView(analysisData: analysisData)
-                        .environmentObject(themeManager)
-                }
-                .confirmationDialog(
-                    "Delete Analysis",
-                    isPresented: $showDeleteConfirmation,
-                    titleVisibility: .visible
-                ) {
-                    Button("Delete", role: .destructive) {
-                        if let analysis = analysisToDelete {
-                            Task {
-                                await deleteAnalysis(analysis)
+
+                            // Show completed analyses
+                            ForEach(analyses, id: \.id) { analysis in
+                                AnalysisGridCard(
+                                    analysis: analysis,
+                                    onTap: {
+                                        selectedAnalysis = analysis
+                                    },
+                                    onDelete: {
+                                        analysisToDelete = analysis
+                                        showDeleteConfirmation = true
+                                    }
+                                )
+                                .environmentObject(themeManager)
                             }
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 20)
                     }
-                    Button("Cancel", role: .cancel) {
-                        analysisToDelete = nil
+                    .refreshable {
+                        await loadAnalyses()
                     }
-                } message: {
-                    Text("Are you sure you want to delete this analysis? This action cannot be undone.")
                 }
-            } else {
-                // Fallback on earlier versions
+
+                // Delete loading overlay
+                if isDeleting {
+                    ZStack {
+                        Color.black.opacity(0.3)
+                            .ignoresSafeArea()
+                        CustomSpinner(size: 36, lineWidth: 3)
+                    }
+                }
+            }
+            .navigationBarTitle("History", displayMode: .inline)
+            .onAppear {
+                if !hasLoaded {
+                    Task { await loadAnalyses() }
+                }
+            }
+            .navigationDestination(item: $selectedAnalysis) { analysis in
+                if let analysisData = analysis.toAnalysisData() {
+                    AnalysisResultsView(analysisData: analysisData)
+                        .environmentObject(themeManager)
+                } else {
+                    Text("Unable to load analysis")
+                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                }
+            }
+            .navigationDestination(item: $completedProcessingAnalysis) { analysisData in
+                AnalysisResultsView(analysisData: analysisData)
+                        .environmentObject(themeManager)
+            }
+            .confirmationDialog(
+                "Delete Analysis",
+                isPresented: $showDeleteConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Delete", role: .destructive) {
+                    if let analysis = analysisToDelete {
+                        Task {
+                            await deleteAnalysis(analysis)
+                        }
+                    }
+                }
+                Button("Cancel", role: .cancel) {
+                    analysisToDelete = nil
+                }
+            } message: {
+                Text("Are you sure you want to delete this analysis? This action cannot be undone.")
             }
         }
     }
@@ -3098,15 +3055,15 @@ struct SettingsTabView: View {
                     VStack(spacing: 0) {
                         // Title with Gear Icon and Subscription Button
                         HStack(spacing: 12) {
-                            HStack(spacing: 12) {
-                                Image(systemName: "gearshape.fill")
-                                    .font(.system(size: 28))
-                                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+                        HStack(spacing: 12) {
+                            Image(systemName: "gearshape.fill")
+                                .font(.system(size: 28))
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
 
-                                Text("Settings")
-                                    .font(.custom("ProductSans-Bold", size: 32))
-                                    .foregroundColor(AppColors.text(themeManager.colorScheme))
-                            }
+                            Text("Settings")
+                                .font(.custom("ProductSans-Bold", size: 32))
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+                        }
                             
                             Spacer()
                             
@@ -3225,6 +3182,11 @@ struct SettingsTabView: View {
 
                             SettingsItem(icon: "questionmark.circle.fill", text: "Support and Feedback") {
                                 showSupportModal = true
+                            }
+                            .environmentObject(themeManager)
+
+                            SettingsItem(icon: "star.fill", text: "Leave a Review") {
+                                requestAppReview()
                             }
                             .environmentObject(themeManager)
 
@@ -3370,6 +3332,14 @@ struct SettingsTabView: View {
             } catch {
                 print("Error opening subscription portal: \(error.localizedDescription)")
             }
+        }
+    }
+
+    private func requestAppReview() {
+        // Request app review using StoreKit
+        if let windowScene = UIApplication.shared.connectedScenes
+            .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
+            SKStoreReviewController.requestReview(in: windowScene)
         }
     }
 
@@ -3668,17 +3638,17 @@ struct AnalyseModalView: View {
     
     private func handleContinue() {
         guard let file = selectedFile else { return }
-
+        
         isCheckingSubscription = true
-
+        
         Task {
             do {
                 // Check if user has active subscription
                 let hasSubscription = try await SubscriptionService.shared.hasActiveSubscription()
-
+                
                 await MainActor.run {
                     isCheckingSubscription = false
-
+                    
                     if hasSubscription {
                         // User has subscription, proceed with upload
                         performUpload(file: file)
@@ -4128,7 +4098,7 @@ struct SubscriptionCard: View {
     let hasActiveSubscription: Bool
     let onUpgrade: () -> Void
     let onManage: () -> Void
-
+    
     var body: some View {
         HStack(spacing: 16) {
             // Icon and status
@@ -4137,25 +4107,25 @@ struct SubscriptionCard: View {
                     Circle()
                         .fill(hasActiveSubscription ? Color.green.opacity(0.15) : AppColors.primary.opacity(0.15))
                         .frame(width: 48, height: 48)
-
+                    
                     Image(systemName: hasActiveSubscription ? "crown.fill" : "sparkles")
                         .font(.system(size: 22))
                         .foregroundColor(hasActiveSubscription ? .green : AppColors.primary)
                 }
-
+                
                 VStack(alignment: .leading, spacing: 2) {
                     Text(hasActiveSubscription ? "Pro Member" : "Free Plan")
                         .font(.custom("ProductSans-Bold", size: 18))
                         .foregroundColor(AppColors.text(themeManager.colorScheme))
-
+                    
                     Text(hasActiveSubscription ? "All features unlocked" : "Upgrade for full access")
                         .font(.custom("ProductSans-Regular", size: 13))
                         .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                 }
             }
-
+            
             Spacer()
-
+            
             // Action button
             Button(action: hasActiveSubscription ? onManage : onUpgrade) {
                 Text(hasActiveSubscription ? "Manage" : "Upgrade")
@@ -4241,7 +4211,7 @@ struct EditInformationView: View {
             ZStack {
                 AppColors.modalBackground(themeManager.colorScheme)
                     .ignoresSafeArea()
-
+                
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
                         // Title
@@ -4608,13 +4578,13 @@ struct NotificationSettingsView: View {
     @State private var showAlert: Bool = false
     @State private var alertTitle: String = ""
     @State private var alertMessage: String = ""
-
+    
     var body: some View {
         NavigationView {
             ZStack {
                 AppColors.modalBackground(themeManager.colorScheme)
                     .ignoresSafeArea()
-
+                
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
                         // Title

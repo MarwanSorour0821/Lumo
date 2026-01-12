@@ -350,32 +350,47 @@ struct PlanCard: View {
             onSelect()
         }) {
             HStack {
-                // Plan name and badge
-                HStack(spacing: 8) {
-                    Text(plan.displayName)
-                        .font(.custom("ProductSans-Bold", size: 20))
-                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+                // Plan name, badge, and price (for yearly)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        Text(plan.displayName)
+                            .font(.custom("ProductSans-Bold", size: 20))
+                            .foregroundColor(AppColors.text(themeManager.colorScheme))
+                        
+                        // Badge
+                        if let badge = plan.badge {
+                            Text(badge)
+                                .font(.custom("ProductSans-Bold", size: 11))
+                                .foregroundColor(AppColors.primary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .fill(AppColors.primary.opacity(0.15))
+                                )
+                        }
+                    }
                     
-                    // Badge
-                    if let badge = plan.badge {
-                        Text(badge)
-                            .font(.custom("ProductSans-Bold", size: 11))
-                            .foregroundColor(AppColors.primary)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(AppColors.primary.opacity(0.15))
-                            )
+                    // Show total price under "Yearly"
+                    if plan == .yearly {
+                        Text(plan.price)
+                            .font(.custom("ProductSans-Regular", size: 14))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                     }
                 }
                 
                 Spacer()
                 
-                // Price
-                Text(plan == .yearly ? plan.price : plan.pricePerMonth)
-                    .font(.custom("ProductSans-Bold", size: 20))
-                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+                // Price per month on the right
+                if plan == .yearly {
+                    Text("$2.91/month")
+                        .font(.custom("ProductSans-Bold", size: 18))
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+                } else {
+                    Text(plan.pricePerMonth + "/month")
+                        .font(.custom("ProductSans-Bold", size: 18))
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+                }
             }
             .padding(16)
             .background(

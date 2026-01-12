@@ -34,6 +34,13 @@ struct MedicationSelectionView: View {
 
     // Medications list with selection state
     @State private var medications: [SelectableMedication] = [
+        // Pain / Inflammation
+        SelectableMedication(name: "Ibuprofen", icon: "cross.case.fill"),
+        SelectableMedication(name: "Acetaminophen (Paracetamol)", icon: "pills.fill"),
+        SelectableMedication(name: "Naproxen", icon: "bandage.fill"),
+        SelectableMedication(name: "Tramadol", icon: "cross.vial.fill"),
+        SelectableMedication(name: "Gabapentin", icon: "brain.head.profile"),
+        // Vitamins & Supplements
         SelectableMedication(name: "Vitamin D", icon: "sun.max.fill"),
         SelectableMedication(name: "Multivitamin", icon: "pill.fill"),
         SelectableMedication(name: "Fish Oil / Omega-3", icon: "drop.fill"),
@@ -57,17 +64,22 @@ struct MedicationSelectionView: View {
     let screenWidth = UIScreen.main.bounds.width
     let screenHeight = UIScreen.main.bounds.height
 
+    private var isDarkMode: Bool {
+        let scheme = themeManager.colorScheme ?? (UITraitCollection.current.userInterfaceStyle == .dark ? .dark : .light)
+        return scheme == .dark
+    }
+
     var body: some View {
         ZStack {
-            // Dark background
-            Color.black
+            // Adaptive background
+            AppColors.background(themeManager.colorScheme)
                 .ignoresSafeArea()
 
             // Radial gradient "light" effect from top
             RadialGradient(
                 gradient: Gradient(colors: [
-                    AppColors.primary.opacity(0.3),
-                    AppColors.primary.opacity(0.1),
+                    AppColors.primary.opacity(isDarkMode ? 0.3 : 0.15),
+                    AppColors.primary.opacity(isDarkMode ? 0.1 : 0.05),
                     Color.clear
                 ]),
                 center: .top,
@@ -76,13 +88,15 @@ struct MedicationSelectionView: View {
             )
             .ignoresSafeArea()
 
-            // Star particles
-            ForEach(stars) { star in
-                Circle()
-                    .fill(Color.white)
-                    .frame(width: star.size, height: star.size)
-                    .position(x: star.x, y: star.y)
-                    .opacity(star.opacity * starsOpacity)
+            // Star particles (only visible in dark mode)
+            if isDarkMode {
+                ForEach(stars) { star in
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: star.size, height: star.size)
+                        .position(x: star.x, y: star.y)
+                        .opacity(star.opacity * starsOpacity)
+                }
             }
 
             // Main content - everything scrolls together
@@ -92,7 +106,7 @@ struct MedicationSelectionView: View {
                         // Title - scrolls with content
                         Text("Which medications do you take?")
                             .font(.custom("ProductSans-Bold", size: 28))
-                            .foregroundColor(.white)
+                            .foregroundColor(AppColors.text(themeManager.colorScheme))
                             .multilineTextAlignment(.center)
                             .padding(.top, 16)
                             .padding(.horizontal, 24)
@@ -100,7 +114,7 @@ struct MedicationSelectionView: View {
                         // Subtitle
                         Text("Select all that apply, you can add more later.")
                             .font(.custom("ProductSans-Regular", size: 15))
-                            .foregroundColor(Color.white.opacity(0.5))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                             .multilineTextAlignment(.center)
                             .padding(.top, 8)
                             .padding(.horizontal, 24)
@@ -108,7 +122,7 @@ struct MedicationSelectionView: View {
                         // Medications list
                         VStack(spacing: 12) {
                             ForEach($medications) { $medication in
-                                MedicationRow(medication: $medication) {
+                                MedicationRow(medication: $medication, colorScheme: themeManager.colorScheme) {
                                     let impact = UIImpactFeedbackGenerator(style: .light)
                                     impact.impactOccurred()
                                     medication.isSelected.toggle()
@@ -129,7 +143,7 @@ struct MedicationSelectionView: View {
 
                 ZStack(alignment: .bottom) {
                     // Gradual blur background
-                    GradualBlurView()
+                    GradualBlurView(isDarkMode: isDarkMode)
                         .frame(height: 160)
                         .allowsHitTesting(false)
 
@@ -139,18 +153,18 @@ struct MedicationSelectionView: View {
                         impact.impactOccurred()
                         navigateToSignUp = true
                     }) {
-                        Text(hasSelection ? "Continue" : "None of these")
+                        Text(hasSelection ? "Continue" : "I take other meds")
                             .font(.custom("ProductSans-Bold", size: 17))
-                            .foregroundColor(.white)
+                            .foregroundColor(hasSelection ? .white : AppColors.text(themeManager.colorScheme))
                             .frame(maxWidth: .infinity)
                             .frame(height: 56)
                             .background(
                                 RoundedRectangle(cornerRadius: 28)
-                                    .fill(hasSelection ? AppColors.primary : Color(hex: "#2A2A2A"))
+                                    .fill(hasSelection ? AppColors.primary : AppColors.surface(themeManager.colorScheme))
                             )
                             .overlay(
                                 RoundedRectangle(cornerRadius: 28)
-                                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                                    .stroke(AppColors.border(themeManager.colorScheme), lineWidth: 1)
                             )
                             .shadow(color: hasSelection ? AppColors.primary.opacity(0.4) : Color.clear, radius: 16, x: 0, y: 8)
                     }
@@ -172,7 +186,7 @@ struct MedicationSelectionView: View {
                 }) {
                     Text("Skip")
                         .font(.custom("ProductSans-Regular", size: 16))
-                        .foregroundColor(Color.white.opacity(0.7))
+                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                 }
             }
         }
@@ -230,13 +244,15 @@ struct MedicationSelectionView: View {
 
 // MARK: - Gradual Blur View
 struct GradualBlurView: UIViewRepresentable {
+    var isDarkMode: Bool = true
+
     func makeUIView(context: Context) -> UIView {
         let containerView = UIView()
         containerView.backgroundColor = .clear
         containerView.clipsToBounds = true
 
         // Create blur effect view
-        let blurEffect = UIBlurEffect(style: .dark)
+        let blurEffect = UIBlurEffect(style: isDarkMode ? .dark : .light)
         let blurView = UIVisualEffectView(effect: blurEffect)
         blurView.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(blurView)
@@ -254,6 +270,9 @@ struct GradualBlurView: UIViewRepresentable {
     func updateUIView(_ uiView: UIView, context: Context) {
         DispatchQueue.main.async {
             guard let blurView = uiView.subviews.first as? UIVisualEffectView else { return }
+
+            // Update blur effect for color scheme
+            blurView.effect = UIBlurEffect(style: isDarkMode ? .dark : .light)
 
             // Create gradient mask - clear at top, gradually becomes opaque
             let gradientLayer = CAGradientLayer()
@@ -275,6 +294,7 @@ struct GradualBlurView: UIViewRepresentable {
 // MARK: - Medication Row
 struct MedicationRow: View {
     @Binding var medication: SelectableMedication
+    var colorScheme: ColorScheme?
     var onTap: () -> Void
 
     var body: some View {
@@ -283,7 +303,7 @@ struct MedicationRow: View {
                 // Selection circle
                 Circle()
                     .strokeBorder(
-                        medication.isSelected ? AppColors.primary : Color.white.opacity(0.3),
+                        medication.isSelected ? AppColors.primary : AppColors.border(colorScheme),
                         lineWidth: 2
                     )
                     .background(
@@ -307,7 +327,7 @@ struct MedicationRow: View {
                 // Name
                 Text(medication.name)
                     .font(.custom("ProductSans-Regular", size: 17))
-                    .foregroundColor(.white)
+                    .foregroundColor(AppColors.text(colorScheme))
 
                 Spacer()
             }
@@ -315,7 +335,7 @@ struct MedicationRow: View {
             .padding(.vertical, 16)
             .background(
                 RoundedRectangle(cornerRadius: 16)
-                    .fill(Color(hex: "#1A1A1A"))
+                    .fill(AppColors.surface(colorScheme))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 16)

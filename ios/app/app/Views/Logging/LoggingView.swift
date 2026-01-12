@@ -902,45 +902,41 @@ struct ItemCard: View {
             Spacer()
             
             // Action buttons in glass container
-            if #available(iOS 18.0, *) {
-                if #available(iOS 26.0, *) {
-                    HStack(spacing: 16) {
-                        Button {
-                            onReminder()
-                        } label: {
-                            Image(systemName: item.reminderEnabled ? "alarm.waves.left.and.right.fill" : "alarm.waves.left.and.right")
-                                .font(.system(size: 20))
-                                .foregroundColor(item.reminderEnabled ? AppColors.primary : AppColors.textSecondary(themeManager.colorScheme))
-                        }
-                        .buttonStyle(.plain)
-                        
-                        Menu {
-                            Button {
-                                onEdit()
-                            } label: {
-                                Label("Edit", systemImage: "scribble.variable")
-                            }
-                            
-                            Button(role: .destructive) {
-                                onDelete()
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
-                        } label: {
-                            Image(systemName: "ellipsis")
-                                .font(.system(size: 20))
-                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                        }
-                        .buttonStyle(.plain)
+            if #available(iOS 26.0, *) {
+                HStack(spacing: 16) {
+                    Button {
+                        onReminder()
+                    } label: {
+                        Image(systemName: item.reminderEnabled ? "alarm.waves.left.and.right.fill" : "alarm.waves.left.and.right")
+                            .font(.system(size: 20))
+                            .foregroundColor(item.reminderEnabled ? AppColors.primary : AppColors.textSecondary(themeManager.colorScheme))
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .glassEffect(.regular.interactive())
-                } else {
-                    // Fallback on earlier versions
+                    .buttonStyle(.plain)
+
+                    Menu {
+                        Button {
+                            onEdit()
+                        } label: {
+                            Label("Edit", systemImage: "scribble.variable")
+                        }
+
+                        Button(role: .destructive) {
+                            onDelete()
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 20))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                    }
+                    .buttonStyle(.plain)
                 }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .glassEffect(.regular.interactive())
             } else {
-                // Fallback for older iOS versions
+                // iOS 18+ fallback without glassEffect
                 HStack(spacing: 16) {
                     Button {
                         onReminder()
@@ -950,14 +946,14 @@ struct ItemCard: View {
                             .foregroundColor(item.reminderEnabled ? AppColors.primary : AppColors.textSecondary(themeManager.colorScheme))
                     }
                     .buttonStyle(.plain)
-                    
+
                     Menu {
                         Button {
                             onEdit()
                         } label: {
                             Label("Edit", systemImage: "scribble.variable")
                         }
-                        
+
                         Button(role: .destructive) {
                             onDelete()
                         } label: {

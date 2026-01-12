@@ -22,9 +22,15 @@ struct SignUpOnboardingView: View {
     @State private var isLoading: Bool = false
     @State private var isGoogleLoading: Bool = false
     @State private var isAppleLoading: Bool = false
+    @State private var isCreatingMedications: Bool = false
     @State private var errorAlert: ErrorAlert?
     @State private var showTerms: Bool = false
     @State private var showPrivacy: Bool = false
+    @State private var showNotificationPrompt: Bool = false
+    @State private var showPaywall: Bool = false
+    @State private var showNoRemindersAlert: Bool = false
+    @State private var pendingAuthCompletion: Bool = false
+    @State private var didSubscribe: Bool = false
 
     @FocusState private var focusedField: Field?
 
@@ -35,6 +41,11 @@ struct SignUpOnboardingView: View {
 
     let screenWidth = UIScreen.main.bounds.width
     let screenHeight = UIScreen.main.bounds.height
+
+    private var isDarkMode: Bool {
+        let scheme = themeManager.colorScheme ?? (UITraitCollection.current.userInterfaceStyle == .dark ? .dark : .light)
+        return scheme == .dark
+    }
 
     struct ErrorAlert: Identifiable {
         let id = UUID()
@@ -48,15 +59,15 @@ struct SignUpOnboardingView: View {
 
     var body: some View {
         ZStack {
-            // Dark background
-            Color.black
+            // Adaptive background
+            AppColors.background(themeManager.colorScheme)
                 .ignoresSafeArea()
 
             // Radial gradient "light" effect from top
             RadialGradient(
                 gradient: Gradient(colors: [
-                    AppColors.primary.opacity(0.3),
-                    AppColors.primary.opacity(0.1),
+                    AppColors.primary.opacity(isDarkMode ? 0.3 : 0.15),
+                    AppColors.primary.opacity(isDarkMode ? 0.1 : 0.05),
                     Color.clear
                 ]),
                 center: .top,
@@ -65,13 +76,15 @@ struct SignUpOnboardingView: View {
             )
             .ignoresSafeArea()
 
-            // Animated star particles
-            ForEach(stars) { star in
-                Circle()
-                    .fill(Color.white)
-                    .frame(width: star.size, height: star.size)
-                    .position(x: star.x, y: star.y)
-                    .opacity(star.opacity * starsOpacity)
+            // Animated star particles (only in dark mode)
+            if isDarkMode {
+                ForEach(stars) { star in
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: star.size, height: star.size)
+                        .position(x: star.x, y: star.y)
+                        .opacity(star.opacity * starsOpacity)
+                }
             }
 
             // Main content
@@ -80,7 +93,7 @@ struct SignUpOnboardingView: View {
                     // Title
                     Text("Create your account")
                         .font(.custom("ProductSans-Bold", size: 28))
-                        .foregroundColor(.white)
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
                         .multilineTextAlignment(.center)
                         .padding(.top, 16)
                         .padding(.horizontal, 24)
@@ -88,7 +101,7 @@ struct SignUpOnboardingView: View {
                     // Subtitle
                     Text("Start tracking your health today")
                         .font(.custom("ProductSans-Regular", size: 15))
-                        .foregroundColor(Color.white.opacity(0.5))
+                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                         .multilineTextAlignment(.center)
                         .padding(.top, 8)
                         .padding(.horizontal, 24)
@@ -100,7 +113,8 @@ struct SignUpOnboardingView: View {
                             placeholder: "Email address",
                             text: $email,
                             icon: "envelope",
-                            keyboardType: .emailAddress
+                            keyboardType: .emailAddress,
+                            colorScheme: themeManager.colorScheme
                         )
                         .focused($focusedField, equals: .email)
 
@@ -109,7 +123,8 @@ struct SignUpOnboardingView: View {
                             placeholder: "Password",
                             text: $password,
                             icon: "lock",
-                            isSecure: true
+                            isSecure: true,
+                            colorScheme: themeManager.colorScheme
                         )
                         .focused($focusedField, equals: .password)
                     }
@@ -138,22 +153,22 @@ struct SignUpOnboardingView: View {
                         )
                         .shadow(color: AppColors.primary.opacity(0.4), radius: 16, x: 0, y: 8)
                     }
-                    .disabled(isLoading)
-                    .opacity(isLoading ? 0.7 : 1)
+                    .disabled(isLoading || isCreatingMedications)
+                    .opacity(isLoading || isCreatingMedications ? 0.7 : 1)
                     .padding(.horizontal, 24)
                     .padding(.top, 24)
 
                     // Divider
                     HStack {
                         Rectangle()
-                            .fill(Color.white.opacity(0.2))
+                            .fill(AppColors.border(themeManager.colorScheme))
                             .frame(height: 1)
                         Text("or")
                             .font(.custom("ProductSans-Regular", size: 14))
-                            .foregroundColor(Color.white.opacity(0.5))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                             .padding(.horizontal, 16)
                         Rectangle()
-                            .fill(Color.white.opacity(0.2))
+                            .fill(AppColors.border(themeManager.colorScheme))
                             .frame(height: 1)
                     }
                     .padding(.horizontal, 24)
@@ -164,26 +179,26 @@ struct SignUpOnboardingView: View {
                         // Google Sign In
                         Button(action: handleGoogleSignIn) {
                             HStack(spacing: 12) {
-                                Image("GoogleIcon")
+                                Image("GoogleICon")
                                     .resizable()
                                     .scaledToFit()
                                     .frame(width: 20, height: 20)
                                 Text(isGoogleLoading ? "Signing in..." : "Continue with Google")
                                     .font(.custom("ProductSans-Bold", size: 16))
                             }
-                            .foregroundColor(.white)
+                            .foregroundColor(AppColors.text(themeManager.colorScheme))
                             .frame(maxWidth: .infinity)
                             .frame(height: 56)
                             .background(
                                 RoundedRectangle(cornerRadius: 28)
-                                    .fill(Color.white.opacity(0.1))
+                                    .fill(AppColors.surface(themeManager.colorScheme))
                             )
                             .overlay(
                                 RoundedRectangle(cornerRadius: 28)
-                                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                                    .stroke(AppColors.border(themeManager.colorScheme), lineWidth: 1)
                             )
                         }
-                        .disabled(isGoogleLoading)
+                        .disabled(isGoogleLoading || isCreatingMedications)
 
                         // Apple Sign In
                         Button(action: handleAppleSignIn) {
@@ -193,19 +208,19 @@ struct SignUpOnboardingView: View {
                                 Text(isAppleLoading ? "Signing in..." : "Continue with Apple")
                                     .font(.custom("ProductSans-Bold", size: 16))
                             }
-                            .foregroundColor(.white)
+                            .foregroundColor(AppColors.text(themeManager.colorScheme))
                             .frame(maxWidth: .infinity)
                             .frame(height: 56)
                             .background(
                                 RoundedRectangle(cornerRadius: 28)
-                                    .fill(Color.white.opacity(0.1))
+                                    .fill(AppColors.surface(themeManager.colorScheme))
                             )
                             .overlay(
                                 RoundedRectangle(cornerRadius: 28)
-                                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                                    .stroke(AppColors.border(themeManager.colorScheme), lineWidth: 1)
                             )
                         }
-                        .disabled(isAppleLoading)
+                        .disabled(isAppleLoading || isCreatingMedications)
                     }
                     .padding(.horizontal, 24)
 
@@ -213,7 +228,7 @@ struct SignUpOnboardingView: View {
                     VStack(spacing: 4) {
                         Text("By continuing, you agree to the")
                             .font(.custom("ProductSans-Regular", size: 13))
-                            .foregroundColor(Color.white.opacity(0.5))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
 
                         HStack(spacing: 4) {
                             Button(action: { showTerms = true }) {
@@ -224,7 +239,7 @@ struct SignUpOnboardingView: View {
 
                             Text("and")
                                 .font(.custom("ProductSans-Regular", size: 13))
-                                .foregroundColor(Color.white.opacity(0.5))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
 
                             Button(action: { showPrivacy = true }) {
                                 Text("Privacy Policy")
@@ -238,6 +253,29 @@ struct SignUpOnboardingView: View {
                 }
             }
             .opacity(contentOpacity)
+            
+            // Loading overlay for medication creation
+            if isCreatingMedications {
+                ZStack {
+                    (isDarkMode ? Color.black.opacity(0.7) : Color.white.opacity(0.7))
+                        .ignoresSafeArea()
+
+                    VStack(spacing: 20) {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: AppColors.text(themeManager.colorScheme)))
+                            .scaleEffect(1.5)
+
+                        Text("Setting up your medications...")
+                            .font(.custom("ProductSans-Regular", size: 16))
+                            .foregroundColor(AppColors.text(themeManager.colorScheme))
+                    }
+                    .padding(32)
+                    .background(
+                        RoundedRectangle(cornerRadius: 20)
+                            .fill(AppColors.surface(themeManager.colorScheme))
+                    )
+                }
+            }
         }
         .navigationBarBackButtonHidden(false)
         .sheet(isPresented: $showTerms) {
@@ -252,6 +290,57 @@ struct SignUpOnboardingView: View {
                 message: Text(alert.message),
                 dismissButton: .default(Text("OK"))
             )
+        }
+        .fullScreenCover(isPresented: $showNotificationPrompt) {
+            NotificationPermissionView(
+                isPresented: $showNotificationPrompt,
+                isPostSignUp: true,
+                onEnableNotifications: {
+                    print("✅ Notifications enabled after sign up")
+                }
+            )
+            .environmentObject(themeManager)
+            .onDisappear {
+                // After notification prompt, show paywall
+                if pendingAuthCompletion {
+                    showPaywall = true
+                }
+            }
+        }
+        .sheet(isPresented: $showPaywall) {
+            PaywallView(isPresented: $showPaywall) {
+                // User subscribed successfully
+                didSubscribe = true
+            }
+            .environmentObject(themeManager)
+            .onDisappear {
+                // After paywall is dismissed
+                if pendingAuthCompletion {
+                    pendingAuthCompletion = false
+                    
+                    if !didSubscribe {
+                        // User closed paywall without subscribing - show alert
+                        showNoRemindersAlert = true
+                    } else {
+                        // User subscribed - complete auth
+                        appState.isAuthenticated = true
+                        Task {
+                            await UserDataViewModel.shared.loadAllUserData()
+                        }
+                    }
+                }
+            }
+        }
+        .alert("Reminders Disabled", isPresented: $showNoRemindersAlert) {
+            Button("OK") {
+                // Complete auth after alert is dismissed
+                appState.isAuthenticated = true
+                Task {
+                    await UserDataViewModel.shared.loadAllUserData()
+                }
+            }
+        } message: {
+            Text("Without a subscription, you won't receive medication reminders. You can upgrade anytime in Settings.")
         }
         .onAppear {
             initializeStars()
@@ -335,14 +424,9 @@ struct SignUpOnboardingView: View {
                     notification.notificationOccurred(.success)
 
                     // Create medications and complete onboarding
+                    isCreatingMedications = true
                     Task {
-                        await createSelectedMedications()
-                        await MainActor.run {
-                            appState.isAuthenticated = true
-                            Task {
-                                await UserDataViewModel.shared.loadAllUserData()
-                            }
-                        }
+                        await completeSignUpFlow()
                     }
                 }
             }
@@ -369,14 +453,9 @@ struct SignUpOnboardingView: View {
                     let notification = UINotificationFeedbackGenerator()
                     notification.notificationOccurred(.success)
 
+                    isCreatingMedications = true
                     Task {
-                        await createSelectedMedications()
-                        await MainActor.run {
-                            appState.isAuthenticated = true
-                            Task {
-                                await UserDataViewModel.shared.loadAllUserData()
-                            }
-                        }
+                        await completeSignUpFlow()
                     }
                 }
             }
@@ -403,16 +482,33 @@ struct SignUpOnboardingView: View {
                     let notification = UINotificationFeedbackGenerator()
                     notification.notificationOccurred(.success)
 
+                    isCreatingMedications = true
                     Task {
-                        await createSelectedMedications()
-                        await MainActor.run {
-                            appState.isAuthenticated = true
-                            Task {
-                                await UserDataViewModel.shared.loadAllUserData()
-                            }
-                        }
+                        await completeSignUpFlow()
                     }
                 }
+            }
+        }
+    }
+
+    /// Complete the sign-up flow: create medications, check notifications, show paywall, and finish auth
+    private func completeSignUpFlow() async {
+        // Create medications first
+        await createSelectedMedications()
+
+        // Check notification permissions
+        let notificationsEnabled = await NotificationManager.shared.areNotificationsEnabled()
+
+        await MainActor.run {
+            isCreatingMedications = false
+            pendingAuthCompletion = true
+
+            if notificationsEnabled {
+                // Notifications already enabled, go straight to paywall
+                showPaywall = true
+            } else {
+                // Show notification prompt first, then paywall
+                showNotificationPrompt = true
             }
         }
     }
@@ -495,30 +591,31 @@ struct SignUpOnboardingView: View {
     }
 }
 
-// MARK: - Onboarding Input Field (Dark theme)
+// MARK: - Onboarding Input Field (Adaptive theme)
 struct OnboardingInputField: View {
     let placeholder: String
     @Binding var text: String
     let icon: String
     var isSecure: Bool = false
     var keyboardType: UIKeyboardType = .default
+    var colorScheme: ColorScheme? = nil
 
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .foregroundColor(Color.white.opacity(0.5))
+                .foregroundColor(AppColors.textSecondary(colorScheme))
                 .frame(width: 20, height: 20)
 
             if isSecure {
                 SecureField(placeholder, text: $text)
                     .font(.custom("ProductSans-Regular", size: 16))
-                    .foregroundColor(.white)
+                    .foregroundColor(AppColors.text(colorScheme))
                     .autocapitalization(.none)
                     .autocorrectionDisabled()
             } else {
                 TextField(placeholder, text: $text)
                     .font(.custom("ProductSans-Regular", size: 16))
-                    .foregroundColor(.white)
+                    .foregroundColor(AppColors.text(colorScheme))
                     .keyboardType(keyboardType)
                     .autocapitalization(.none)
                     .autocorrectionDisabled()
@@ -526,11 +623,11 @@ struct OnboardingInputField: View {
         }
         .padding(.horizontal, 16)
         .frame(height: 56)
-        .background(Color.white.opacity(0.1))
+        .background(AppColors.inputBackground(colorScheme))
         .cornerRadius(28)
         .overlay(
             RoundedRectangle(cornerRadius: 28)
-                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                .stroke(AppColors.border(colorScheme), lineWidth: 1)
         )
     }
 }
