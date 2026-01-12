@@ -87,10 +87,54 @@ class LoggingService {
         
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         
+        // Log the request for debugging
+        if let bodyData = request.httpBody,
+           let bodyString = String(data: bodyData, encoding: .utf8) {
+            print("📤 Creating item - Request body: \(bodyString)")
+            print("   URL: \(url.absoluteString)")
+        }
+        
         let (data, response) = try await URLSession.shared.data(for: request)
         
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 201 else {
-            throw NSError(domain: "LoggingService", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to create item"])
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NSError(domain: "LoggingService", code: 2, userInfo: [NSLocalizedDescriptionKey: "Invalid response from server"])
+        }
+        
+        if httpResponse.statusCode != 201 {
+            // Try to extract error message from response
+            var errorMessage: String = "HTTP \(httpResponse.statusCode): Failed to create item"
+            
+            if let errorData = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                // Check for direct error message
+                if let error = errorData["error"] as? String {
+                    errorMessage = error
+                } else {
+                    // Check for serializer errors (Django REST Framework format)
+                    // Serializer errors are usually a dictionary like {"field": ["error message"]}
+                    var errorParts: [String] = []
+                    for (key, value) in errorData {
+                        if let valueArray = value as? [String] {
+                            errorParts.append("\(key): \(valueArray.joined(separator: ", "))")
+                        } else if let valueString = value as? String {
+                            errorParts.append("\(key): \(valueString)")
+                        } else {
+                            errorParts.append("\(key): \(String(describing: value))")
+                        }
+                    }
+                    if !errorParts.isEmpty {
+                        errorMessage = errorParts.joined(separator: "; ")
+                    } else if let errorString = String(data: data, encoding: .utf8) {
+                        errorMessage = errorString
+                    }
+                }
+            } else if let errorString = String(data: data, encoding: .utf8), !errorString.isEmpty {
+                errorMessage = errorString
+            }
+            
+            print("❌ Failed to create item (HTTP \(httpResponse.statusCode)): \(errorMessage)")
+            print("   Request body: \(body)")
+            print("   Response data: \(String(data: data, encoding: .utf8) ?? "Unable to decode")")
+            throw NSError(domain: "LoggingService", code: 2, userInfo: [NSLocalizedDescriptionKey: errorMessage])
         }
         
         let decoder = JSONDecoder()

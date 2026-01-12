@@ -61,17 +61,28 @@ def items_list(request):
         return Response(serializer.data)
     
     elif request.method == 'POST':
-        serializer = FoodSupplementItemCreateSerializer(data=request.data)
-        if serializer.is_valid():
-            item = FoodSupplementItem.objects.create(
-                user_id=user_id,
-                **serializer.validated_data
-            )
+        try:
+            serializer = FoodSupplementItemCreateSerializer(data=request.data)
+            if serializer.is_valid():
+                item = FoodSupplementItem.objects.create(
+                    user_id=user_id,
+                    **serializer.validated_data
+                )
+                return Response(
+                    FoodSupplementItemSerializer(item).data,
+                    status=status.HTTP_201_CREATED
+                )
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            import traceback
+            error_trace = traceback.format_exc()
+            print(f"❌ Error creating item: {str(e)}")
+            print(f"Traceback: {error_trace}")
+            print(f"Request data: {request.data}")
             return Response(
-                FoodSupplementItemSerializer(item).data,
-                status=status.HTTP_201_CREATED
+                {'error': str(e), 'detail': error_trace},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['GET', 'PUT', 'DELETE'])

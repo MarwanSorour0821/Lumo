@@ -164,7 +164,7 @@ struct SignUpOnboardingView: View {
                         // Google Sign In
                         Button(action: handleGoogleSignIn) {
                             HStack(spacing: 12) {
-                                Image("google_logo")
+                                Image("GoogleIcon")
                                     .resizable()
                                     .scaledToFit()
                                     .frame(width: 20, height: 20)
@@ -419,6 +419,18 @@ struct SignUpOnboardingView: View {
 
     private func createSelectedMedications() async {
         guard !selectedMedications.isEmpty else { return }
+        
+        // Wait a moment to ensure the session is fully established
+        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+        
+        // Verify we have an access token
+        do {
+            _ = try await AuthService.shared.getAccessToken()
+            print("✅ Access token available, creating medications...")
+        } catch {
+            print("❌ No access token available: \(error.localizedDescription)")
+            return
+        }
 
         let startDate = Date()
         let endDate = Calendar.current.date(byAdding: .month, value: 1, to: startDate) ?? startDate
@@ -468,7 +480,13 @@ struct SignUpOnboardingView: View {
                     )
                 }
             } catch {
-                print("Failed to create medication \(medication): \(error.localizedDescription)")
+                print("❌ Failed to create medication \(medication): \(error.localizedDescription)")
+                if let nsError = error as NSError? {
+                    print("   Error domain: \(nsError.domain), code: \(nsError.code)")
+                    if let userInfo = nsError.userInfo as? [String: Any] {
+                        print("   User info: \(userInfo)")
+                    }
+                }
             }
         }
 

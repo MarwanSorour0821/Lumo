@@ -72,6 +72,15 @@ class FoodSupplementItemCreateSerializer(serializers.ModelSerializer):
             'reminder_enabled', 'reminder_times', 'reminder_days',
             'start_date', 'end_date'
         ]
+    
+    def validate_type(self, value):
+        """Validate that type is one of the allowed choices"""
+        allowed_types = ['food', 'supplement', 'medication']
+        if value not in allowed_types:
+            raise serializers.ValidationError(
+                f"Type must be one of {allowed_types}, got '{value}'"
+            )
+        return value
 
 
 class QuickLogSerializer(serializers.Serializer):
