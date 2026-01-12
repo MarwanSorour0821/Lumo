@@ -96,7 +96,7 @@ struct AppColors {
     
     static func modalBackground(_ colorScheme: ColorScheme?) -> Color {
         let scheme = colorScheme ?? (UITraitCollection.current.userInterfaceStyle == .dark ? .dark : .light)
-        return scheme == .dark ? Color(hex: "#1C1C1E") : Color.white
+        return scheme == .dark ? Color(hex: "#1A1A1A") : Color.white
     }
     
     // For gradients

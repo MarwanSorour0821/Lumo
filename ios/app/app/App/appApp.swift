@@ -46,11 +46,16 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     ) {
         let userInfo = response.notification.request.content.userInfo
 
-        // Extract item ID from userInfo
+        // Extract item ID and notification metadata from userInfo
         if let itemId = userInfo["itemId"] as? String {
+            let notificationType = userInfo["notificationType"] as? String
+            let scheduledTime = userInfo["scheduledTime"] as? String
+
             NotificationManager.shared.handleNotificationAction(
                 actionIdentifier: response.actionIdentifier,
                 itemId: itemId,
+                notificationType: notificationType,
+                scheduledTime: scheduledTime,
                 completion: completionHandler
             )
         } else {

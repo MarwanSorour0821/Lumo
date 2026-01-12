@@ -33,15 +33,15 @@ struct OnboardingView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var isSignInModalVisible = false
     @State private var isGoogleLoading = false
-    @State private var navigateToOpeningMoment = false
+    @State private var navigateToStatisticsOnboarding = false
     @StateObject private var signUpCoordinator = SignUpFlowCoordinator()
     @State private var isSignedIn = false
-    
+
     // Animation states
     @State private var mainTextOpacity: Double = 0
     @State private var mainTextOffset: CGFloat = 30
     @State private var buttonOpacity: Double = 0
-    
+
     // Image reveal animation state
     @State private var imageReveal: CGFloat = 0.0
     @State private var imageOffsetY: CGFloat = -24
@@ -52,10 +52,10 @@ struct OnboardingView: View {
     @State private var burstOpacity: Double = 0
     @State private var particleTimer: Timer? = nil
     @State private var burstTimer: Timer? = nil
-    
+
     let screenWidth = UIScreen.main.bounds.width
     let screenHeight = UIScreen.main.bounds.height
-    
+
     // Biomarker texts for bursts
     let biomarkers = [
         "ApoB — Elevated ↑",
@@ -67,7 +67,7 @@ struct OnboardingView: View {
         "Ferritin — Low ↓",
         "Triglycerides — High ↑"
     ]
-    
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -113,8 +113,10 @@ struct OnboardingView: View {
                 )
                 .environmentObject(themeManager)
             }
-            .navigationDestination(isPresented: $navigateToOpeningMoment) {
-                OpeningMomentView(coordinator: signUpCoordinator)
+            .navigationDestination(isPresented: $navigateToStatisticsOnboarding) {
+                StatisticsOnboardingView()
+                    .environmentObject(appState)
+                    .environmentObject(themeManager)
             }
         }
     }
@@ -218,7 +220,7 @@ struct OnboardingView: View {
             let impactFeedback = UIImpactFeedbackGenerator(style: .light)
             impactFeedback.impactOccurred()
             DispatchQueue.main.async {
-                navigateToOpeningMoment = true
+                navigateToStatisticsOnboarding = true
             }
         }) {
             HStack {

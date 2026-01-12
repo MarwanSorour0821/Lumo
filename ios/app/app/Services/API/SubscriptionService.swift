@@ -121,7 +121,8 @@ actor SubscriptionService {
         let userId = try await AuthService.shared.getCurrentUserId()
         let accessToken = try await AuthService.shared.getAccessToken()
         
-        guard let url = URL(string: "\(supabaseURL)/rest/v1/subscriptions?user_id=eq.\(userId)&status=eq.active&select=id,plan,status,created_at,updated_at") else {
+        // Check for both 'active' and 'trialing' status (trial users should have access)
+        guard let url = URL(string: "\(supabaseURL)/rest/v1/subscriptions?user_id=eq.\(userId)&status=in.(active,trialing)&select=id,plan,status,created_at,updated_at") else {
             throw NSError(domain: "SubscriptionService", code: 2, userInfo: [NSLocalizedDescriptionKey: "Invalid URL"])
         }
         
@@ -146,6 +147,26 @@ actor SubscriptionService {
         lastCheck = Date()
         
         return hasActive
+    }
+    
+    /// Check subscription status with retries (useful after checkout completion)
+    /// The webhook might not have been processed yet, so we retry a few times
+    func hasActiveSubscriptionWithRetry(maxRetries: Int = 5, delaySeconds: Double = 1.5) async throws -> Bool {
+        for attempt in 1...maxRetries {
+            let hasActive = try await hasActiveSubscription(forceRefresh: true)
+            if hasActive {
+                print("✅ Subscription found on attempt \(attempt)")
+                return true
+            }
+            
+            if attempt < maxRetries {
+                print("🔄 Subscription not found, retrying in \(delaySeconds)s (attempt \(attempt)/\(maxRetries))")
+                try await Task.sleep(nanoseconds: UInt64(delaySeconds * 1_000_000_000))
+            }
+        }
+        
+        print("⚠️ Subscription not found after \(maxRetries) attempts")
+        return false
     }
     
     /// Get current subscription details

@@ -106,7 +106,7 @@ struct SignInModalView: View {
                 .padding(.horizontal, 24)
                 .padding(.bottom, 24)
             }
-            .background(AppColors.background(themeManager.colorScheme))
+            .background(AppColors.modalBackground(themeManager.colorScheme))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {

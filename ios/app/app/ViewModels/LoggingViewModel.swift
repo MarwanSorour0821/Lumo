@@ -239,6 +239,11 @@ class LoggingViewModel: ObservableObject {
                 items[index] = response.item
             }
 
+            // If the item is now marked as taken, cancel any pending follow-up notifications
+            if response.item.isTakenToday {
+                await NotificationManager.shared.cancelFollowUpNotifications(for: item.id)
+            }
+
             // Haptic feedback only (no toast notification)
             let generator = UINotificationFeedbackGenerator()
             generator.notificationOccurred(.success)

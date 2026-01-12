@@ -23,9 +23,9 @@ struct AddItemSheet: View {
     var body: some View {
         NavigationView {
             ZStack {
-                AppColors.background(themeManager.colorScheme)
+                AppColors.modalBackground(themeManager.colorScheme)
                     .ignoresSafeArea()
-                
+
                 ScrollView {
                     VStack(spacing: 24) {
                         // Name field
@@ -223,15 +223,15 @@ struct BiomarkerImpactModal: View {
     let item: FoodSupplementItem
     @ObservedObject var viewModel: LoggingViewModel
     @Environment(\.dismiss) var dismiss
-    
+
     @State private var impacts: [BiomarkerImpact] = []
     @State private var isLoading = false
     @State private var hasGenerated = false
-    
+
     var body: some View {
         NavigationView {
             ZStack {
-                AppColors.background(themeManager.colorScheme)
+                AppColors.modalBackground(themeManager.colorScheme)
                     .ignoresSafeArea()
                 
                 ScrollView {
@@ -463,7 +463,7 @@ struct ReminderSheet: View {
         }
 
         _selectedDays = State(initialValue: Set(item.reminderDays.isEmpty ? [0,1,2,3,4,5,6] : item.reminderDays))
-        
+
         // Parse start date
         if let startDateString = item.startDate {
             let formatter = DateFormatter()
@@ -512,7 +512,7 @@ struct ReminderSheet: View {
         formatter.dateFormat = "h:mm a"
         return formatter.string(from: date)
     }
-    
+
     private var formattedStartDate: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d, yyyy"
@@ -528,7 +528,7 @@ struct ReminderSheet: View {
     var body: some View {
         NavigationView {
             ZStack {
-                AppColors.background(themeManager.colorScheme)
+                AppColors.modalBackground(themeManager.colorScheme)
                     .ignoresSafeArea()
 
                 VStack(spacing: 0) {
@@ -992,13 +992,13 @@ struct ReminderSheet: View {
 struct ReminderConfigSheet: View {
     @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.dismiss) var dismiss
-    
+
     @Binding var reminderTimes: [Date]
     @Binding var reminderDays: Set<Int>
     @Binding var startDate: Date
     @Binding var endDate: Date
     var onSave: () -> Void
-    
+
     @State private var showingTimePicker = false
     @State private var editingTimeIndex: Int? = nil
     @State private var tempTime: Date = Date()
@@ -1006,10 +1006,10 @@ struct ReminderConfigSheet: View {
     @State private var showStartDatePicker = false
     @State private var showEndDatePicker = false
     @State private var appearAnimation = false
-    
+
     let dayNames = ["S", "M", "T", "W", "T", "F", "S"]
     let fullDayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
-    
+
     private var selectedDaysDescription: String {
         if reminderDays.count == 7 {
             return "Every day"
@@ -1024,29 +1024,29 @@ struct ReminderConfigSheet: View {
             return sortedDays.map { String(fullDayNames[$0].prefix(3)) }.joined(separator: ", ")
         }
     }
-    
+
     private func formatTime(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "h:mm a"
         return formatter.string(from: date)
     }
-    
+
     private var formattedStartDate: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d, yyyy"
         return formatter.string(from: startDate)
     }
-    
+
     private var formattedEndDate: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d, yyyy"
         return formatter.string(from: endDate)
     }
-    
+
     var body: some View {
         NavigationView {
             ZStack {
-                AppColors.background(themeManager.colorScheme)
+                AppColors.modalBackground(themeManager.colorScheme)
                     .ignoresSafeArea()
                 
                 VStack(spacing: 0) {
@@ -1526,7 +1526,7 @@ struct EditItemSheet: View {
 
         _name = State(initialValue: item.name)
         _selectedType = State(initialValue: item.type)
-        
+
         // Parse reminder times
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm:ss"
@@ -1540,7 +1540,7 @@ struct EditItemSheet: View {
         }
 
         _selectedDays = State(initialValue: Set(item.reminderDays.isEmpty ? [0,1,2,3,4,5,6] : item.reminderDays))
-        
+
         // Parse start date
         if let startDateString = item.startDate {
             let dateFormatter = DateFormatter()
@@ -1561,14 +1561,14 @@ struct EditItemSheet: View {
             _hasEndDate = State(initialValue: false)
         }
     }
-    
+
     private static func defaultTime(hour: Int, minute: Int = 0) -> Date {
         var components = Calendar.current.dateComponents([.year, .month, .day], from: Date())
         components.hour = hour
         components.minute = minute
         return Calendar.current.date(from: components) ?? Date()
     }
-    
+
     private var selectedDaysDescription: String {
         if selectedDays.count == 7 {
             return "Every day"
@@ -1583,13 +1583,13 @@ struct EditItemSheet: View {
             return sortedDays.map { String(fullDayNames[$0].prefix(3)) }.joined(separator: ", ")
         }
     }
-    
+
     private func formatTime(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "h:mm a"
         return formatter.string(from: date)
     }
-    
+
     private var formattedStartDate: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d, yyyy"
@@ -1605,7 +1605,7 @@ struct EditItemSheet: View {
     var body: some View {
         NavigationView {
             ZStack {
-                AppColors.background(themeManager.colorScheme)
+                AppColors.modalBackground(themeManager.colorScheme)
                     .ignoresSafeArea()
 
                 ScrollView {

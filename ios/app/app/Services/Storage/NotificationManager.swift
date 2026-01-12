@@ -9,16 +9,25 @@ import Foundation
 import UserNotifications
 import UIKit
 
+// MARK: - Notification Type
+enum MedicationNotificationType: String {
+    case before = "before"      // 15 minutes before
+    case onTime = "ontime"      // At the scheduled time
+    case followUp = "followup"  // 30 minutes after (if not taken)
+}
+
 // MARK: - Notification Manager
 class NotificationManager: NSObject {
     static let shared = NotificationManager()
 
     // Notification category identifier
     static let medicationReminderCategory = "MEDICATION_REMINDER"
+    static let medicationFollowUpCategory = "MEDICATION_FOLLOWUP"
 
     // Action identifiers
     static let takenActionIdentifier = "TAKEN_ACTION"
     static let didntTakeActionIdentifier = "DIDNT_TAKE_ACTION"
+    static let snoozeActionIdentifier = "SNOOZE_ACTION"
 
     private override init() {
         super.init()
@@ -28,30 +37,44 @@ class NotificationManager: NSObject {
 
     /// Register notification categories with actions
     func registerNotificationCategories() {
-        // Define actions
+        // Define actions for main reminders
         let takenAction = UNNotificationAction(
             identifier: NotificationManager.takenActionIdentifier,
-            title: "Taken",
+            title: "Taken ✓",
             options: [.foreground]
         )
 
         let didntTakeAction = UNNotificationAction(
             identifier: NotificationManager.didntTakeActionIdentifier,
-            title: "Didn't Take",
+            title: "Skip",
             options: []
         )
 
-        // Define the category with actions
+        let snoozeAction = UNNotificationAction(
+            identifier: NotificationManager.snoozeActionIdentifier,
+            title: "Remind in 10 min",
+            options: []
+        )
+
+        // Define the main medication reminder category
         let medicationCategory = UNNotificationCategory(
             identifier: NotificationManager.medicationReminderCategory,
+            actions: [takenAction, didntTakeAction, snoozeAction],
+            intentIdentifiers: [],
+            options: [.customDismissAction]
+        )
+
+        // Define the follow-up category (30 min after)
+        let followUpCategory = UNNotificationCategory(
+            identifier: NotificationManager.medicationFollowUpCategory,
             actions: [takenAction, didntTakeAction],
             intentIdentifiers: [],
             options: [.customDismissAction]
         )
 
-        // Register the category
-        UNUserNotificationCenter.current().setNotificationCategories([medicationCategory])
-        print("✅ Notification categories registered")
+        // Register both categories
+        UNUserNotificationCenter.current().setNotificationCategories([medicationCategory, followUpCategory])
+        print("✅ Notification categories registered (main + follow-up)")
     }
 
     /// Request notification permissions including critical alerts
@@ -98,20 +121,35 @@ class NotificationManager: NSObject {
     func handleNotificationAction(
         actionIdentifier: String,
         itemId: String,
+        notificationType: String? = nil,
+        scheduledTime: String? = nil,
         completion: @escaping () -> Void
     ) {
         switch actionIdentifier {
         case NotificationManager.takenActionIdentifier:
-            // User tapped "Taken" - mark the item as taken
+            // User tapped "Taken" - mark the item as taken and cancel follow-up
             Task {
                 await markItemAsTaken(itemId: itemId)
+                // Cancel any pending follow-up notifications for this item
+                await cancelFollowUpNotifications(for: itemId, scheduledTime: scheduledTime)
                 completion()
             }
 
         case NotificationManager.didntTakeActionIdentifier:
-            // User tapped "Didn't Take" - do nothing, just dismiss
-            print("📝 User tapped 'Didn't Take' for item: \(itemId)")
-            completion()
+            // User tapped "Skip" - cancel follow-up notifications
+            print("📝 User skipped medication for item: \(itemId)")
+            Task {
+                await cancelFollowUpNotifications(for: itemId, scheduledTime: scheduledTime)
+                completion()
+            }
+
+        case NotificationManager.snoozeActionIdentifier:
+            // User wants to be reminded in 10 minutes
+            print("📝 User requested snooze for item: \(itemId)")
+            Task {
+                await scheduleSnoozeReminder(itemId: itemId)
+                completion()
+            }
 
         case UNNotificationDefaultActionIdentifier:
             // User tapped the notification itself (not an action button)
@@ -125,6 +163,62 @@ class NotificationManager: NSObject {
 
         default:
             completion()
+        }
+    }
+
+    /// Schedule a snooze reminder (10 minutes from now)
+    private func scheduleSnoozeReminder(itemId: String) async {
+        let center = UNUserNotificationCenter.current()
+
+        // Get item name from LoggingViewModel
+        let itemName = await MainActor.run {
+            LoggingViewModel.shared.items.first(where: { $0.id == itemId })?.name ?? "your medication"
+        }
+
+        let content = UNMutableNotificationContent()
+        content.title = "Reminder: \(itemName)"
+        content.body = "You asked to be reminded again. Time to take your medication!"
+        content.sound = .default
+        content.categoryIdentifier = NotificationManager.medicationReminderCategory
+        content.userInfo = ["itemId": itemId, "notificationType": MedicationNotificationType.onTime.rawValue]
+
+        // Schedule for 10 minutes from now
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 10 * 60, repeats: false)
+        let requestId = "\(itemId)_snooze_\(Int(Date().timeIntervalSince1970))"
+
+        let request = UNNotificationRequest(identifier: requestId, content: content, trigger: trigger)
+
+        do {
+            try await center.add(request)
+            print("✅ Scheduled snooze reminder for \(itemName) in 10 minutes")
+        } catch {
+            print("❌ Failed to schedule snooze reminder: \(error.localizedDescription)")
+        }
+    }
+
+    /// Cancel follow-up notifications for a specific item
+    func cancelFollowUpNotifications(for itemId: String, scheduledTime: String? = nil) async {
+        let center = UNUserNotificationCenter.current()
+        let pendingRequests = await center.pendingNotificationRequests()
+
+        // Find all follow-up notifications for this item
+        let followUpIds = pendingRequests.compactMap { request -> String? in
+            if request.identifier.contains(itemId) && request.identifier.contains("_followup") {
+                // If we have a specific scheduled time, only cancel that one
+                if let time = scheduledTime {
+                    if request.identifier.contains(time) {
+                        return request.identifier
+                    }
+                    return nil
+                }
+                return request.identifier
+            }
+            return nil
+        }
+
+        if !followUpIds.isEmpty {
+            center.removePendingNotificationRequests(withIdentifiers: followUpIds)
+            print("🗑️ Cancelled \(followUpIds.count) follow-up notification(s) for item: \(itemId)")
         }
     }
 
@@ -144,6 +238,9 @@ class NotificationManager: NSObject {
 
             print("✅ Item marked as taken via notification action")
 
+            // Cancel any pending follow-up notifications for this item
+            await cancelFollowUpNotifications(for: itemId)
+
             // Haptic feedback
             await MainActor.run {
                 let generator = UINotificationFeedbackGenerator()
@@ -156,7 +253,7 @@ class NotificationManager: NSObject {
 
     // MARK: - Schedule Notifications
 
-    /// Schedule a medication reminder notification
+    /// Schedule medication reminder notifications (15 min before, on-time, and 30 min after)
     /// - Parameters:
     ///   - itemId: The unique ID of the medication/supplement item
     ///   - itemName: The display name of the item
@@ -194,15 +291,8 @@ class NotificationManager: NSObject {
         timeComponents.minute = minute
         let timeString = calendar.date(from: timeComponents).map { timeFormatter.string(from: $0) } ?? "\(hour):\(minute)"
 
-        // Create notification content
-        let content = UNMutableNotificationContent()
-        content.title = "Time to take \(itemName)"
-        content.body = "Don't forget your \(itemType)! (\(timeString))"
-        content.sound = .default
-        content.categoryIdentifier = NotificationManager.medicationReminderCategory
-
-        // Store the item ID in userInfo so we can use it when handling actions
-        content.userInfo = ["itemId": itemId]
+        // Create a unique time identifier for cancellation purposes
+        let scheduledTimeId = "\(hour)_\(minute)"
 
         // If there's an end date, schedule individual notifications for each occurrence
         if let endDate = endDate {
@@ -234,58 +324,273 @@ class NotificationManager: NSObject {
                 currentDate = nextDate
             }
 
-            // Schedule individual notifications for each occurrence
+            // Schedule notifications for each occurrence (3 per occurrence)
             for (index, occurrenceDate) in occurrences.enumerated() {
-                let timeInterval = occurrenceDate.timeIntervalSinceNow
+                await scheduleThreeNotifications(
+                    center: center,
+                    itemId: itemId,
+                    itemName: itemName,
+                    itemType: itemType,
+                    scheduledDate: occurrenceDate,
+                    timeString: timeString,
+                    scheduledTimeId: scheduledTimeId,
+                    requestIdBase: "\(itemId)_time\(timeIndex)_day\(weekday)_\(index)_\(Int(occurrenceDate.timeIntervalSince1970))"
+                )
+            }
 
-                // Only schedule if the date is in the future
-                guard timeInterval > 0 else { continue }
+            if !occurrences.isEmpty {
+                print("✅ Scheduled \(occurrences.count * 3) notifications (3 per time) for \(itemName) at time slot \(timeIndex + 1) until \(endDateStartOfDay)")
+            }
+        } else {
+            // No end date - use repeating notifications
+            await scheduleRepeatingThreeNotifications(
+                center: center,
+                itemId: itemId,
+                itemName: itemName,
+                itemType: itemType,
+                hour: hour,
+                minute: minute,
+                weekday: weekday,
+                timeString: timeString,
+                scheduledTimeId: scheduledTimeId,
+                requestIdBase: "\(itemId)_time\(timeIndex)_day\(weekday)"
+            )
+        }
+    }
+
+    /// Schedule 3 notifications for a specific date: 15 min before, on-time, 30 min after
+    private func scheduleThreeNotifications(
+        center: UNUserNotificationCenter,
+        itemId: String,
+        itemName: String,
+        itemType: String,
+        scheduledDate: Date,
+        timeString: String,
+        scheduledTimeId: String,
+        requestIdBase: String
+    ) async {
+        let calendar = Calendar.current
+
+        // 1. Schedule 15 minutes BEFORE
+        if let beforeDate = calendar.date(byAdding: .minute, value: -15, to: scheduledDate) {
+            let timeInterval = beforeDate.timeIntervalSinceNow
+            if timeInterval > 0 {
+                let content = UNMutableNotificationContent()
+                content.title = "Coming up: \(itemName)"
+                content.body = "Heads up! Time to take your \(itemType) in 15 minutes (\(timeString))"
+                content.sound = .default
+                content.categoryIdentifier = NotificationManager.medicationReminderCategory
+                content.userInfo = [
+                    "itemId": itemId,
+                    "notificationType": MedicationNotificationType.before.rawValue,
+                    "scheduledTime": scheduledTimeId
+                ]
 
                 let trigger = UNTimeIntervalNotificationTrigger(timeInterval: timeInterval, repeats: false)
-                // Include timeIndex in the request ID for multiple times per day
-                let requestId = "\(itemId)_time\(timeIndex)_day\(weekday)_\(index)_\(Int(occurrenceDate.timeIntervalSince1970))"
-
                 let request = UNNotificationRequest(
-                    identifier: requestId,
+                    identifier: "\(requestIdBase)_before",
                     content: content,
                     trigger: trigger
                 )
 
                 do {
                     try await center.add(request)
-                    print("✅ Scheduled notification for \(itemName) on \(occurrenceDate) at \(hour):\(minute) (time \(timeIndex + 1))")
+                    print("✅ Scheduled 15-min before notification for \(itemName)")
                 } catch {
-                    print("❌ Failed to schedule notification: \(error.localizedDescription)")
+                    print("❌ Failed to schedule before notification: \(error.localizedDescription)")
                 }
             }
+        }
 
-            if !occurrences.isEmpty {
-                print("✅ Scheduled \(occurrences.count) notifications for \(itemName) at time slot \(timeIndex + 1) until \(endDateStartOfDay)")
-            }
-        } else {
-            // No end date - use repeating notifications as before
-            // Create date components for the trigger
-            var dateComponents = DateComponents()
-            dateComponents.hour = hour
-            dateComponents.minute = minute
-            dateComponents.weekday = weekday // 1 = Sunday, 2 = Monday, etc.
+        // 2. Schedule ON-TIME notification
+        let onTimeInterval = scheduledDate.timeIntervalSinceNow
+        if onTimeInterval > 0 {
+            let content = UNMutableNotificationContent()
+            content.title = "Time to take \(itemName)"
+            content.body = "It's time for your \(itemType)! Tap to mark as taken."
+            content.sound = .default
+            content.categoryIdentifier = NotificationManager.medicationReminderCategory
+            content.userInfo = [
+                "itemId": itemId,
+                "notificationType": MedicationNotificationType.onTime.rawValue,
+                "scheduledTime": scheduledTimeId
+            ]
 
-            let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
-
-            // Create the request with a unique identifier that includes timeIndex
-            let requestId = "\(itemId)_time\(timeIndex)_day\(weekday)"
+            let trigger = UNTimeIntervalNotificationTrigger(timeInterval: onTimeInterval, repeats: false)
             let request = UNNotificationRequest(
-                identifier: requestId,
+                identifier: "\(requestIdBase)_ontime",
                 content: content,
                 trigger: trigger
             )
 
             do {
                 try await center.add(request)
-                print("✅ Scheduled repeating notification for \(itemName) on weekday \(weekday) at \(hour):\(minute) (time \(timeIndex + 1))")
+                print("✅ Scheduled on-time notification for \(itemName)")
             } catch {
-                print("❌ Failed to schedule notification: \(error.localizedDescription)")
+                print("❌ Failed to schedule on-time notification: \(error.localizedDescription)")
             }
+        }
+
+        // 3. Schedule 30 minutes AFTER (follow-up if not taken)
+        if let afterDate = calendar.date(byAdding: .minute, value: 30, to: scheduledDate) {
+            let timeInterval = afterDate.timeIntervalSinceNow
+            if timeInterval > 0 {
+                let content = UNMutableNotificationContent()
+                content.title = "Did you take \(itemName)?"
+                content.body = "You haven't marked your \(itemType) as taken yet. Don't forget!"
+                content.sound = .default
+                content.categoryIdentifier = NotificationManager.medicationFollowUpCategory
+                content.userInfo = [
+                    "itemId": itemId,
+                    "notificationType": MedicationNotificationType.followUp.rawValue,
+                    "scheduledTime": scheduledTimeId
+                ]
+
+                let trigger = UNTimeIntervalNotificationTrigger(timeInterval: timeInterval, repeats: false)
+                let request = UNNotificationRequest(
+                    identifier: "\(requestIdBase)_followup",
+                    content: content,
+                    trigger: trigger
+                )
+
+                do {
+                    try await center.add(request)
+                    print("✅ Scheduled 30-min follow-up notification for \(itemName)")
+                } catch {
+                    print("❌ Failed to schedule follow-up notification: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    /// Schedule 3 repeating notifications for a specific weekday/time
+    private func scheduleRepeatingThreeNotifications(
+        center: UNUserNotificationCenter,
+        itemId: String,
+        itemName: String,
+        itemType: String,
+        hour: Int,
+        minute: Int,
+        weekday: Int,
+        timeString: String,
+        scheduledTimeId: String,
+        requestIdBase: String
+    ) async {
+        let calendar = Calendar.current
+
+        // Calculate before time (15 minutes earlier)
+        var beforeHour = hour
+        var beforeMinute = minute - 15
+        if beforeMinute < 0 {
+            beforeMinute += 60
+            beforeHour -= 1
+            if beforeHour < 0 {
+                beforeHour = 23
+            }
+        }
+
+        // Calculate after time (30 minutes later)
+        var afterHour = hour
+        var afterMinute = minute + 30
+        if afterMinute >= 60 {
+            afterMinute -= 60
+            afterHour += 1
+            if afterHour >= 24 {
+                afterHour = 0
+            }
+        }
+
+        // 1. Schedule 15 minutes BEFORE (repeating)
+        var beforeComponents = DateComponents()
+        beforeComponents.hour = beforeHour
+        beforeComponents.minute = beforeMinute
+        beforeComponents.weekday = weekday
+
+        let beforeContent = UNMutableNotificationContent()
+        beforeContent.title = "Coming up: \(itemName)"
+        beforeContent.body = "Heads up! Time to take your \(itemType) in 15 minutes (\(timeString))"
+        beforeContent.sound = .default
+        beforeContent.categoryIdentifier = NotificationManager.medicationReminderCategory
+        beforeContent.userInfo = [
+            "itemId": itemId,
+            "notificationType": MedicationNotificationType.before.rawValue,
+            "scheduledTime": scheduledTimeId
+        ]
+
+        let beforeTrigger = UNCalendarNotificationTrigger(dateMatching: beforeComponents, repeats: true)
+        let beforeRequest = UNNotificationRequest(
+            identifier: "\(requestIdBase)_before",
+            content: beforeContent,
+            trigger: beforeTrigger
+        )
+
+        do {
+            try await center.add(beforeRequest)
+            print("✅ Scheduled repeating 15-min before notification for \(itemName) on weekday \(weekday)")
+        } catch {
+            print("❌ Failed to schedule before notification: \(error.localizedDescription)")
+        }
+
+        // 2. Schedule ON-TIME notification (repeating)
+        var onTimeComponents = DateComponents()
+        onTimeComponents.hour = hour
+        onTimeComponents.minute = minute
+        onTimeComponents.weekday = weekday
+
+        let onTimeContent = UNMutableNotificationContent()
+        onTimeContent.title = "Time to take \(itemName)"
+        onTimeContent.body = "It's time for your \(itemType)! Tap to mark as taken."
+        onTimeContent.sound = .default
+        onTimeContent.categoryIdentifier = NotificationManager.medicationReminderCategory
+        onTimeContent.userInfo = [
+            "itemId": itemId,
+            "notificationType": MedicationNotificationType.onTime.rawValue,
+            "scheduledTime": scheduledTimeId
+        ]
+
+        let onTimeTrigger = UNCalendarNotificationTrigger(dateMatching: onTimeComponents, repeats: true)
+        let onTimeRequest = UNNotificationRequest(
+            identifier: "\(requestIdBase)_ontime",
+            content: onTimeContent,
+            trigger: onTimeTrigger
+        )
+
+        do {
+            try await center.add(onTimeRequest)
+            print("✅ Scheduled repeating on-time notification for \(itemName) on weekday \(weekday) at \(hour):\(minute)")
+        } catch {
+            print("❌ Failed to schedule on-time notification: \(error.localizedDescription)")
+        }
+
+        // 3. Schedule 30 minutes AFTER (repeating follow-up)
+        var afterComponents = DateComponents()
+        afterComponents.hour = afterHour
+        afterComponents.minute = afterMinute
+        afterComponents.weekday = weekday
+
+        let afterContent = UNMutableNotificationContent()
+        afterContent.title = "Did you take \(itemName)?"
+        afterContent.body = "You haven't marked your \(itemType) as taken yet. Don't forget!"
+        afterContent.sound = .default
+        afterContent.categoryIdentifier = NotificationManager.medicationFollowUpCategory
+        afterContent.userInfo = [
+            "itemId": itemId,
+            "notificationType": MedicationNotificationType.followUp.rawValue,
+            "scheduledTime": scheduledTimeId
+        ]
+
+        let afterTrigger = UNCalendarNotificationTrigger(dateMatching: afterComponents, repeats: true)
+        let afterRequest = UNNotificationRequest(
+            identifier: "\(requestIdBase)_followup",
+            content: afterContent,
+            trigger: afterTrigger
+        )
+
+        do {
+            try await center.add(afterRequest)
+            print("✅ Scheduled repeating 30-min follow-up notification for \(itemName) on weekday \(weekday)")
+        } catch {
+            print("❌ Failed to schedule follow-up notification: \(error.localizedDescription)")
         }
     }
 

@@ -671,11 +671,11 @@ struct TimePickerModal: View {
     @EnvironmentObject var themeManager: ThemeManager
     @Binding var selectedTime: Date
     @Binding var isPresented: Bool
-    
+
     var body: some View {
         NavigationView {
             ZStack {
-                AppColors.background(themeManager.colorScheme)
+                AppColors.modalBackground(themeManager.colorScheme)
                     .ignoresSafeArea()
                 
                 VStack(spacing: 20) {

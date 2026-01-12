@@ -1080,7 +1080,7 @@ struct HistoryDatePickerSheet: View {
     var body: some View {
         NavigationView {
             ZStack {
-                AppColors.background(themeManager.colorScheme)
+                AppColors.modalBackground(themeManager.colorScheme)
                     .ignoresSafeArea()
 
                 VStack(spacing: 20) {
@@ -3096,32 +3096,118 @@ struct SettingsTabView: View {
 
                 ScrollView {
                     VStack(spacing: 0) {
-                        // Title with Gear Icon
+                        // Title with Gear Icon and Subscription Button
                         HStack(spacing: 12) {
-                            Image(systemName: "gearshape.fill")
-                                .font(.system(size: 28))
-                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+                            HStack(spacing: 12) {
+                                Image(systemName: "gearshape.fill")
+                                    .font(.system(size: 28))
+                                    .foregroundColor(AppColors.text(themeManager.colorScheme))
 
-                            Text("Settings")
-                                .font(.custom("ProductSans-Bold", size: 32))
-                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+                                Text("Settings")
+                                    .font(.custom("ProductSans-Bold", size: 32))
+                                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+                            }
+                            
+                            Spacer()
+                            
+                            // Subscription Button with Red Glass Effect
+                            if #available(iOS 18.0, *) {
+                                if #available(iOS 26.0, *) {
+                                    Button(action: hasActiveSubscription ? handleManageSubscription : { showPaywall = true }) {
+                                        HStack(spacing: 6) {
+                                            if hasActiveSubscription {
+                                                Image(systemName: "hands.and.sparkles.fill")
+                                                    .font(.system(size: 14, weight: .medium))
+                                                    .foregroundColor(.white)
+                                            } else {
+                                                Image(systemName: "sparkles.2")
+                                                    .font(.system(size: 14, weight: .medium))
+                                                    .foregroundColor(.white)
+                                            }
+                                            Text(hasActiveSubscription ? "Manage Subscription" : "Upgrade")
+                                                .font(.custom("ProductSans-Bold", size: 14))
+                                                .foregroundColor(.white)
+                                        }
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 10)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 20)
+                                            .fill(.regularMaterial)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 20)
+                                                    .fill(Color(red: 0.7, green: 0.15, blue: 0.15))
+                                            )
+                                    )
+                                    .glassEffect(.regular.interactive())
+                                } else {
+                                    // Fallback on earlier versions
+                                    Button(action: hasActiveSubscription ? handleManageSubscription : { showPaywall = true }) {
+                                        HStack(spacing: 6) {
+                                            if hasActiveSubscription {
+                                                Image(systemName: "hands.and.sparkles.fill")
+                                                    .font(.system(size: 14, weight: .medium))
+                                                    .foregroundColor(.white)
+                                            } else {
+                                                Image(systemName: "sparkles.2")
+                                                    .font(.system(size: 14, weight: .medium))
+                                                    .foregroundColor(.white)
+                                            }
+                                            Text(hasActiveSubscription ? "Manage Subscription" : "Upgrade")
+                                                .font(.custom("ProductSans-Bold", size: 14))
+                                                .foregroundColor(.white)
+                                        }
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 10)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 20)
+                                            .fill(.regularMaterial)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 20)
+                                                    .fill(Color(red: 0.7, green: 0.15, blue: 0.15))
+                                            )
+                                    )
+                                }
+                            } else {
+                                // Fallback on earlier versions
+                                Button(action: hasActiveSubscription ? handleManageSubscription : { showPaywall = true }) {
+                                    HStack(spacing: 6) {
+                                        if hasActiveSubscription {
+                                            Image(systemName: "hands.and.sparkles.fill")
+                                                .font(.system(size: 14, weight: .medium))
+                                                .foregroundColor(.white)
+                                        } else {
+                                            Image(systemName: "sparkles.2")
+                                                .font(.system(size: 14, weight: .medium))
+                                                .foregroundColor(.white)
+                                        }
+                                        Text(hasActiveSubscription ? "Manage Subscription" : "Upgrade")
+                                            .font(.custom("ProductSans-Bold", size: 14))
+                                            .foregroundColor(.white)
+                                    }
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 10)
+                                }
+                                .buttonStyle(.plain)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 20)
+                                        .fill(.regularMaterial)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 20)
+                                                .fill(Color(red: 0.7, green: 0.15, blue: 0.15))
+                                        )
+                                )
+                            }
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 24)
                         .padding(.top, 20)
                         .padding(.bottom, 32)
 
                         // Settings Items
                         VStack(spacing: 0) {
-                            // Subscription Card
-                            SubscriptionCard(
-                                hasActiveSubscription: hasActiveSubscription,
-                                onUpgrade: { showPaywall = true },
-                                onManage: { handleManageSubscription() }
-                            )
-                            .environmentObject(themeManager)
-                            .padding(.bottom, 16)
-                            
                             SettingsItem(icon: "sun.max.fill", text: "Appearance") {
                                 showAppearancePicker = true
                             }
@@ -3214,6 +3300,21 @@ struct SettingsTabView: View {
         .onAppear {
             Task { await refreshSettings() }
         }
+        .onOpenURL { url in
+            // Handle subscription success deep link as fallback
+            if url.scheme == "lumo" && url.host == "subscription-success" {
+                print("🔵 Settings received subscription success deep link")
+                Task {
+                    await refreshSettingsWithRetry()
+                }
+            } else if url.scheme == "lumo" && url.host == "portal-return" {
+                // User returned from Stripe portal - refresh subscription status
+                print("🔵 User returned from Stripe portal")
+                Task {
+                    await refreshSettings()
+                }
+            }
+        }
         .confirmationDialog("Choose Appearance", isPresented: $showAppearancePicker, titleVisibility: .visible) {
             Button("Light Mode") { themeManager.setColorScheme(.light) }
             Button("Dark Mode") { themeManager.setColorScheme(.dark) }
@@ -3233,6 +3334,24 @@ struct SettingsTabView: View {
             }
         } catch {
             print("Error checking subscription: \(error.localizedDescription)")
+        }
+        
+        isRefreshing = false
+    }
+    
+    /// Refresh settings with retry mechanism (used after checkout completion)
+    private func refreshSettingsWithRetry() async {
+        isRefreshing = true
+        
+        do {
+            // Use retry mechanism to handle webhook delay
+            let isSubscribed = try await SubscriptionService.shared.hasActiveSubscriptionWithRetry()
+            await MainActor.run {
+                hasActiveSubscription = isSubscribed
+                print("✅ Settings refreshed, hasActiveSubscription: \(isSubscribed)")
+            }
+        } catch {
+            print("Error checking subscription with retry: \(error.localizedDescription)")
         }
         
         isRefreshing = false
@@ -3350,7 +3469,7 @@ struct AnalyseModalView: View {
                 HStack {
                     Spacer()
                     VStack(spacing: 8) {
-                        Text("Upload a file to analyse")
+                        Text("Upload a blood test to analyse")
                             .font(.custom("ProductSans-Bold", size: 16))
                             .foregroundColor(AppColors.text(themeManager.colorScheme))
                         
@@ -4120,9 +4239,9 @@ struct EditInformationView: View {
     var body: some View {
         NavigationView {
             ZStack {
-                AppColors.background(themeManager.colorScheme)
+                AppColors.modalBackground(themeManager.colorScheme)
                     .ignoresSafeArea()
-                
+
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
                         // Title
@@ -4489,13 +4608,13 @@ struct NotificationSettingsView: View {
     @State private var showAlert: Bool = false
     @State private var alertTitle: String = ""
     @State private var alertMessage: String = ""
-    
+
     var body: some View {
         NavigationView {
             ZStack {
-                AppColors.background(themeManager.colorScheme)
+                AppColors.modalBackground(themeManager.colorScheme)
                     .ignoresSafeArea()
-                
+
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
                         // Title

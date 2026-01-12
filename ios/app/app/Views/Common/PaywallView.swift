@@ -14,13 +14,13 @@ struct PaywallView: View {
     
     var onSubscribeComplete: (() -> Void)?
     
-    private let features: [(icon: String, title: String, freeIncluded: Bool)] = [
-        ("waveform.path.ecg", "AI blood test analysis", false),
-        ("chart.line.uptrend.xyaxis", "Health trends & insights", false),
-        ("bell.badge", "Medication reminders", false),
-        ("bubble.left.and.bubble.right", "Chat with AI about results", false),
-        ("lightbulb", "Personalized recommendations", false),
-        ("clock.arrow.circlepath", "Unlimited history access", false),
+    private let features: [(icon: String, title: String)] = [
+        ("waveform.path.ecg", "Understand your blood test results in minutes"),
+        ("chart.line.uptrend.xyaxis", "Spot health trends before they become problems"),
+        ("bell.badge", "Never miss a medication again"),
+        ("bubble.left.and.bubble.right", "Ask questions and get instant clarity"),
+        ("lightbulb", "Get recommendations tailored to your body"),
+        ("clock.arrow.circlepath", "Access your full health history anytime"),
     ]
     
     var body: some View {
@@ -35,22 +35,21 @@ struct PaywallView: View {
                             // Header
                             headerSection
                             
-                            // Plans
-                            plansSection
-                            
-                            // Features comparison
+                            // Features list (Pro only)
                             featuresSection
                             
-                            Spacer(minLength: 100)
+                            Spacer(minLength: 20)
                         }
                         .padding(.horizontal, 24)
                         .padding(.top, 16)
+                        .padding(.bottom, 16)
                     }
                     
-                    // Bottom CTA
-                    bottomCTA
+                    // Bottom section: Plans + CTA
+                    bottomSection
                 }
             }
+            .ignoresSafeArea(edges: .bottom)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -98,20 +97,16 @@ struct PaywallView: View {
     // MARK: - Header Section
     private var headerSection: some View {
         VStack(spacing: 8) {
-            Text("Achieve your health")
+            Text("Your Personal")
                 .font(.custom("ProductSans-Bold", size: 28))
                 .foregroundColor(AppColors.text(themeManager.colorScheme))
             
             HStack(spacing: 8) {
-                Text("goals")
-                    .font(.custom("ProductSans-Bold", size: 28))
-                    .foregroundColor(AppColors.text(themeManager.colorScheme))
-                
-                Text("4.2x")
+                Text("Drug")
                     .font(.custom("instrumentserif-italic", size: 32))
                     .foregroundColor(AppColors.primary)
                 
-                Text("faster")
+                Text("Cabinet")
                     .font(.custom("ProductSans-Bold", size: 28))
                     .foregroundColor(AppColors.text(themeManager.colorScheme))
             }
@@ -120,111 +115,29 @@ struct PaywallView: View {
         .padding(.top, 8)
     }
     
-    // MARK: - Plans Section
-    private var plansSection: some View {
-        VStack(spacing: 12) {
-            // Yearly Plan (Most Popular)
-            PlanCard(
-                plan: .yearly,
-                isSelected: selectedPlan == .yearly,
-                onSelect: { selectedPlan = .yearly }
-            )
-            
-            // Show/Hide more plans
-            Button {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                    showMorePlans.toggle()
-                }
-            } label: {
-                HStack(spacing: 4) {
-                    Text(showMorePlans ? "Hide plans" : "Show more plans")
-                        .font(.custom("ProductSans-Medium", size: 14))
-                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                    
-                    Image(systemName: showMorePlans ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 12))
-                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                }
-            }
-            
-            // Monthly Plan (hidden by default)
-            if showMorePlans {
-                PlanCard(
-                    plan: .monthly,
-                    isSelected: selectedPlan == .monthly,
-                    onSelect: { selectedPlan = .monthly }
-                )
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-        }
-    }
-    
     // MARK: - Features Section
     private var featuresSection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Header row
-            HStack {
-                Text("What you get")
-                    .font(.custom("ProductSans-Bold", size: 18))
-                    .foregroundColor(AppColors.text(themeManager.colorScheme))
-                
-                Spacer()
-                
-                Text("Free")
-                    .font(.custom("ProductSans-Medium", size: 12))
-                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                    .frame(width: 50)
-                
-                Text("Pro")
-                    .font(.custom("ProductSans-Bold", size: 12))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 4)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(AppColors.primary)
-                    )
-                    .frame(width: 60)
-            }
+            Text("What you get")
+                .font(.custom("ProductSans-Bold", size: 18))
+                .foregroundColor(AppColors.text(themeManager.colorScheme))
             
-            // Feature rows
-            VStack(spacing: 0) {
+            // Feature list
+            VStack(alignment: .leading, spacing: 12) {
                 ForEach(Array(features.enumerated()), id: \.offset) { index, feature in
-                    HStack {
+                    HStack(spacing: 12) {
+                        Image(systemName: feature.icon)
+                            .font(.system(size: 18))
+                            .foregroundColor(AppColors.primary)
+                            .frame(width: 24)
+                        
                         Text(feature.title)
-                            .font(.custom("ProductSans-Regular", size: 14))
+                            .font(.custom("ProductSans-Regular", size: 15))
                             .foregroundColor(AppColors.text(themeManager.colorScheme))
                         
                         Spacer()
-                        
-                        // Free column
-                        if feature.freeIncluded {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 18))
-                                .foregroundColor(AppColors.primary)
-                        } else {
-                            Image(systemName: "lock.fill")
-                                .font(.system(size: 14))
-                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme).opacity(0.5))
-                        }
-                        
-                        Spacer()
-                            .frame(width: 30)
-                        
-                        // Pro column
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 18))
-                            .foregroundColor(AppColors.primary)
-                        
-                        Spacer()
-                            .frame(width: 10)
                     }
-                    .padding(.vertical, 12)
-                    
-                    if index < features.count - 1 {
-                        Divider()
-                            .background(AppColors.textSecondary(themeManager.colorScheme).opacity(0.2))
-                    }
+                    .padding(.vertical, 4)
                 }
             }
             .padding(16)
@@ -232,18 +145,77 @@ struct PaywallView: View {
                 RoundedRectangle(cornerRadius: 16)
                     .fill(AppColors.inputBackground(themeManager.colorScheme))
             )
+            
+            // Trust signal
+            HStack(spacing: 6) {
+                Text("🔒")
+                    .font(.system(size: 14))
+                Text("Your health data is encrypted and never sold")
+                    .font(.custom("ProductSans-Regular", size: 12))
+                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+            }
+            .frame(maxWidth: .infinity)
+            .multilineTextAlignment(.center)
+            .padding(.top, 4)
+            
+            // Optional trust signal
+            Text("Used by 1000+ to better understand their health.")
+                .font(.custom("ProductSans-Regular", size: 12))
+                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                .frame(maxWidth: .infinity)
+                .multilineTextAlignment(.center)
+                .padding(.top, 2)
         }
     }
     
-    // MARK: - Bottom CTA
-    private var bottomCTA: some View {
-        VStack(spacing: 12) {
+    // MARK: - Bottom Section (Plans + CTA)
+    private var bottomSection: some View {
+        VStack(spacing: 16) {
             // Error message
             if let error = errorMessage {
                 Text(error)
                     .font(.custom("ProductSans-Regular", size: 12))
                     .foregroundColor(.red)
+                    .padding(.horizontal, 24)
             }
+            
+            // Subscription Plans (above Continue button)
+            VStack(spacing: 12) {
+                // Yearly Plan (Most Popular)
+                PlanCard(
+                    plan: .yearly,
+                    isSelected: selectedPlan == .yearly,
+                    onSelect: { selectedPlan = .yearly }
+                )
+                
+                // Show/Hide more plans
+                Button {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        showMorePlans.toggle()
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(showMorePlans ? "Hide plans" : "Show more plans")
+                            .font(.custom("ProductSans-Medium", size: 14))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                        
+                        Image(systemName: showMorePlans ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 12))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                    }
+                }
+                
+                // Monthly Plan (hidden by default)
+                if showMorePlans {
+                    PlanCard(
+                        plan: .monthly,
+                        isSelected: selectedPlan == .monthly,
+                        onSelect: { selectedPlan = .monthly }
+                    )
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+            }
+            .padding(.horizontal, 24)
             
             // Continue button
             Button(action: handleSubscribe) {
@@ -253,7 +225,7 @@ struct PaywallView: View {
                         ProgressView()
                             .progressViewStyle(CircularProgressViewStyle(tint: .white))
                     } else {
-                        Text("Continue")
+                        Text("Try for $0.00")
                             .font(.custom("ProductSans-Bold", size: 16))
                             .foregroundColor(.white)
                     }
@@ -262,21 +234,31 @@ struct PaywallView: View {
                 .frame(height: 56)
                 .background(
                     RoundedRectangle(cornerRadius: 28)
-                        .fill(Color.black)
+                        .fill(AppColors.primary)
                 )
             }
             .disabled(isLoading)
+            .padding(.horizontal, 24)
             
-            // 3-day free trial note
-            Text("Start your 3-day free trial")
-                .font(.custom("ProductSans-Medium", size: 13))
-                .foregroundColor(AppColors.primary)
+            // Microcopy under button
+            Text("No payment today · Cancel anytime")
+                .font(.custom("ProductSans-Regular", size: 12))
+                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                .frame(maxWidth: .infinity)
+                .multilineTextAlignment(.center)
         }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 16)
+        .padding(.top, 20)
+        .padding(.bottom, 24)
+        .frame(maxWidth: .infinity)
         .background(
-            AppColors.modalBackground(themeManager.colorScheme)
-                .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: -5)
+            ZStack {
+                AppColors.modalBackground(themeManager.colorScheme)
+                    .frame(maxHeight: .infinity)
+                    .ignoresSafeArea(edges: .bottom)
+                
+                AppColors.modalBackground(themeManager.colorScheme)
+                    .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: -5)
+            }
         )
     }
     
@@ -314,14 +296,40 @@ struct PaywallView: View {
     private func handleDeepLink(_ url: URL) {
         if url.scheme == "lumo" && url.host == "subscription-success" {
             showSafari = false
-            isPresented = false
             
-            // Clear subscription cache
+            // Show loading state while we verify the subscription
+            isLoading = true
+            
             Task {
+                // Clear cache first
                 await SubscriptionService.shared.clearCache()
+                
+                // Wait for webhook to process and verify subscription with retries
+                // This handles the race condition where the deep link arrives before the webhook
+                do {
+                    let hasSubscription = try await SubscriptionService.shared.hasActiveSubscriptionWithRetry()
+                    
+                    await MainActor.run {
+                        isLoading = false
+                        isPresented = false
+                        
+                        if hasSubscription {
+                            print("✅ Subscription verified after checkout")
+                            onSubscribeComplete?()
+                        } else {
+                            // Subscription not found after retries - show error
+                            errorMessage = "Subscription processing. Please refresh settings in a moment."
+                            onSubscribeComplete?() // Still call callback to refresh
+                        }
+                    }
+                } catch {
+                    await MainActor.run {
+                        isLoading = false
+                        isPresented = false
+                        onSubscribeComplete?() // Call callback anyway to attempt refresh
+                    }
+                }
             }
-            
-            onSubscribeComplete?()
         } else if url.scheme == "lumo" && url.host == "subscription-cancel" {
             showSafari = false
         }
@@ -341,60 +349,33 @@ struct PlanCard: View {
             impact.impactOccurred()
             onSelect()
         }) {
-            VStack(alignment: .leading, spacing: 8) {
-                // Badge
-                if let badge = plan.badge {
-                    Text(badge)
-                        .font(.custom("ProductSans-Bold", size: 11))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(plan == .yearly ? AppColors.primary : Color.gray)
-                        )
+            HStack {
+                // Plan name and badge
+                HStack(spacing: 8) {
+                    Text(plan.displayName)
+                        .font(.custom("ProductSans-Bold", size: 20))
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+                    
+                    // Badge
+                    if let badge = plan.badge {
+                        Text(badge)
+                            .font(.custom("ProductSans-Bold", size: 11))
+                            .foregroundColor(AppColors.primary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(AppColors.primary.opacity(0.15))
+                            )
+                    }
                 }
                 
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(plan.displayName)
-                            .font(.custom("ProductSans-Bold", size: 20))
-                            .foregroundColor(AppColors.text(themeManager.colorScheme))
-                        
-                        if plan == .yearly {
-                            HStack(spacing: 4) {
-                                Text("$59.99")
-                                    .font(.custom("ProductSans-Regular", size: 13))
-                                    .strikethrough()
-                                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                                
-                                Text("→")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                                
-                                Text("\(plan.price)/yr")
-                                    .font(.custom("ProductSans-Medium", size: 13))
-                                    .foregroundColor(AppColors.text(themeManager.colorScheme))
-                            }
-                        } else if let tagline = plan.tagline {
-                            Text(tagline)
-                                .font(.custom("ProductSans-Regular", size: 13))
-                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                        }
-                    }
-                    
-                    Spacer()
-                    
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text(plan.pricePerMonth)
-                            .font(.custom("ProductSans-Bold", size: 22))
-                            .foregroundColor(AppColors.text(themeManager.colorScheme))
-                        
-                        Text("per month")
-                            .font(.custom("ProductSans-Regular", size: 12))
-                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                    }
-                }
+                Spacer()
+                
+                // Price
+                Text(plan == .yearly ? plan.price : plan.pricePerMonth)
+                    .font(.custom("ProductSans-Bold", size: 20))
+                    .foregroundColor(AppColors.text(themeManager.colorScheme))
             }
             .padding(16)
             .background(
@@ -404,6 +385,7 @@ struct PlanCard: View {
                         RoundedRectangle(cornerRadius: 16)
                             .stroke(isSelected ? AppColors.primary : Color.clear, lineWidth: 2)
                     )
+                    .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
             )
         }
         .buttonStyle(PlainButtonStyle())
