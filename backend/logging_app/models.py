@@ -16,6 +16,7 @@ class FoodSupplementItem(models.Model):
     TYPE_CHOICES = [
         ('food', 'Food'),
         ('supplement', 'Supplement'),
+        ('medication', 'Medication'),
     ]
     
     FREQUENCY_CHOICES = [

@@ -22,7 +22,7 @@ struct MedicationSelectionView: View {
     @Environment(\.dismiss) private var dismiss
 
     // Navigation
-    @State private var navigateToMedicationOnboarding = false
+    @State private var navigateToSignUp = false
 
     // Animation states
     @State private var contentOpacity: Double = 0
@@ -30,6 +30,7 @@ struct MedicationSelectionView: View {
 
     // Star particles for background
     @State private var stars: [StarParticle] = []
+    @State private var starAnimationTimer: Timer?
 
     // Medications list with selection state
     @State private var medications: [SelectableMedication] = [
@@ -47,6 +48,10 @@ struct MedicationSelectionView: View {
 
     private var hasSelection: Bool {
         medications.contains(where: { $0.isSelected })
+    }
+
+    private var selectedMedicationNames: [String] {
+        medications.filter { $0.isSelected }.map { $0.name }
     }
 
     let screenWidth = UIScreen.main.bounds.width
@@ -132,12 +137,7 @@ struct MedicationSelectionView: View {
                     Button(action: {
                         let impact = UIImpactFeedbackGenerator(style: .light)
                         impact.impactOccurred()
-                        if !hasSelection {
-                            for index in medications.indices {
-                                medications[index].isSelected = false
-                            }
-                        }
-                        navigateToMedicationOnboarding = true
+                        navigateToSignUp = true
                     }) {
                         Text(hasSelection ? "Continue" : "None of these")
                             .font(.custom("ProductSans-Bold", size: 17))
@@ -168,7 +168,7 @@ struct MedicationSelectionView: View {
                 Button(action: {
                     let impact = UIImpactFeedbackGenerator(style: .light)
                     impact.impactOccurred()
-                    navigateToMedicationOnboarding = true
+                    navigateToSignUp = true
                 }) {
                     Text("Skip")
                         .font(.custom("ProductSans-Regular", size: 16))
@@ -176,14 +176,18 @@ struct MedicationSelectionView: View {
                 }
             }
         }
-        .navigationDestination(isPresented: $navigateToMedicationOnboarding) {
-            MedicationOnboardingView()
+        .navigationDestination(isPresented: $navigateToSignUp) {
+            SignUpOnboardingView(selectedMedications: selectedMedicationNames)
                 .environmentObject(appState)
                 .environmentObject(themeManager)
         }
         .onAppear {
             initializeStars()
             startAnimations()
+            startStarAnimation()
+        }
+        .onDisappear {
+            starAnimationTimer?.invalidate()
         }
     }
 
@@ -204,6 +208,22 @@ struct MedicationSelectionView: View {
         }
         withAnimation(.easeOut(duration: 0.5).delay(0.2)) {
             contentOpacity = 1
+        }
+    }
+
+    private func startStarAnimation() {
+        starAnimationTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { _ in
+            for i in stars.indices {
+                withAnimation(.linear(duration: 0.05)) {
+                    stars[i].y -= stars[i].opacity * 0.3
+                    stars[i].x += CGFloat.random(in: -0.2...0.2)
+
+                    if stars[i].y < 0 {
+                        stars[i].y = screenHeight
+                        stars[i].x = CGFloat.random(in: 0...screenWidth)
+                    }
+                }
+            }
         }
     }
 }
@@ -235,7 +255,7 @@ struct GradualBlurView: UIViewRepresentable {
         DispatchQueue.main.async {
             guard let blurView = uiView.subviews.first as? UIVisualEffectView else { return }
 
-            // Create gradient mask - clear at top, opaque at bottom
+            // Create gradient mask - clear at top, gradually becomes opaque
             let gradientLayer = CAGradientLayer()
             gradientLayer.frame = uiView.bounds
             gradientLayer.colors = [
@@ -243,7 +263,7 @@ struct GradualBlurView: UIViewRepresentable {
                 UIColor.black.withAlphaComponent(0.5).cgColor,
                 UIColor.black.cgColor
             ]
-            gradientLayer.locations = [0.0, 0.4, 1.0]
+            gradientLayer.locations = [0.0, 0.35, 0.7]
             gradientLayer.startPoint = CGPoint(x: 0.5, y: 0)
             gradientLayer.endPoint = CGPoint(x: 0.5, y: 1)
 

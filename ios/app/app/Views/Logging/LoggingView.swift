@@ -1014,22 +1014,6 @@ struct EmptyStateView: View {
                 .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                 .multilineTextAlignment(.center)
             
-            Button(action: onAddTapped) {
-                HStack {
-                    Image(systemName: "plus")
-                    Text("Add Your First Item")
-                }
-                .font(.custom("ProductSans-Bold", size: 16))
-                .foregroundColor(.white)
-                .padding(.horizontal, 24)
-                .padding(.vertical, 14)
-                .background(
-                    Capsule()
-                        .fill(AppColors.primary)
-                )
-            }
-            .padding(.top, 8)
-            
             Spacer()
         }
         .padding(40)

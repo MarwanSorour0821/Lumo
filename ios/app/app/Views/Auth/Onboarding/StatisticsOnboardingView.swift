@@ -25,13 +25,15 @@ struct StatisticsOnboardingView: View {
     @State private var navigateToMedicationSelection = false
 
     // Animation states
+    @State private var contentBlur: CGFloat = 20
     @State private var contentOpacity: Double = 0
-    @State private var contentOffset: CGFloat = 20
+    @State private var buttonBlur: CGFloat = 20
     @State private var buttonOpacity: Double = 0
     @State private var starsOpacity: Double = 0
 
     // Star particles for background
     @State private var stars: [StarParticle] = []
+    @State private var starAnimationTimer: Timer?
 
     let screenWidth = UIScreen.main.bounds.width
     let screenHeight = UIScreen.main.bounds.height
@@ -83,8 +85,8 @@ struct StatisticsOnboardingView: View {
                         .lineSpacing(6)
                 }
                 .padding(.horizontal, 28)
+                .blur(radius: contentBlur)
                 .opacity(contentOpacity)
-                .offset(y: contentOffset)
 
                 // Icon/mascot - pill icon
                 Image(systemName: "pills.fill")
@@ -97,8 +99,8 @@ struct StatisticsOnboardingView: View {
                         )
                     )
                     .padding(.top, 48)
+                    .blur(radius: contentBlur)
                     .opacity(contentOpacity)
-                    .offset(y: contentOffset)
 
                 Spacer()
                 Spacer()
@@ -107,6 +109,7 @@ struct StatisticsOnboardingView: View {
                 Text("Source: National Institutes of Health (NIH)")
                     .font(.custom("ProductSans-Regular", size: 13))
                     .foregroundColor(Color.white.opacity(0.5))
+                    .blur(radius: buttonBlur)
                     .opacity(buttonOpacity)
                     .padding(.bottom, 24)
 
@@ -127,6 +130,7 @@ struct StatisticsOnboardingView: View {
                         )
                         .shadow(color: AppColors.primary.opacity(0.4), radius: 16, x: 0, y: 8)
                 }
+                .blur(radius: buttonBlur)
                 .opacity(buttonOpacity)
                 .padding(.horizontal, 24)
                 .padding(.bottom, 48)
@@ -141,6 +145,10 @@ struct StatisticsOnboardingView: View {
         .onAppear {
             initializeStars()
             startAnimations()
+            startStarAnimation()
+        }
+        .onDisappear {
+            starAnimationTimer?.invalidate()
         }
     }
 
@@ -161,15 +169,32 @@ struct StatisticsOnboardingView: View {
             starsOpacity = 1
         }
 
-        // Main content animates in
-        withAnimation(.easeOut(duration: 0.6).delay(0.3)) {
+        // Main content blurs in
+        withAnimation(.easeOut(duration: 0.8).delay(0.3)) {
+            contentBlur = 0
             contentOpacity = 1
-            contentOffset = 0
         }
 
-        // Button fades in last
-        withAnimation(.easeOut(duration: 0.5).delay(0.6)) {
+        // Button blurs in
+        withAnimation(.easeOut(duration: 0.8).delay(0.6)) {
+            buttonBlur = 0
             buttonOpacity = 1
+        }
+    }
+
+    private func startStarAnimation() {
+        starAnimationTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { _ in
+            for i in stars.indices {
+                withAnimation(.linear(duration: 0.05)) {
+                    stars[i].y -= stars[i].opacity * 0.3
+                    stars[i].x += CGFloat.random(in: -0.2...0.2)
+
+                    if stars[i].y < 0 {
+                        stars[i].y = screenHeight
+                        stars[i].x = CGFloat.random(in: 0...screenWidth)
+                    }
+                }
+            }
         }
     }
 }
