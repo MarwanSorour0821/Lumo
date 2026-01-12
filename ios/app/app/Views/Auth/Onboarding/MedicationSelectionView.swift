@@ -208,6 +208,50 @@ struct MedicationSelectionView: View {
     }
 }
 
+// MARK: - Gradual Blur View
+struct GradualBlurView: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIView {
+        let containerView = UIView()
+        containerView.backgroundColor = .clear
+        containerView.clipsToBounds = true
+
+        // Create blur effect view
+        let blurEffect = UIBlurEffect(style: .dark)
+        let blurView = UIVisualEffectView(effect: blurEffect)
+        blurView.translatesAutoresizingMaskIntoConstraints = false
+        containerView.addSubview(blurView)
+
+        NSLayoutConstraint.activate([
+            blurView.topAnchor.constraint(equalTo: containerView.topAnchor),
+            blurView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
+            blurView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
+            blurView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor)
+        ])
+
+        return containerView
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        DispatchQueue.main.async {
+            guard let blurView = uiView.subviews.first as? UIVisualEffectView else { return }
+
+            // Create gradient mask - clear at top, opaque at bottom
+            let gradientLayer = CAGradientLayer()
+            gradientLayer.frame = uiView.bounds
+            gradientLayer.colors = [
+                UIColor.clear.cgColor,
+                UIColor.black.withAlphaComponent(0.5).cgColor,
+                UIColor.black.cgColor
+            ]
+            gradientLayer.locations = [0.0, 0.4, 1.0]
+            gradientLayer.startPoint = CGPoint(x: 0.5, y: 0)
+            gradientLayer.endPoint = CGPoint(x: 0.5, y: 1)
+
+            blurView.layer.mask = gradientLayer
+        }
+    }
+}
+
 // MARK: - Medication Row
 struct MedicationRow: View {
     @Binding var medication: SelectableMedication
