@@ -90,34 +90,38 @@ class FoodSupplementItemSerializer(serializers.ModelSerializer):
         if not obj.reminder_times or len(obj.reminder_times) <= 1:
             return []
 
-        today = timezone.now().date()
-        # Get existing statuses for today
-        existing_statuses = {
-            ds.time_index: ds
-            for ds in obj.dose_statuses.filter(date=today)
-        }
+        try:
+            today = timezone.now().date()
+            # Get existing statuses for today
+            existing_statuses = {
+                ds.time_index: ds
+                for ds in obj.dose_statuses.filter(date=today)
+            }
 
-        # Build response with all dose times
-        result = []
-        for i, time_str in enumerate(obj.reminder_times):
-            if i in existing_statuses:
-                status = existing_statuses[i]
-                result.append({
-                    'id': str(status.id),
-                    'time_index': i,
-                    'time': time_str,
-                    'is_taken': status.is_taken,
-                    'taken_at': status.taken_at.isoformat() if status.taken_at else None
-                })
-            else:
-                result.append({
-                    'id': None,
-                    'time_index': i,
-                    'time': time_str,
-                    'is_taken': False,
-                    'taken_at': None
-                })
-        return result
+            # Build response with all dose times
+            result = []
+            for i, time_str in enumerate(obj.reminder_times):
+                if i in existing_statuses:
+                    status = existing_statuses[i]
+                    result.append({
+                        'id': str(status.id),
+                        'time_index': i,
+                        'time': time_str,
+                        'is_taken': status.is_taken,
+                        'taken_at': status.taken_at.isoformat() if status.taken_at else None
+                    })
+                else:
+                    result.append({
+                        'id': None,
+                        'time_index': i,
+                        'time': time_str,
+                        'is_taken': False,
+                        'taken_at': None
+                    })
+            return result
+        except Exception:
+            # If dose_statuses table doesn't exist yet (migration pending), return empty list
+            return []
 
     def get_all_doses_taken_today(self, obj):
         """Check if all doses have been taken today (for multi-dose items)"""
@@ -125,9 +129,13 @@ class FoodSupplementItemSerializer(serializers.ModelSerializer):
             # For single-dose items, use the legacy is_taken_today
             return self.get_is_taken_today(obj)
 
-        today = timezone.now().date()
-        taken_count = obj.dose_statuses.filter(date=today, is_taken=True).count()
-        return taken_count >= len(obj.reminder_times)
+        try:
+            today = timezone.now().date()
+            taken_count = obj.dose_statuses.filter(date=today, is_taken=True).count()
+            return taken_count >= len(obj.reminder_times)
+        except Exception:
+            # If dose_statuses table doesn't exist yet (migration pending), return False
+            return False
 
 
 class FoodSupplementItemCreateSerializer(serializers.ModelSerializer):
