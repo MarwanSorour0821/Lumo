@@ -56,9 +56,9 @@ class CreateCheckoutSessionView(APIView):
             # Fallback to hardcoded price IDs if not provided in request
             if not price_id:
                 if plan == 'yearly':
-                    price_id = 'price_1SgONxDKsvXDTf6SvmWkZCyf'
+                    price_id = 'price_1SoUAeEACKuyUvsylzSPlvyT'
                 else:  # monthly
-                    price_id = 'price_1Sg6h4DKsvXDTf6S5byoU4eH'
+                    price_id = 'price_1SoU8jEACKuyUvsydbx0Wn9D'
             
             if not price_id:
                 return Response(

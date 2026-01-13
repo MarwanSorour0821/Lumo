@@ -89,8 +89,8 @@ enum SubscriptionPlan: String, CaseIterable, Identifiable {
     /// Stripe Price ID for this plan
     var stripePriceId: String {
         switch self {
-        case .monthly: return "price_1Sg6h4DKsvXDTf6S5byoU4eH"
-        case .yearly: return "price_1SgONxDKsvXDTf6SvmWkZCyf"
+        case .monthly: return "price_1SoU8jEACKuyUvsydbx0Wn9D"
+        case .yearly: return "price_1SoUAeEACKuyUvsylzSPlvyT"
         }
     }
 }
