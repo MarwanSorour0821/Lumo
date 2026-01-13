@@ -10,6 +10,7 @@ urlpatterns = [
     path('items/<uuid:item_id>/reminder/', views.update_reminder, name='update_reminder'),
     path('items/<uuid:item_id>/archive/', views.archive_item, name='archive_item'),
     path('items/<uuid:item_id>/toggle-taken/', views.toggle_taken, name='toggle_taken'),
+    path('items/<uuid:item_id>/toggle-dose/<int:time_index>/', views.toggle_dose, name='toggle_dose'),
 
     # Logs endpoints
     path('logs/', views.logs_list, name='logs_list'),

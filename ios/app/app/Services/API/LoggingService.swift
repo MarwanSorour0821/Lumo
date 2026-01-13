@@ -438,7 +438,7 @@ class LoggingService {
     
     // MARK: - Taken Status
 
-    /// Toggle the taken status of an item
+    /// Toggle the taken status of an item (for single-dose items)
     func toggleTaken(itemId: String) async throws -> ToggleTakenResponse {
         guard let apiURLString = SupabaseManager.shared.getAPIURL(),
               let url = URL(string: "\(apiURLString)/api/logging/items/\(itemId)/toggle-taken/") else {
@@ -460,6 +460,33 @@ class LoggingService {
 
         let decoder = JSONDecoder()
         return try decoder.decode(ToggleTakenResponse.self, from: data)
+    }
+
+    /// Toggle the taken status of an individual dose (for multi-dose items)
+    /// - Parameters:
+    ///   - itemId: The ID of the item
+    ///   - timeIndex: The index of the dose time (0, 1, 2, etc.) corresponding to reminder_times array
+    func toggleDose(itemId: String, timeIndex: Int) async throws -> ToggleDoseResponse {
+        guard let apiURLString = SupabaseManager.shared.getAPIURL(),
+              let url = URL(string: "\(apiURLString)/api/logging/items/\(itemId)/toggle-dose/\(timeIndex)/") else {
+            throw NSError(domain: "LoggingService", code: 1, userInfo: [NSLocalizedDescriptionKey: "API URL not configured"])
+        }
+
+        let accessToken = try await AuthService.shared.getAccessToken()
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw NSError(domain: "LoggingService", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to toggle dose status"])
+        }
+
+        let decoder = JSONDecoder()
+        return try decoder.decode(ToggleDoseResponse.self, from: data)
     }
 
     // MARK: - Reminders

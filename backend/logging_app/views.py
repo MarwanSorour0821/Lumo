@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from django.conf import settings
 from django.utils import timezone
 
-from .models import FoodSupplementItem, FoodSupplementLog, FoodSupplementBiomarkerImpact
+from .models import FoodSupplementItem, FoodSupplementLog, FoodSupplementBiomarkerImpact, DoseTakenStatus
 from .serializers import (
     FoodSupplementItemSerializer,
     FoodSupplementItemCreateSerializer,
@@ -492,4 +492,99 @@ def toggle_taken(request, item_id):
         'item': FoodSupplementItemSerializer(item).data,
         'message': message,
         'is_taken_today': not is_taken_today
+    })
+
+
+@api_view(['PUT'])
+def toggle_dose(request, item_id, time_index):
+    """
+    Toggle the taken status of a specific dose for a multi-dose item.
+    This is used for items with multiple reminder times per day.
+
+    Parameters:
+    - item_id: UUID of the item
+    - time_index: Index of the dose time (0, 1, 2, etc.) corresponding to reminder_times array
+    """
+    user_id = get_user_id_from_token(request)
+    if not user_id:
+        return Response({'error': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    try:
+        item = FoodSupplementItem.objects.get(id=item_id, user_id=user_id)
+    except FoodSupplementItem.DoesNotExist:
+        return Response({'error': 'Item not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    # Validate time_index
+    if not item.reminder_times or time_index >= len(item.reminder_times):
+        return Response(
+            {'error': f'Invalid time_index. Item has {len(item.reminder_times) if item.reminder_times else 0} reminder times.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    today = timezone.now().date()
+    now = timezone.now()
+
+    # Get or create the dose status for today
+    dose_status, created = DoseTakenStatus.objects.get_or_create(
+        item=item,
+        user_id=user_id,
+        date=today,
+        time_index=time_index,
+        defaults={'is_taken': False}
+    )
+
+    # Toggle the status
+    dose_status.is_taken = not dose_status.is_taken
+    if dose_status.is_taken:
+        dose_status.taken_at = now
+        message = f"{item.name} dose {time_index + 1} marked as taken"
+
+        # Create a log entry for this dose
+        FoodSupplementLog.objects.create(
+            user_id=user_id,
+            item=item,
+            logged_at=now,
+            notes=f"Dose {time_index + 1} ({item.reminder_times[time_index]})"
+        )
+    else:
+        dose_status.taken_at = None
+        message = f"{item.name} dose {time_index + 1} unmarked"
+
+        # Delete today's log entry for this specific dose
+        FoodSupplementLog.objects.filter(
+            user_id=user_id,
+            item=item,
+            logged_at__date=today,
+            notes__contains=f"Dose {time_index + 1}"
+        ).delete()
+
+    dose_status.save()
+
+    # Check if all doses are now taken
+    all_taken = DoseTakenStatus.objects.filter(
+        item=item,
+        date=today,
+        is_taken=True
+    ).count() >= len(item.reminder_times)
+
+    # Update the item's last_taken_at if all doses are taken
+    if all_taken:
+        item.last_taken_at = now
+        item.save()
+    elif not dose_status.is_taken and item.last_taken_at and item.last_taken_at.date() == today:
+        # If un-marking a dose and item was marked as all taken, clear last_taken_at
+        item.last_taken_at = None
+        item.save()
+
+    return Response({
+        'item': FoodSupplementItemSerializer(item).data,
+        'dose_status': {
+            'id': str(dose_status.id),
+            'time_index': dose_status.time_index,
+            'time': item.reminder_times[time_index],
+            'is_taken': dose_status.is_taken,
+            'taken_at': dose_status.taken_at.isoformat() if dose_status.taken_at else None
+        },
+        'message': message,
+        'all_doses_taken_today': all_taken
     })

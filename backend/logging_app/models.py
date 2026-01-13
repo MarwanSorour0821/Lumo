@@ -86,6 +86,30 @@ class FoodSupplementLog(models.Model):
         return f"Log for {self.item.name} at {self.logged_at}"
 
 
+class DoseTakenStatus(models.Model):
+    """
+    Model representing the taken status of an individual dose for a specific date.
+    This allows tracking multiple daily doses separately (e.g., morning, afternoon, evening).
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    item = models.ForeignKey(FoodSupplementItem, on_delete=models.CASCADE, related_name='dose_statuses')
+    user_id = models.UUIDField(db_index=True)
+    date = models.DateField(db_index=True)  # The date this dose status is for
+    time_index = models.IntegerField()  # Index into the item's reminder_times array (0, 1, 2, etc.)
+    taken_at = models.DateTimeField(blank=True, null=True)  # When the dose was marked as taken
+    is_taken = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'dose_taken_status'
+        ordering = ['time_index']
+        unique_together = ['item', 'date', 'time_index']  # One record per dose per day
+
+    def __str__(self):
+        return f"{self.item.name} - dose {self.time_index} on {self.date}: {'taken' if self.is_taken else 'not taken'}"
+
+
 class FoodSupplementBiomarkerImpact(models.Model):
     """
     Model representing the impact of a food/supplement on biomarkers.

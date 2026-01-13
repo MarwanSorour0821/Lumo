@@ -88,6 +88,54 @@ struct BiomarkerImpact: Codable, Identifiable {
     }
 }
 
+// MARK: - Dose Status Model (for multi-dose medications)
+struct DoseStatus: Codable, Identifiable {
+    let id: String?
+    let timeIndex: Int
+    let time: String?
+    let isTaken: Bool
+    let takenAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case timeIndex = "time_index"
+        case time
+        case isTaken = "is_taken"
+        case takenAt = "taken_at"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(String.self, forKey: .id)
+        timeIndex = try container.decode(Int.self, forKey: .timeIndex)
+        time = try container.decodeIfPresent(String.self, forKey: .time)
+        isTaken = try container.decodeIfPresent(Bool.self, forKey: .isTaken) ?? false
+        takenAt = try container.decodeIfPresent(String.self, forKey: .takenAt)
+    }
+
+    // Manual init
+    init(id: String?, timeIndex: Int, time: String?, isTaken: Bool, takenAt: String? = nil) {
+        self.id = id
+        self.timeIndex = timeIndex
+        self.time = time
+        self.isTaken = isTaken
+        self.takenAt = takenAt
+    }
+
+    var formattedTime: String {
+        guard let time = time else { return "" }
+        let inputFormatter = DateFormatter()
+        inputFormatter.dateFormat = "HH:mm:ss"
+
+        if let date = inputFormatter.date(from: time) {
+            let outputFormatter = DateFormatter()
+            outputFormatter.dateFormat = "h:mm a"
+            return outputFormatter.string(from: date)
+        }
+        return time
+    }
+}
+
 // MARK: - Log Entry Model
 struct LogEntry: Codable, Identifiable {
     let id: String
@@ -148,6 +196,10 @@ struct FoodSupplementItem: Codable, Identifiable {
     let biomarkerImpacts: [BiomarkerImpact]?
     let recentLogs: [LogEntry]?
     let logCount: Int?
+    // Multi-dose fields
+    let doseStatusesToday: [DoseStatus]?
+    let hasMultipleDoses: Bool
+    let allDosesTakenToday: Bool
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -170,6 +222,9 @@ struct FoodSupplementItem: Codable, Identifiable {
         case biomarkerImpacts = "biomarker_impacts"
         case recentLogs = "recent_logs"
         case logCount = "log_count"
+        case doseStatusesToday = "dose_statuses_today"
+        case hasMultipleDoses = "has_multiple_doses"
+        case allDosesTakenToday = "all_doses_taken_today"
     }
 
     init(from decoder: Decoder) throws {
@@ -194,10 +249,13 @@ struct FoodSupplementItem: Codable, Identifiable {
         biomarkerImpacts = try container.decodeIfPresent([BiomarkerImpact].self, forKey: .biomarkerImpacts)
         recentLogs = try container.decodeIfPresent([LogEntry].self, forKey: .recentLogs)
         logCount = try container.decodeIfPresent(Int.self, forKey: .logCount)
+        doseStatusesToday = try container.decodeIfPresent([DoseStatus].self, forKey: .doseStatusesToday)
+        hasMultipleDoses = try container.decodeIfPresent(Bool.self, forKey: .hasMultipleDoses) ?? false
+        allDosesTakenToday = try container.decodeIfPresent(Bool.self, forKey: .allDosesTakenToday) ?? false
     }
 
     // Manual init for creating items locally
-    init(id: String, name: String, type: LogItemType, description: String? = nil, frequency: LogFrequency = .daily, timesPerWeek: Int = 7, reminderEnabled: Bool = false, reminderTimes: [String] = [], reminderDays: [Int] = [0,1,2,3,4,5,6], startDate: String? = nil, endDate: String? = nil, lastTakenAt: String? = nil, isTakenToday: Bool = false, isArchived: Bool = false, biomarkerImpacts: [BiomarkerImpact]? = nil, recentLogs: [LogEntry]? = nil, logCount: Int? = nil) {
+    init(id: String, name: String, type: LogItemType, description: String? = nil, frequency: LogFrequency = .daily, timesPerWeek: Int = 7, reminderEnabled: Bool = false, reminderTimes: [String] = [], reminderDays: [Int] = [0,1,2,3,4,5,6], startDate: String? = nil, endDate: String? = nil, lastTakenAt: String? = nil, isTakenToday: Bool = false, isArchived: Bool = false, biomarkerImpacts: [BiomarkerImpact]? = nil, recentLogs: [LogEntry]? = nil, logCount: Int? = nil, doseStatusesToday: [DoseStatus]? = nil, hasMultipleDoses: Bool = false, allDosesTakenToday: Bool = false) {
         self.id = id
         self.userId = nil
         self.name = name
@@ -218,6 +276,9 @@ struct FoodSupplementItem: Codable, Identifiable {
         self.biomarkerImpacts = biomarkerImpacts
         self.recentLogs = recentLogs
         self.logCount = logCount
+        self.doseStatusesToday = doseStatusesToday
+        self.hasMultipleDoses = hasMultipleDoses
+        self.allDosesTakenToday = allDosesTakenToday
     }
 }
 
@@ -257,5 +318,20 @@ struct ToggleTakenResponse: Codable {
         case item
         case message
         case isTakenToday = "is_taken_today"
+    }
+}
+
+// MARK: - Toggle Dose Response (for multi-dose medications)
+struct ToggleDoseResponse: Codable {
+    let item: FoodSupplementItem
+    let doseStatus: DoseStatus
+    let message: String
+    let allDosesTakenToday: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case item
+        case doseStatus = "dose_status"
+        case message
+        case allDosesTakenToday = "all_doses_taken_today"
     }
 }

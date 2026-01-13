@@ -251,6 +251,29 @@ class LoggingViewModel: ObservableObject {
             self.error = error.localizedDescription
         }
     }
+
+    /// Toggle the taken status of an individual dose for multi-dose items
+    func toggleDose(_ item: FoodSupplementItem, timeIndex: Int) async {
+        do {
+            let response = try await LoggingService.shared.toggleDose(itemId: item.id, timeIndex: timeIndex)
+
+            // Update local item
+            if let index = items.firstIndex(where: { $0.id == item.id }) {
+                items[index] = response.item
+            }
+
+            // If all doses are now taken, cancel any pending follow-up notifications
+            if response.allDosesTakenToday {
+                await NotificationManager.shared.cancelFollowUpNotifications(for: item.id)
+            }
+
+            // Haptic feedback only (no toast notification)
+            let generator = UINotificationFeedbackGenerator()
+            generator.notificationOccurred(.success)
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
     
     // MARK: - Logging Actions
     
