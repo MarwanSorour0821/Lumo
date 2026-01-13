@@ -738,6 +738,12 @@ struct TodayTabView: View {
                                             Task {
                                                 await loggingViewModel.deleteItem(item)
                                             }
+                                        },
+                                        onToggleDose: { timeIndex in
+                                            Task {
+                                                await loggingViewModel.toggleDose(item, timeIndex: timeIndex)
+                                                await loggingViewModel.loadWeekLogs()
+                                            }
                                         }
                                     )
                                     .padding(.horizontal, 20)
@@ -1088,7 +1094,7 @@ struct HistoryDatePickerSheet: View {
     }
 }
 
-// MARK: - Today Medication Card (Pill-shaped UI with checkmark on left)
+// MARK: - Today Medication Card (Pill-shaped UI with checkmark on left, expandable for multi-dose)
 struct TodayMedicationCard: View {
     @EnvironmentObject var themeManager: ThemeManager
     let item: FoodSupplementItem
@@ -1096,120 +1102,205 @@ struct TodayMedicationCard: View {
     let onReminder: () -> Void
     let onEdit: () -> Void
     let onDelete: () -> Void
+    var onToggleDose: ((Int) -> Void)? = nil
+
+    @State private var isExpanded = false
 
     var body: some View {
-        HStack(spacing: 12) {
-            // Checkmark button on the left with glass effect
-            if #available(iOS 26.0, *) {
-                Button {
-                    onToggleTaken()
-                } label: {
+        VStack(spacing: 0) {
+            // Main card row
+            HStack(spacing: 12) {
+                // Left side: Checkmark or expand icon for multi-dose
+                if item.hasMultipleDoses {
+                    // Multi-dose: show expand/collapse arrow
+                    if #available(iOS 26.0, *) {
+                        Button {
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.75, blendDuration: 0)) {
+                                isExpanded.toggle()
+                            }
+                        } label: {
+                            ZStack {
+                                Circle()
+                                    .fill(item.allDosesTakenToday ? Color.green : Color.clear)
+                                // Border for incomplete state
+                                if !item.allDosesTakenToday {
+                                    Circle()
+                                        .stroke(AppColors.textSecondary(themeManager.colorScheme).opacity(0.25), lineWidth: 2)
+                                }
+                                // Icon
+                                Image(systemName: isExpanded ? "chevron.up" : "arrow.turn.down.right")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(item.allDosesTakenToday ? .white : (themeManager.colorScheme == .dark ? .white : .black))
+                                    .opacity(item.allDosesTakenToday ? 1 : 0.85)
+                            }
+                            .frame(width: 44, height: 44)
+                        }
+                        .buttonStyle(.plain)
+                        .glassEffect(.regular.interactive())
+                        .clipShape(Circle())
+                    } else {
+                        multiDoseButtonFallback
+                    }
+                } else {
+                    // Single dose: show checkmark button
+                    if #available(iOS 26.0, *) {
+                        Button {
+                            onToggleTaken()
+                        } label: {
+                            ZStack {
+                                Circle()
+                                    .fill(item.isTakenToday ? Color.green : Color.clear)
+                                // Border for unselected state
+                                if !item.isTakenToday {
+                                    Circle()
+                                        .stroke(AppColors.textSecondary(themeManager.colorScheme).opacity(0.25), lineWidth: 2)
+                                }
+                                // Checkmark
+                                if item.isTakenToday {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(.white)
+                                } else {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(themeManager.colorScheme == .dark ? .white : .black)
+                                        .opacity(0.85)
+                                }
+                            }
+                            .frame(width: 44, height: 44)
+                        }
+                        .buttonStyle(.plain)
+                        .glassEffect(.regular.interactive())
+                        .clipShape(Circle())
+                    } else {
+                        checkmarkButtonFallback
+                    }
+                }
+
+                // Pill-shaped content
+                HStack(spacing: 12) {
+                    // Icon
                     ZStack {
                         Circle()
-                            .fill(item.isTakenToday ? Color.green : Color.clear)
-                        // Border for unselected state
-                        if !item.isTakenToday {
-                            Circle()
-                                .stroke(AppColors.textSecondary(themeManager.colorScheme).opacity(0.25), lineWidth: 2)
-                        }
-                        // Checkmark
-                        if item.isTakenToday {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.white)
-                        } else {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(themeManager.colorScheme == .dark ? .white : .black)
-                                .opacity(0.85)
-                        }
+                            .fill(item.type == .supplement ? Color.purple.opacity(0.15) : Color.blue.opacity(0.15))
+                            .frame(width: 36, height: 36)
+
+                        Image(systemName: item.type.icon)
+                            .font(.system(size: 14))
+                            .foregroundColor(item.type == .supplement ? .purple : .blue)
                     }
-                    .frame(width: 44, height: 44)
-                }
-                .buttonStyle(.plain)
-                .glassEffect(.regular.interactive())
-                .clipShape(Circle())
-            } else {
-                // Fallback for older iOS
-                checkmarkButtonFallback
-            }
 
-            // Pill-shaped content
-            HStack(spacing: 12) {
-                // Icon
-                ZStack {
-                    Circle()
-                        .fill(item.type == .supplement ? Color.purple.opacity(0.15) : Color.blue.opacity(0.15))
-                        .frame(width: 36, height: 36)
+                    // Name and Metadata
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(item.name)
+                            .font(.custom("ProductSans-Bold", size: 15))
+                            .foregroundColor(AppColors.text(themeManager.colorScheme))
 
-                    Image(systemName: item.type.icon)
-                        .font(.system(size: 14))
-                        .foregroundColor(item.type == .supplement ? .purple : .blue)
-                }
-
-                // Name and Metadata
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(item.name)
-                        .font(.custom("ProductSans-Bold", size: 15))
-                        .foregroundColor(AppColors.text(themeManager.colorScheme))
-
-                    if !item.reminderTimes.isEmpty {
-                        Text(formatReminderTimes(item.reminderTimes))
-                            .font(.custom("ProductSans-Regular", size: 11))
-                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                    }
-                }
-
-                Spacer()
-
-                // Action buttons in glass container
-                if #available(iOS 26.0, *) {
-                    HStack(spacing: 16) {
-                        Button {
-                            onReminder()
-                        } label: {
-                            Image(systemName: item.reminderEnabled ? "alarm.waves.left.and.right.fill" : "alarm.waves.left.and.right")
-                                .font(.system(size: 20))
-                                .foregroundColor(item.reminderEnabled ? AppColors.primary : AppColors.textSecondary(themeManager.colorScheme))
-                        }
-                        .buttonStyle(.plain)
-
-                        Menu {
-                            Button {
-                                onEdit()
-                            } label: {
-                                Label("Edit", systemImage: "scribble.variable")
-                            }
-
-                            Button(role: .destructive) {
-                                onDelete()
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
-                        } label: {
-                            Image(systemName: "ellipsis")
-                                .font(.system(size: 20))
+                        if item.hasMultipleDoses {
+                            // Show dose progress for multi-dose items
+                            let takenCount = item.doseStatusesToday?.filter { $0.isTaken }.count ?? 0
+                            let totalCount = item.reminderTimes.count
+                            Text("\(takenCount)/\(totalCount) doses taken")
+                                .font(.custom("ProductSans-Regular", size: 11))
+                                .foregroundColor(takenCount == totalCount ? AppColors.primary : AppColors.textSecondary(themeManager.colorScheme))
+                        } else if !item.reminderTimes.isEmpty {
+                            Text(formatReminderTimes(item.reminderTimes))
+                                .font(.custom("ProductSans-Regular", size: 11))
                                 .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                         }
-                        .buttonStyle(.plain)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .glassEffect(.regular.interactive())
-                } else {
-                    actionButtonsWithoutGlass
+
+                    Spacer()
+
+                    // Action buttons in glass container
+                    if #available(iOS 26.0, *) {
+                        HStack(spacing: 16) {
+                            Button {
+                                onReminder()
+                            } label: {
+                                Image(systemName: item.reminderEnabled ? "alarm.waves.left.and.right.fill" : "alarm.waves.left.and.right")
+                                    .font(.system(size: 20))
+                                    .foregroundColor(item.reminderEnabled ? AppColors.primary : AppColors.textSecondary(themeManager.colorScheme))
+                            }
+                            .buttonStyle(.plain)
+
+                            Menu {
+                                Button {
+                                    onEdit()
+                                } label: {
+                                    Label("Edit", systemImage: "scribble.variable")
+                                }
+
+                                Button(role: .destructive) {
+                                    onDelete()
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            } label: {
+                                Image(systemName: "ellipsis")
+                                    .font(.system(size: 20))
+                                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .glassEffect(.regular.interactive())
+                    } else {
+                        actionButtonsWithoutGlass
+                    }
                 }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(
+                    Capsule()
+                        .fill(AppColors.surface(themeManager.colorScheme))
+                        .shadow(color: Color.black.opacity(0.05), radius: 6, x: 0, y: 2)
+                )
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(
-                Capsule()
-                    .fill(AppColors.surface(themeManager.colorScheme))
-                    .shadow(color: Color.black.opacity(0.05), radius: 6, x: 0, y: 2)
-            )
+
+            // Expandable dose list for multi-dose items
+            if item.hasMultipleDoses && isExpanded {
+                TodayDoseListView(
+                    item: item,
+                    onToggleDose: { timeIndex in
+                        onToggleDose?(timeIndex)
+                    }
+                )
+                .padding(.top, 8)
+                .padding(.leading, 56) // Align with the pill content
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .scale(scale: 0.95, anchor: .top)).combined(with: .move(edge: .top)),
+                    removal: .opacity.combined(with: .scale(scale: 0.95, anchor: .top))
+                ))
+            }
         }
     }
 
+    // Multi-dose button fallback for older iOS
+    private var multiDoseButtonFallback: some View {
+        Button {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.75, blendDuration: 0)) {
+                isExpanded.toggle()
+            }
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(item.allDosesTakenToday ? Color.green : Color.clear)
+                    .frame(width: 44, height: 44)
+                    .overlay(
+                        Circle()
+                            .stroke(item.allDosesTakenToday ? Color.green : AppColors.textSecondary(themeManager.colorScheme).opacity(0.3), lineWidth: 2)
+                    )
+
+                Image(systemName: isExpanded ? "chevron.up" : "arrow.turn.down.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(item.allDosesTakenToday ? .white : (themeManager.colorScheme == .dark ? .white : .black))
+                    .opacity(item.allDosesTakenToday ? 1 : 0.7)
+            }
+        }
+        .buttonStyle(.plain)
+    }
 
     // Checkmark button fallback for older iOS
     private var checkmarkButtonFallback: some View {
@@ -1299,6 +1390,83 @@ struct TodayMedicationCard: View {
         } else {
             return "\(formattedTimes.count) times daily"
         }
+    }
+}
+
+// MARK: - Today Dose List View (for multi-dose medications in Today tab)
+struct TodayDoseListView: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    let item: FoodSupplementItem
+    let onToggleDose: (Int) -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(item.doseStatusesToday ?? [], id: \.timeIndex) { doseStatus in
+                // Make the entire row tappable for better responsiveness
+                Button {
+                    let generator = UIImpactFeedbackGenerator(style: .light)
+                    generator.impactOccurred()
+                    onToggleDose(doseStatus.timeIndex)
+                } label: {
+                    HStack(spacing: 12) {
+                        // Checkmark indicator
+                        ZStack {
+                            Circle()
+                                .fill(doseStatus.isTaken ? Color.green : Color.clear)
+                                .frame(width: 32, height: 32)
+                                .overlay(
+                                    Circle()
+                                        .stroke(doseStatus.isTaken ? Color.green : AppColors.textSecondary(themeManager.colorScheme).opacity(0.3), lineWidth: 1.5)
+                                )
+
+                            if doseStatus.isTaken {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(.white)
+                            }
+                        }
+
+                        // Time label
+                        Text(doseStatus.formattedTime)
+                            .font(.custom("ProductSans-Medium", size: 14))
+                            .foregroundColor(doseStatus.isTaken ? AppColors.primary : AppColors.text(themeManager.colorScheme))
+
+                        Spacer()
+
+                        // Status indicator
+                        if doseStatus.isTaken {
+                            Text("Taken")
+                                .font(.custom("ProductSans-Regular", size: 12))
+                                .foregroundColor(AppColors.primary)
+                        }
+                    }
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 14)
+                    .contentShape(Rectangle()) // Ensure entire row is tappable
+                }
+                .buttonStyle(DoseRowButtonStyle())
+
+                // Divider between doses (except last)
+                if doseStatus.timeIndex < (item.doseStatusesToday?.count ?? 1) - 1 {
+                    Divider()
+                        .padding(.leading, 58)
+                }
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(AppColors.surface(themeManager.colorScheme))
+                .shadow(color: Color.black.opacity(0.03), radius: 4, x: 0, y: 2)
+        )
+    }
+}
+
+// Custom button style for dose rows that provides visual feedback
+struct DoseRowButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(configuration.isPressed ? Color.gray.opacity(0.1) : Color.clear)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
 }
 

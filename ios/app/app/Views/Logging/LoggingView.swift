@@ -83,11 +83,6 @@ struct LoggingTabView: View {
                                             Task {
                                                 await viewModel.deleteItem(item)
                                             }
-                                        },
-                                        onToggleDose: { timeIndex in
-                                            Task {
-                                                await viewModel.toggleDose(item, timeIndex: timeIndex)
-                                            }
                                         }
                                     )
                                     .padding(.horizontal, 20)
@@ -667,7 +662,6 @@ struct ItemsListSection: View {
     let onImpactTapped: (FoodSupplementItem) -> Void
     let onReminderTapped: (FoodSupplementItem) -> Void
     let onEditTapped: (FoodSupplementItem) -> Void
-    var onToggleDoseTapped: ((FoodSupplementItem, Int) -> Void)? = nil
 
     var body: some View {
         ScrollView {
@@ -701,9 +695,6 @@ struct ItemsListSection: View {
                             Task {
                                 await viewModel.deleteItem(item)
                             }
-                        },
-                        onToggleDose: { timeIndex in
-                            onToggleDoseTapped?(item, timeIndex)
                         }
                     )
                     .padding(.horizontal, 20)
@@ -745,250 +736,129 @@ struct ItemCard: View {
     let onReminder: () -> Void
     let onEdit: () -> Void
     let onDelete: () -> Void
-    var onToggleDose: ((Int) -> Void)? = nil
 
     @State private var showDeleteConfirmation = false
-    @State private var isExpanded = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Main card row
-            HStack(spacing: 12) {
-                // Left side: Checkmark or expand icon for multi-dose
-                if item.hasMultipleDoses {
-                    // Multi-dose: show expand/collapse arrow
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.25)) {
-                            isExpanded.toggle()
-                        }
-                    } label: {
-                        ZStack {
-                            Circle()
-                                .fill(item.allDosesTakenToday ? AppColors.primary.opacity(0.15) : Color.gray.opacity(0.1))
-                                .frame(width: 32, height: 32)
+        HStack(spacing: 12) {
+            // Icon
+            ZStack {
+                Circle()
+                    .fill(item.type == .supplement ? Color.purple.opacity(0.15) : Color.blue.opacity(0.15))
+                    .frame(width: 36, height: 36)
 
-                            Image(systemName: isExpanded ? "chevron.down" : "arrow.turn.down.right")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(item.allDosesTakenToday ? AppColors.primary : AppColors.textSecondary(themeManager.colorScheme))
-                        }
+                Image(systemName: item.type.icon)
+                    .font(.system(size: 14))
+                    .foregroundColor(item.type == .supplement ? .purple : .blue)
+            }
+
+            // Name and Metadata
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.name)
+                    .font(.custom("ProductSans-Bold", size: 15))
+                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+
+                HStack(spacing: 6) {
+                    Text(item.frequency.displayName)
+                        .font(.custom("ProductSans-Regular", size: 11))
+                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+
+                    if let logCount = item.logCount, logCount > 0 {
+                        Text("•")
+                            .font(.custom("ProductSans-Regular", size: 11))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                        Text("\(logCount) logs")
+                            .font(.custom("ProductSans-Regular", size: 11))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                     }
-                    .buttonStyle(.plain)
-                } else {
-                    // Single dose: show checkmark button
-                    Button {
-                        onLog()
-                    } label: {
-                        ZStack {
-                            Circle()
-                                .fill(item.isTakenToday ? AppColors.primary.opacity(0.15) : Color.gray.opacity(0.1))
-                                .frame(width: 32, height: 32)
-
-                            Image(systemName: item.isTakenToday ? "checkmark" : "circle")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(item.isTakenToday ? AppColors.primary : AppColors.textSecondary(themeManager.colorScheme))
-                        }
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                // Icon
-                ZStack {
-                    Circle()
-                        .fill(item.type == .supplement ? Color.purple.opacity(0.15) : Color.blue.opacity(0.15))
-                        .frame(width: 36, height: 36)
-
-                    Image(systemName: item.type.icon)
-                        .font(.system(size: 14))
-                        .foregroundColor(item.type == .supplement ? .purple : .blue)
-                }
-
-                // Name and Metadata
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(item.name)
-                        .font(.custom("ProductSans-Bold", size: 15))
-                        .foregroundColor(AppColors.text(themeManager.colorScheme))
-
-                    HStack(spacing: 6) {
-                        if item.hasMultipleDoses {
-                            // Show dose progress for multi-dose items
-                            let takenCount = item.doseStatusesToday?.filter { $0.isTaken }.count ?? 0
-                            let totalCount = item.reminderTimes.count
-                            Text("\(takenCount)/\(totalCount) doses")
-                                .font(.custom("ProductSans-Regular", size: 11))
-                                .foregroundColor(takenCount == totalCount ? AppColors.primary : AppColors.textSecondary(themeManager.colorScheme))
-                        } else {
-                            Text(item.frequency.displayName)
-                                .font(.custom("ProductSans-Regular", size: 11))
-                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                        }
-
-                        if let logCount = item.logCount, logCount > 0 {
-                            Text("•")
-                                .font(.custom("ProductSans-Regular", size: 11))
-                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                            Text("\(logCount) logs")
-                                .font(.custom("ProductSans-Regular", size: 11))
-                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                        }
-                    }
-                }
-
-                Spacer()
-
-                // Action buttons in glass container
-                if #available(iOS 26.0, *) {
-                    HStack(spacing: 16) {
-                        Button {
-                            onReminder()
-                        } label: {
-                            Image(systemName: item.reminderEnabled ? "alarm.waves.left.and.right.fill" : "alarm.waves.left.and.right")
-                                .font(.system(size: 20))
-                                .foregroundColor(item.reminderEnabled ? AppColors.primary : AppColors.textSecondary(themeManager.colorScheme))
-                        }
-                        .buttonStyle(.plain)
-
-                        Menu {
-                            Button {
-                                onEdit()
-                            } label: {
-                                Label("Edit", systemImage: "scribble.variable")
-                            }
-
-                            Button(role: .destructive) {
-                                onDelete()
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
-                        } label: {
-                            Image(systemName: "ellipsis")
-                                .font(.system(size: 20))
-                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .glassEffect(.regular.interactive())
-                } else {
-                    // iOS 18+ fallback without glassEffect
-                    HStack(spacing: 16) {
-                        Button {
-                            onReminder()
-                        } label: {
-                            Image(systemName: item.reminderEnabled ? "bell.fill" : "bell")
-                                .font(.system(size: 20))
-                                .foregroundColor(item.reminderEnabled ? AppColors.primary : AppColors.textSecondary(themeManager.colorScheme))
-                        }
-                        .buttonStyle(.plain)
-
-                        Menu {
-                            Button {
-                                onEdit()
-                            } label: {
-                                Label("Edit", systemImage: "scribble.variable")
-                            }
-
-                            Button(role: .destructive) {
-                                onDelete()
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
-                        } label: {
-                            Image(systemName: "ellipsis")
-                                .font(.system(size: 20))
-                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color(white: themeManager.colorScheme == .dark ? 0.18 : 0.94).opacity(0.92))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color(white: themeManager.colorScheme == .dark ? 1.0 : 0.0).opacity(themeManager.colorScheme == .dark ? 0.15 : 0.08), lineWidth: 0.5)
-                            )
-                    )
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
 
-            // Expandable dose list for multi-dose items
-            if item.hasMultipleDoses && isExpanded {
-                DoseListView(
-                    item: item,
-                    onToggleDose: { timeIndex in
-                        onToggleDose?(timeIndex)
+            Spacer()
+
+            // Action buttons in glass container
+            if #available(iOS 26.0, *) {
+                HStack(spacing: 16) {
+                    Button {
+                        onReminder()
+                    } label: {
+                        Image(systemName: item.reminderEnabled ? "alarm.waves.left.and.right.fill" : "alarm.waves.left.and.right")
+                            .font(.system(size: 20))
+                            .foregroundColor(item.reminderEnabled ? AppColors.primary : AppColors.textSecondary(themeManager.colorScheme))
                     }
+                    .buttonStyle(.plain)
+
+                    Menu {
+                        Button {
+                            onEdit()
+                        } label: {
+                            Label("Edit", systemImage: "scribble.variable")
+                        }
+
+                        Button(role: .destructive) {
+                            onDelete()
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 20))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .glassEffect(.regular.interactive())
+            } else {
+                // iOS 18+ fallback without glassEffect
+                HStack(spacing: 16) {
+                    Button {
+                        onReminder()
+                    } label: {
+                        Image(systemName: item.reminderEnabled ? "bell.fill" : "bell")
+                            .font(.system(size: 20))
+                            .foregroundColor(item.reminderEnabled ? AppColors.primary : AppColors.textSecondary(themeManager.colorScheme))
+                    }
+                    .buttonStyle(.plain)
+
+                    Menu {
+                        Button {
+                            onEdit()
+                        } label: {
+                            Label("Edit", systemImage: "scribble.variable")
+                        }
+
+                        Button(role: .destructive) {
+                            onDelete()
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 20))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color(white: themeManager.colorScheme == .dark ? 0.18 : 0.94).opacity(0.92))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color(white: themeManager.colorScheme == .dark ? 1.0 : 0.0).opacity(themeManager.colorScheme == .dark ? 0.15 : 0.08), lineWidth: 0.5)
+                        )
                 )
-                .padding(.horizontal, 14)
-                .padding(.bottom, 12)
-                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
         .background(
-            RoundedRectangle(cornerRadius: 22)
+            Capsule()
                 .fill(AppColors.surface(themeManager.colorScheme))
                 .shadow(color: Color.black.opacity(0.05), radius: 6, x: 0, y: 2)
-        )
-    }
-}
-
-// MARK: - Dose List View (for multi-dose medications)
-struct DoseListView: View {
-    @EnvironmentObject var themeManager: ThemeManager
-    let item: FoodSupplementItem
-    let onToggleDose: (Int) -> Void
-
-    var body: some View {
-        VStack(spacing: 0) {
-            ForEach(item.doseStatusesToday ?? [], id: \.timeIndex) { doseStatus in
-                HStack(spacing: 12) {
-                    // Checkmark button
-                    Button {
-                        onToggleDose(doseStatus.timeIndex)
-                    } label: {
-                        ZStack {
-                            Circle()
-                                .fill(doseStatus.isTaken ? AppColors.primary.opacity(0.15) : Color.gray.opacity(0.1))
-                                .frame(width: 28, height: 28)
-
-                            Image(systemName: doseStatus.isTaken ? "checkmark" : "circle")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(doseStatus.isTaken ? AppColors.primary : AppColors.textSecondary(themeManager.colorScheme))
-                        }
-                    }
-                    .buttonStyle(.plain)
-
-                    // Time label
-                    Text(doseStatus.formattedTime)
-                        .font(.custom("ProductSans-Medium", size: 14))
-                        .foregroundColor(doseStatus.isTaken ? AppColors.primary : AppColors.text(themeManager.colorScheme))
-
-                    Spacer()
-
-                    // Status indicator
-                    if doseStatus.isTaken {
-                        Text("Taken")
-                            .font(.custom("ProductSans-Regular", size: 12))
-                            .foregroundColor(AppColors.primary)
-                    }
-                }
-                .padding(.vertical, 8)
-                .padding(.horizontal, 12)
-
-                // Divider between doses (except last)
-                if doseStatus.timeIndex < (item.doseStatusesToday?.count ?? 1) - 1 {
-                    Divider()
-                        .padding(.leading, 52)
-                }
-            }
-        }
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(AppColors.inputBackground(themeManager.colorScheme))
         )
     }
 }
