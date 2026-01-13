@@ -83,7 +83,7 @@ class FoodSupplementItemSerializer(serializers.ModelSerializer):
 
     def get_has_multiple_doses(self, obj):
         """Check if item has multiple reminder times (multi-dose)"""
-        return obj.reminder_times and len(obj.reminder_times) > 1
+        return bool(obj.reminder_times and len(obj.reminder_times) > 1)
 
     def get_dose_statuses_today(self, obj):
         """Get today's dose statuses for multi-dose items"""
