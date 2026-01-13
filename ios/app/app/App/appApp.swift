@@ -206,6 +206,10 @@ class AppState: ObservableObject {
             do {
                 guard let client = SupabaseManager.shared.getClient() else { return }
                 try await client.auth.signOut()
+                
+                // Cancel all notifications before clearing data
+                await NotificationManager.shared.cancelAllNotifications()
+                
                 await MainActor.run {
                     // Clear all user data
                     UserDataViewModel.shared.clearAllData()

@@ -683,6 +683,13 @@ class NotificationManager: NSObject {
         print("📋 ===== END PENDING NOTIFICATIONS =====")
     }
     
+    /// Cancel ALL pending notifications (used when user logs out or switches accounts)
+    func cancelAllNotifications() async {
+        let center = UNUserNotificationCenter.current()
+        center.removeAllPendingNotificationRequests()
+        print("🗑️ Cancelled ALL pending notifications (user logout/switch)")
+    }
+    
     /// Cancel ALL medication reminders (used when subscription ends)
     func cancelAllMedicationReminders() async {
         let center = UNUserNotificationCenter.current()

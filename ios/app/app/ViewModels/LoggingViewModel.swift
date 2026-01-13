@@ -52,6 +52,7 @@ class LoggingViewModel: ObservableObject {
     }
     
     /// Reset all data - call this when user logs in to ensure fresh data load
+    /// Note: Notifications are cancelled separately in signOut() and rescheduleAllReminders()
     func reset() {
         items = []
         recentLogs = []
@@ -67,6 +68,10 @@ class LoggingViewModel: ObservableObject {
     /// Call this after login to ensure notifications are set up
     func rescheduleAllReminders() async {
         print("🔔 Rescheduling all reminders...")
+        
+        // Cancel all existing notifications first (from previous user session)
+        await NotificationManager.shared.cancelAllNotifications()
+        print("🗑️ Cleared all previous notifications")
         
         // Check subscription status first
         do {
