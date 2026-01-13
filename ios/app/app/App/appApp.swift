@@ -179,6 +179,15 @@ class AppState: ObservableObject {
                 // Load user data if authenticated
                 if hasSession {
                     await UserDataViewModel.shared.loadAllUserData()
+                    // Reset and load logging data for fresh session
+                    await MainActor.run {
+                        LoggingViewModel.shared.reset()
+                    }
+                    await LoggingViewModel.shared.refreshData()
+                    // Note: We don't reschedule reminders here because iOS notifications persist across app launches
+                    // Reminders are only rescheduled when:
+                    // 1. User actively logs in (handled in login flows)
+                    // 2. Reminders are updated (handled in updateReminder)
                     // Check subscription status and cancel notifications if subscription ended
                     await SubscriptionService.shared.checkAndHandleSubscriptionStatus()
                 }
@@ -200,6 +209,7 @@ class AppState: ObservableObject {
                 await MainActor.run {
                     // Clear all user data
                     UserDataViewModel.shared.clearAllData()
+                    LoggingViewModel.shared.reset()
                     self.isAuthenticated = false
                 }
             } catch {

@@ -11,11 +11,13 @@ import Foundation
 enum LogItemType: String, Codable, CaseIterable {
     case supplement = "supplement"
     case medication = "medication"
+    case food = "food"  // Legacy type from backend
 
     var displayName: String {
         switch self {
         case .supplement: return "Supplement"
         case .medication: return "Medication"
+        case .food: return "Food"
         }
     }
 
@@ -23,6 +25,7 @@ enum LogItemType: String, Codable, CaseIterable {
         switch self {
         case .supplement: return "pills.fill"
         case .medication: return "cross.case.fill"
+        case .food: return "leaf.fill"
         }
     }
 }
@@ -232,9 +235,21 @@ struct FoodSupplementItem: Codable, Identifiable {
         id = try container.decode(String.self, forKey: .id)
         userId = try container.decodeIfPresent(String.self, forKey: .userId)
         name = try container.decode(String.self, forKey: .name)
-        type = try container.decodeIfPresent(LogItemType.self, forKey: .type) ?? .supplement
+        // Handle unknown type values gracefully
+        if let typeString = try container.decodeIfPresent(String.self, forKey: .type),
+           let decodedType = LogItemType(rawValue: typeString) {
+            type = decodedType
+        } else {
+            type = .supplement
+        }
         description = try container.decodeIfPresent(String.self, forKey: .description)
-        frequency = try container.decodeIfPresent(LogFrequency.self, forKey: .frequency) ?? .daily
+        // Handle unknown frequency values gracefully
+        if let freqString = try container.decodeIfPresent(String.self, forKey: .frequency),
+           let decodedFreq = LogFrequency(rawValue: freqString) {
+            frequency = decodedFreq
+        } else {
+            frequency = .daily
+        }
         timesPerWeek = try container.decodeIfPresent(Int.self, forKey: .timesPerWeek) ?? 7
         reminderEnabled = try container.decodeIfPresent(Bool.self, forKey: .reminderEnabled) ?? false
         reminderTimes = try container.decodeIfPresent([String].self, forKey: .reminderTimes) ?? []

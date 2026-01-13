@@ -23,7 +23,7 @@ class LoggingViewModel: ObservableObject {
     @Published var successMessage: String? = nil
 
     // Track if initial load has happened to avoid reloading
-    private var hasLoadedOnce: Bool = false
+    @Published var hasLoadedOnce: Bool = false
     
     // Voice recording
     @Published var isRecording: Bool = false
@@ -49,6 +49,54 @@ class LoggingViewModel: ObservableObject {
     
     private func setupSpeechRecognition() {
         speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
+    }
+    
+    /// Reset all data - call this when user logs in to ensure fresh data load
+    func reset() {
+        items = []
+        recentLogs = []
+        weekLogs = [:]
+        isLoading = false
+        error = nil
+        successMessage = nil
+        hasLoadedOnce = false
+        selectedFilter = nil
+    }
+    
+    /// Reschedule all reminders for items that have reminders enabled
+    /// Call this after login to ensure notifications are set up
+    func rescheduleAllReminders() async {
+        print("🔔 Rescheduling all reminders...")
+        
+        // Check subscription status first
+        do {
+            let hasSubscription = try await SubscriptionService.shared.hasActiveSubscription()
+            if !hasSubscription {
+                print("⚠️ No active subscription - skipping reminder scheduling")
+                return
+            }
+            print("✅ Subscription active - proceeding with scheduling")
+        } catch {
+            print("⚠️ Error checking subscription: \(error.localizedDescription)")
+            return
+        }
+        
+        // Get items with reminders enabled
+        let itemsWithReminders = items.filter { $0.reminderEnabled && !$0.reminderTimes.isEmpty }
+        print("🔔 Found \(itemsWithReminders.count) items with reminders to schedule")
+        print("   All items count: \(items.count)")
+        for (index, item) in items.enumerated() {
+            print("   Item \(index): \(item.name) - reminderEnabled=\(item.reminderEnabled), times=\(item.reminderTimes)")
+        }
+        
+        for item in itemsWithReminders {
+            await scheduleLocalReminder(for: item)
+        }
+        
+        // Debug: List all pending notifications
+        await NotificationManager.shared.debugListPendingNotifications()
+        
+        print("✅ Finished rescheduling all reminders")
     }
     
     // MARK: - Data Loading
@@ -467,10 +515,16 @@ class LoggingViewModel: ObservableObject {
     ///   - times: Array of Date objects representing reminder times
     ///   - days: Array of day indices (0=Sunday, 6=Saturday)
     func updateReminder(for item: FoodSupplementItem, enabled: Bool, times: [Date], days: [Int]) async {
+        print("🔔 updateReminder called for: \(item.name)")
+        print("   enabled: \(enabled)")
+        print("   times count: \(times.count)")
+        print("   days: \(days)")
+        
         do {
             let formatter = DateFormatter()
             formatter.dateFormat = "HH:mm:ss"
             let timeStrings = times.map { formatter.string(from: $0) }
+            print("   timeStrings: \(timeStrings)")
 
             let updated = try await LoggingService.shared.updateReminder(
                 itemId: item.id,
@@ -478,6 +532,7 @@ class LoggingViewModel: ObservableObject {
                 times: timeStrings.isEmpty ? nil : timeStrings,
                 days: days
             )
+            print("✅ Reminder updated in backend for: \(item.name)")
 
             // Update local item
             if let index = items.firstIndex(where: { $0.id == item.id }) {
@@ -486,11 +541,15 @@ class LoggingViewModel: ObservableObject {
 
             if enabled && !timeStrings.isEmpty {
                 // Check if user has active subscription before scheduling
+                print("🔍 Checking subscription status...")
                 do {
                     let hasSubscription = try await SubscriptionService.shared.hasActiveSubscription()
+                    print("   hasSubscription: \(hasSubscription)")
                     if hasSubscription {
                         // Schedule local notifications for all times
                         await scheduleLocalReminder(for: updated)
+                        // Debug: List all pending notifications
+                        await NotificationManager.shared.debugListPendingNotifications()
                     } else {
                         // No subscription - cancel notifications instead
                         await NotificationManager.shared.cancelReminders(for: item.id)
@@ -504,8 +563,10 @@ class LoggingViewModel: ObservableObject {
             } else {
                 // Cancel local notification
                 await NotificationManager.shared.cancelReminders(for: item.id)
+                print("🔕 Reminders cancelled for: \(item.name)")
             }
         } catch {
+            print("❌ Error updating reminder: \(error.localizedDescription)")
             self.error = error.localizedDescription
         }
     }
@@ -518,14 +579,24 @@ class LoggingViewModel: ObservableObject {
     }
 
     private func scheduleLocalReminder(for item: FoodSupplementItem) async {
-        guard item.reminderEnabled, !item.reminderTimes.isEmpty else { return }
+        print("🔔 scheduleLocalReminder called for: \(item.name)")
+        print("   reminderEnabled: \(item.reminderEnabled)")
+        print("   reminderTimes: \(item.reminderTimes)")
+        print("   reminderDays: \(item.reminderDays)")
+        
+        guard item.reminderEnabled, !item.reminderTimes.isEmpty else {
+            print("⚠️ Skipping - reminders not enabled or no times set")
+            return
+        }
 
         // Request permission (including critical alerts)
         let granted = await NotificationManager.shared.requestPermissions()
         guard granted else {
+            print("❌ Notification permissions not granted")
             self.error = "Please enable notifications in Settings to receive medication reminders"
             return
         }
+        print("✅ Notification permissions granted")
 
         // Parse times
         let formatter = DateFormatter()
@@ -539,11 +610,13 @@ class LoggingViewModel: ObservableObject {
         var startDate: Date? = nil
         if let startDateString = item.startDate {
             startDate = dateFormatter.date(from: startDateString)
+            print("   startDate: \(startDateString)")
         }
 
         var endDate: Date? = nil
         if let endDateString = item.endDate {
             endDate = dateFormatter.date(from: endDateString)
+            print("   endDate: \(endDateString)")
         }
 
         // Determine item type string
@@ -554,10 +627,14 @@ class LoggingViewModel: ObservableObject {
 
         // Schedule for each reminder time and each reminder day
         for (timeIndex, timeString) in item.reminderTimes.enumerated() {
-            guard let time = formatter.date(from: timeString) else { continue }
+            guard let time = formatter.date(from: timeString) else {
+                print("⚠️ Could not parse time: \(timeString)")
+                continue
+            }
 
             let hour = calendar.component(.hour, from: time)
             let minute = calendar.component(.minute, from: time)
+            print("🕐 Scheduling reminder at \(hour):\(String(format: "%02d", minute)) for days: \(item.reminderDays)")
 
             for day in item.reminderDays {
                 // Convert from 0-6 (Sun=0) to iOS weekday 1-7 (Sun=1)
@@ -576,6 +653,7 @@ class LoggingViewModel: ObservableObject {
                 )
             }
         }
+        print("✅ Finished scheduling reminders for: \(item.name)")
     }
     
     // MARK: - Helpers

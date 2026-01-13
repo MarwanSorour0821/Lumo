@@ -32,11 +32,18 @@ struct LoggingTabView: View {
 
                 VStack(spacing: 0) {
                     // Items List
-                    if viewModel.isLoading && viewModel.items.isEmpty {
+                    // Show loading if: actively loading OR haven't loaded yet (and no cached items)
+                    if (viewModel.isLoading || !viewModel.hasLoadedOnce) && viewModel.items.isEmpty {
                         Spacer()
-                        CustomSpinner(size: 32, lineWidth: 3)
+                        VStack(spacing: 16) {
+                            CustomSpinner(size: 32, lineWidth: 3)
+                            Text("Loading medications...")
+                                .font(.custom("ProductSans-Regular", size: 14))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                        }
                         Spacer()
-                    } else if viewModel.items.isEmpty {
+                    } else if viewModel.items.isEmpty && viewModel.hasLoadedOnce {
+                        // Only show empty state after we've confirmed data is loaded
                         EmptyStateView(onAddTapped: {})
                     } else {
                         ScrollView {

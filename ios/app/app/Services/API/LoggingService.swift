@@ -44,12 +44,42 @@ class LoggingService {
         
         let (data, response) = try await URLSession.shared.data(for: request)
         
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw NSError(domain: "LoggingService", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch items"])
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NSError(domain: "LoggingService", code: 2, userInfo: [NSLocalizedDescriptionKey: "Invalid response"])
+        }
+        
+        // Debug: Print the response
+        if let jsonString = String(data: data, encoding: .utf8) {
+            print("📥 getItems response (status \(httpResponse.statusCode)): \(jsonString.prefix(500))...")
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            throw NSError(domain: "LoggingService", code: 2, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch items - HTTP \(httpResponse.statusCode)"])
         }
         
         let decoder = JSONDecoder()
-        return try decoder.decode([FoodSupplementItem].self, from: data)
+        do {
+            let items = try decoder.decode([FoodSupplementItem].self, from: data)
+            print("✅ Successfully decoded \(items.count) items")
+            return items
+        } catch {
+            print("❌ JSON Decoding Error: \(error)")
+            if let decodingError = error as? DecodingError {
+                switch decodingError {
+                case .typeMismatch(let type, let context):
+                    print("   Type mismatch: \(type), path: \(context.codingPath.map { $0.stringValue }.joined(separator: ".")), \(context.debugDescription)")
+                case .valueNotFound(let type, let context):
+                    print("   Value not found: \(type), path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
+                case .keyNotFound(let key, let context):
+                    print("   Key not found: \(key.stringValue), path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
+                case .dataCorrupted(let context):
+                    print("   Data corrupted: \(context.debugDescription)")
+                @unknown default:
+                    print("   Unknown decoding error")
+                }
+            }
+            throw error
+        }
     }
     
     /// Create a new food/supplement item

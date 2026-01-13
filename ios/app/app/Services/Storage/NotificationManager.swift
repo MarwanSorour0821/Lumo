@@ -290,6 +290,13 @@ class NotificationManager: NSObject {
         startDate: Date? = nil,
         endDate: Date? = nil
     ) async {
+        print("🔔 NotificationManager.scheduleReminder called:")
+        print("   itemName: \(itemName)")
+        print("   hour: \(hour), minute: \(minute)")
+        print("   weekday: \(weekday) (1=Sun, 7=Sat)")
+        print("   startDate: \(String(describing: startDate))")
+        print("   endDate: \(String(describing: endDate))")
+        
         let center = UNUserNotificationCenter.current()
         let calendar = Calendar.current
 
@@ -311,13 +318,18 @@ class NotificationManager: NSObject {
 
         // If there's an end date, schedule individual notifications for each occurrence
         if let endDate = endDate {
+            print("   📅 Has end date - using time-interval based scheduling")
             let endDateStartOfDay = calendar.startOfDay(for: endDate)
+            print("   actualStartDate: \(actualStartDate)")
+            print("   endDateStartOfDay: \(endDateStartOfDay)")
 
             // Calculate all occurrences between start and end dates
             var occurrences: [Date] = []
             var currentDate = actualStartDate
+            var daysChecked = 0
 
             while currentDate <= endDateStartOfDay {
+                daysChecked += 1
                 // Get the weekday component (1 = Sunday, 2 = Monday, etc.)
                 let currentWeekday = calendar.component(.weekday, from: currentDate)
 
@@ -329,8 +341,13 @@ class NotificationManager: NSObject {
                     components.minute = minute
                     components.second = 0
 
-                    if let notificationDate = calendar.date(from: components), notificationDate >= Date() {
-                        occurrences.append(notificationDate)
+                    if let notificationDate = calendar.date(from: components) {
+                        if notificationDate >= Date() {
+                            occurrences.append(notificationDate)
+                            print("   ✅ Added occurrence: \(notificationDate)")
+                        } else {
+                            print("   ⏭️ Skipped past occurrence: \(notificationDate) (now is \(Date()))")
+                        }
                     }
                 }
 
@@ -338,6 +355,8 @@ class NotificationManager: NSObject {
                 guard let nextDate = calendar.date(byAdding: .day, value: 1, to: currentDate) else { break }
                 currentDate = nextDate
             }
+            
+            print("   📊 Checked \(daysChecked) days, found \(occurrences.count) future occurrences for weekday \(weekday)")
 
             // Schedule notifications for each occurrence (3 per occurrence)
             for (index, occurrenceDate) in occurrences.enumerated() {
@@ -355,8 +374,11 @@ class NotificationManager: NSObject {
 
             if !occurrences.isEmpty {
                 print("✅ Scheduled \(occurrences.count * 3) notifications (3 per time) for \(itemName) at time slot \(timeIndex + 1) until \(endDateStartOfDay)")
+            } else {
+                print("⚠️ No future occurrences found for \(itemName) on weekday \(weekday)")
             }
         } else {
+            print("   🔁 No end date - using repeating calendar notifications")
             // No end date - use repeating notifications
             await scheduleRepeatingThreeNotifications(
                 center: center,
@@ -635,6 +657,30 @@ class NotificationManager: NSObject {
             center.removePendingNotificationRequests(withIdentifiers: identifiers)
             print("🗑️ Cancelled reminders for item: \(itemId) (fallback)")
         }
+    }
+    
+    /// Debug: List all pending notifications
+    func debugListPendingNotifications() async {
+        let center = UNUserNotificationCenter.current()
+        let pendingRequests = await center.pendingNotificationRequests()
+        
+        print("📋 ===== PENDING NOTIFICATIONS (\(pendingRequests.count) total) =====")
+        for request in pendingRequests {
+            let trigger = request.trigger
+            var triggerDescription = "Unknown"
+            
+            if let calendarTrigger = trigger as? UNCalendarNotificationTrigger {
+                let components = calendarTrigger.dateComponents
+                triggerDescription = "Calendar: weekday=\(components.weekday ?? -1), hour=\(components.hour ?? -1), min=\(components.minute ?? -1), repeats=\(calendarTrigger.repeats)"
+            } else if let intervalTrigger = trigger as? UNTimeIntervalNotificationTrigger {
+                triggerDescription = "Interval: \(intervalTrigger.timeInterval)s, repeats=\(intervalTrigger.repeats)"
+            }
+            
+            print("  📌 ID: \(request.identifier)")
+            print("     Title: \(request.content.title)")
+            print("     Trigger: \(triggerDescription)")
+        }
+        print("📋 ===== END PENDING NOTIFICATIONS =====")
     }
     
     /// Cancel ALL medication reminders (used when subscription ends)

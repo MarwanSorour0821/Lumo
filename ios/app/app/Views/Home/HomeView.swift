@@ -20,6 +20,12 @@ extension Notification.Name {
     static let switchTab = Notification.Name("SwitchTabNotification")
 }
 
+// MARK: - Identifiable URL Wrapper for sheet(item:)
+struct IdentifiableURL: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
 // MARK: - Persistent Processing Analysis Item
 struct ProcessingAnalysis: Identifiable, Codable {
     let id: String
@@ -680,7 +686,8 @@ struct TodayTabView: View {
                             }
                             .padding(.horizontal, 24)
 
-                            if loggingViewModel.isLoading {
+                            // Show loading if: actively loading OR haven't loaded yet
+                            if loggingViewModel.isLoading || !loggingViewModel.hasLoadedOnce {
                                 // Loading state
                                 VStack(spacing: 16) {
                                     CustomSpinner(size: 32, lineWidth: 3)
@@ -692,7 +699,7 @@ struct TodayTabView: View {
                                 .frame(maxWidth: .infinity)
                                 .padding(32)
                             } else if medicationsForSelectedDate.isEmpty && logsForSelectedDate.isEmpty {
-                                // Empty state
+                                // Empty state - only shown after data has loaded
                                 VStack(spacing: 16) {
                                     Image(systemName: "pills.fill")
                                         .font(.system(size: 48))
@@ -3201,8 +3208,7 @@ struct SettingsTabView: View {
     @State private var hasActiveSubscription = false
     @State private var showAppearancePicker = false
     @State private var showPaywall = false
-    @State private var showManageSubscription = false
-    @State private var manageSubscriptionURL: URL?
+    @State private var subscriptionPortalURL: IdentifiableURL? = nil  // Use item-based sheet
     @State private var showSupportModal = false
 
     var body: some View {
@@ -3387,10 +3393,8 @@ struct SettingsTabView: View {
             }
             .environmentObject(themeManager)
         }
-        .sheet(isPresented: $showManageSubscription) {
-            if let url = manageSubscriptionURL {
-                SafariView(url: url)
-            }
+        .sheet(item: $subscriptionPortalURL) { identifiableURL in
+            SafariView(url: identifiableURL.url)
         }
         .sheet(isPresented: $showSupportModal) {
             SupportModalView(isPresented: $showSupportModal)
@@ -3486,8 +3490,7 @@ struct SettingsTabView: View {
                 let portalURLString = try await SubscriptionService.shared.createPortalSession()
                 await MainActor.run {
                     if let url = URL(string: portalURLString) {
-                        manageSubscriptionURL = url
-                        showManageSubscription = true
+                        subscriptionPortalURL = IdentifiableURL(url: url)
                     }
                 }
             } catch {

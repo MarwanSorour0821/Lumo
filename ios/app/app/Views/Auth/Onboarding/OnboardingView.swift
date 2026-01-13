@@ -109,6 +109,9 @@ struct OnboardingView: View {
                         // Load user data after sign-in
                         Task {
                             await UserDataViewModel.shared.loadAllUserData()
+                            LoggingViewModel.shared.reset()
+                            await LoggingViewModel.shared.refreshData()
+                            await LoggingViewModel.shared.rescheduleAllReminders()
                         }
                     }
                 )
@@ -420,6 +423,9 @@ struct OnboardingView: View {
                     // Load user data after sign-in
                     Task {
                         await UserDataViewModel.shared.loadAllUserData()
+                        LoggingViewModel.shared.reset()
+                        await LoggingViewModel.shared.refreshData()
+                        await LoggingViewModel.shared.rescheduleAllReminders()
                     }
                 }
             }

@@ -326,6 +326,9 @@ struct SignUpOnboardingView: View {
                         appState.isAuthenticated = true
                         Task {
                             await UserDataViewModel.shared.loadAllUserData()
+                            LoggingViewModel.shared.reset()
+                            await LoggingViewModel.shared.refreshData()
+                            await LoggingViewModel.shared.rescheduleAllReminders()
                         }
                     }
                 }
@@ -337,6 +340,9 @@ struct SignUpOnboardingView: View {
                 appState.isAuthenticated = true
                 Task {
                     await UserDataViewModel.shared.loadAllUserData()
+                    LoggingViewModel.shared.reset()
+                    await LoggingViewModel.shared.refreshData()
+                    await LoggingViewModel.shared.rescheduleAllReminders()
                 }
             }
         } message: {

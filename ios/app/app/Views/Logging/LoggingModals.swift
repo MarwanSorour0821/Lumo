@@ -966,21 +966,37 @@ struct ReminderSheet: View {
     private func saveReminder() {
         isSaving = true
         Task {
-            // Update reminder times and days
-            await viewModel.updateReminder(
-                for: item,
-                enabled: true,
-                times: reminderTimes,
-                days: Array(selectedDays)
-            )
-            
-            // Update start and end dates
+            // First update start and end dates (don't schedule yet)
             await viewModel.updateItem(
                 item,
                 startDate: startDate,
                 endDate: hasEndDate ? endDate : nil,
                 clearEndDate: !hasEndDate
             )
+            
+            // Small delay to ensure the item is updated in the array
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+            
+            // Then update reminder times and days (this will schedule with correct dates)
+            // Need to get the updated item from the viewModel
+            if let updatedItem = await MainActor.run(body: { viewModel.items.first(where: { $0.id == item.id }) }) {
+                print("🔔 saveReminder: Got updated item with startDate=\(updatedItem.startDate ?? "nil"), endDate=\(updatedItem.endDate ?? "nil")")
+                await viewModel.updateReminder(
+                    for: updatedItem,
+                    enabled: true,
+                    times: reminderTimes,
+                    days: Array(selectedDays)
+                )
+            } else {
+                print("⚠️ saveReminder: Item not found, using original item")
+                // Fallback if item not found
+                await viewModel.updateReminder(
+                    for: item,
+                    enabled: true,
+                    times: reminderTimes,
+                    days: Array(selectedDays)
+                )
+            }
             
             isSaving = false
             dismiss()
@@ -2123,32 +2139,39 @@ struct EditItemSheet: View {
         isSubmitting = true
 
         Task {
-            // Update item name and type
+            // First update item name, type, and dates
             await viewModel.updateItem(
                 item,
                 name: name,
-                type: selectedType
-            )
-            
-            // Update reminder settings
-            let formatter = DateFormatter()
-            formatter.dateFormat = "HH:mm:ss"
-            let timeStrings = reminderTimes.map { formatter.string(from: $0) }
-            
-            await viewModel.updateReminder(
-                for: item,
-                enabled: !reminderTimes.isEmpty && !selectedDays.isEmpty,
-                times: reminderTimes,
-                days: Array(selectedDays)
-            )
-            
-            // Update start and end dates
-            await viewModel.updateItem(
-                item,
+                type: selectedType,
                 startDate: startDate,
                 endDate: hasEndDate ? endDate : nil,
                 clearEndDate: !hasEndDate
             )
+            
+            // Small delay to ensure the item is updated in the array
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+            
+            // Then update reminder settings (this will schedule with correct dates)
+            // Need to get the updated item from the viewModel
+            if let updatedItem = await MainActor.run(body: { viewModel.items.first(where: { $0.id == item.id }) }) {
+                print("🔔 saveItem: Got updated item with startDate=\(updatedItem.startDate ?? "nil"), endDate=\(updatedItem.endDate ?? "nil")")
+                await viewModel.updateReminder(
+                    for: updatedItem,
+                    enabled: !reminderTimes.isEmpty && !selectedDays.isEmpty,
+                    times: reminderTimes,
+                    days: Array(selectedDays)
+                )
+            } else {
+                print("⚠️ saveItem: Item not found, using original item")
+                // Fallback if item not found
+                await viewModel.updateReminder(
+                    for: item,
+                    enabled: !reminderTimes.isEmpty && !selectedDays.isEmpty,
+                    times: reminderTimes,
+                    days: Array(selectedDays)
+                )
+            }
             
             isSubmitting = false
             dismiss()

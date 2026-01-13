@@ -411,6 +411,11 @@ struct SignUpPersonalView: View {
             // Load user data after profile creation
             if profileResponse.error == nil {
                 await UserDataViewModel.shared.loadAllUserData()
+                await MainActor.run {
+                    LoggingViewModel.shared.reset()
+                }
+                await LoggingViewModel.shared.refreshData()
+                await LoggingViewModel.shared.rescheduleAllReminders()
             }
         }
     }

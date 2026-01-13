@@ -408,6 +408,11 @@ struct SignUpCredentialsView: View {
                 }
                 // Load user data after sign-up
                 await UserDataViewModel.shared.loadAllUserData()
+                await MainActor.run {
+                    LoggingViewModel.shared.reset()
+                }
+                await LoggingViewModel.shared.refreshData()
+                await LoggingViewModel.shared.rescheduleAllReminders()
             }
         }
     }
