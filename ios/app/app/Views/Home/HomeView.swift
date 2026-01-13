@@ -576,9 +576,8 @@ struct TodayTabView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @StateObject private var loggingViewModel = LoggingViewModel.shared
     @State private var selectedDate = Date()
-    @State private var selectedItem: FoodSupplementItem? = nil
-    @State private var showReminderSheet = false
-    @State private var showEditSheet = false
+    @State private var reminderSheetItem: FoodSupplementItem? = nil
+    @State private var editSheetItem: FoodSupplementItem? = nil
     @State private var showDatePicker = false
     @State private var gradientAnimation: Bool = false
 
@@ -727,12 +726,10 @@ struct TodayTabView: View {
                                             }
                                         },
                                         onReminder: {
-                                            selectedItem = item
-                                            showReminderSheet = true
+                                            reminderSheetItem = item
                                         },
                                         onEdit: {
-                                            selectedItem = item
-                                            showEditSheet = true
+                                            editSheetItem = item
                                         },
                                         onDelete: {
                                             Task {
@@ -791,12 +788,10 @@ struct TodayTabView: View {
             }
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarHidden(true)
-            .sheet(isPresented: $showReminderSheet) {
-                if let item = selectedItem {
-                    ReminderSheet(item: item, viewModel: loggingViewModel)
-                        .environmentObject(themeManager)
-                        .presentationDetents([.large])
-                }
+            .sheet(item: $reminderSheetItem) { item in
+                ReminderSheet(item: item, viewModel: loggingViewModel)
+                    .environmentObject(themeManager)
+                    .presentationDetents([.large])
             }
             .sheet(isPresented: $showDatePicker) {
                 HistoryDatePickerSheet(
@@ -806,12 +801,10 @@ struct TodayTabView: View {
                 .environmentObject(themeManager)
                 .presentationDetents([.medium])
             }
-            .sheet(isPresented: $showEditSheet) {
-                if let item = selectedItem {
-                    EditItemSheet(item: item, viewModel: loggingViewModel)
-                        .environmentObject(themeManager)
-                        .presentationDetents([.large])
-                }
+            .sheet(item: $editSheetItem) { item in
+                EditItemSheet(item: item, viewModel: loggingViewModel)
+                    .environmentObject(themeManager)
+                    .presentationDetents([.large])
             }
         }
         .task {
