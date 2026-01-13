@@ -116,7 +116,7 @@ struct LoggingTabView: View {
                 if let item = selectedItem {
                     ReminderSheet(item: item, viewModel: viewModel)
                         .environmentObject(themeManager)
-                        .presentationDetents([.medium, .large])
+                        .presentationDetents([.large])
                 }
             }
             .sheet(isPresented: $showEditSheet) {
@@ -162,6 +162,8 @@ struct ReminderInputCard: View {
     @State private var reminderDays: Set<Int> = Set([0, 1, 2, 3, 4, 5, 6])
     @State private var showStartDatePicker = false
     @State private var showEndDatePicker = false
+    @State private var showStartDateModal = false
+    @State private var showEndDateModal = false
     @State private var showReminderModal = false
     @State private var hasConfiguredReminder = false
     @State private var showPaywall = false
@@ -197,9 +199,6 @@ struct ReminderInputCard: View {
         !medicationName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
     
-    private var isShowingAnyPicker: Bool {
-        showStartDatePicker || showEndDatePicker
-    }
 
     var body: some View {
         VStack(spacing: 12) {
@@ -208,10 +207,7 @@ struct ReminderInputCard: View {
                 HStack(spacing: 8) {
                     // Start date chip
                     Button {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            showStartDatePicker.toggle()
-                            showEndDatePicker = false
-                        }
+                        showStartDateModal = true
                     } label: {
                         HStack(spacing: 4) {
                             Image(systemName: "play.fill")
@@ -219,7 +215,7 @@ struct ReminderInputCard: View {
                             Text(formattedStartDate)
                                 .font(.custom("ProductSans-Medium", size: 13))
                         }
-                        .foregroundColor(showStartDatePicker ? AppColors.primary : AppColors.text(themeManager.colorScheme))
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
                         .contentShape(Rectangle())
@@ -229,10 +225,7 @@ struct ReminderInputCard: View {
                     
                     // End date chip
                     Button {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            showEndDatePicker.toggle()
-                            showStartDatePicker = false
-                        }
+                        showEndDateModal = true
                     } label: {
                         HStack(spacing: 4) {
                             Image(systemName: "stop.fill")
@@ -240,7 +233,7 @@ struct ReminderInputCard: View {
                             Text(formattedEndDate)
                                 .font(.custom("ProductSans-Medium", size: 13))
                         }
-                        .foregroundColor(showEndDatePicker ? AppColors.primary : AppColors.text(themeManager.colorScheme))
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
                         .contentShape(Rectangle())
@@ -269,76 +262,6 @@ struct ReminderInputCard: View {
                     .glassEffect(.regular.interactive())
 
                     Spacer()
-
-                    // Done button when date picker is shown
-                    if isShowingAnyPicker {
-                        Button {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                showStartDatePicker = false
-                                showEndDatePicker = false
-                            }
-                        } label: {
-                            Text("Done")
-                                .font(.custom("ProductSans-Medium", size: 13))
-                                .foregroundColor(AppColors.primary)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .glassEffect(.regular.interactive())
-                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
-                    }
-                }
-
-                // Start Date picker - graphical style (shows calendar directly)
-                if showStartDatePicker {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Start Date")
-                            .font(.custom("ProductSans-Medium", size: 12))
-                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                            .padding(.horizontal, 12)
-                        
-                        DatePicker("", selection: $startDate, displayedComponents: .date)
-                            .datePickerStyle(.graphical)
-                            .scaleEffect(0.85)
-                            .frame(height: 300)
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(AppColors.surface(themeManager.colorScheme))
-                    )
-                    .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .top)),
-                        removal: .opacity.combined(with: .scale(scale: 0.95))
-                    ))
-                }
-                
-                // End Date picker - graphical style (shows calendar directly)
-                if showEndDatePicker {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("End Date")
-                            .font(.custom("ProductSans-Medium", size: 12))
-                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                            .padding(.horizontal, 12)
-                        
-                        DatePicker("", selection: $endDate, in: startDate..., displayedComponents: .date)
-                            .datePickerStyle(.graphical)
-                            .scaleEffect(0.85)
-                            .frame(height: 300)
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(AppColors.surface(themeManager.colorScheme))
-                    )
-                    .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .top)),
-                        removal: .opacity.combined(with: .scale(scale: 0.95))
-                    ))
                 }
 
                 // Input card with extra height
@@ -394,7 +317,25 @@ struct ReminderInputCard: View {
                 }
             )
             .environmentObject(themeManager)
-            .presentationDetents([.large])
+        }
+        .sheet(isPresented: $showStartDateModal) {
+            DatePickerModal(
+                title: "Start Date",
+                date: $startDate,
+                isPresented: $showStartDateModal
+            )
+            .environmentObject(themeManager)
+            .presentationDetents([.height(550)])
+        }
+        .sheet(isPresented: $showEndDateModal) {
+            DatePickerModal(
+                title: "End Date",
+                date: $endDate,
+                isPresented: $showEndDateModal,
+                minDate: startDate
+            )
+            .environmentObject(themeManager)
+            .presentationDetents([.height(550)])
         }
         .sheet(isPresented: $showPaywall) {
             PaywallView(isPresented: $showPaywall) {
@@ -478,72 +419,6 @@ struct ReminderInputCard: View {
                     }
 
                 Spacer()
-
-                // Done button when date picker is shown
-                if isShowingAnyPicker {
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            showStartDatePicker = false
-                            showEndDatePicker = false
-                        }
-                    } label: {
-                        Text("Done")
-                            .font(.custom("ProductSans-Medium", size: 13))
-                            .foregroundColor(AppColors.primary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .fill(AppColors.surface(themeManager.colorScheme))
-                            )
-                            .contentShape(Rectangle())
-                    }
-                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
-                }
-            }
-
-            // Start Date picker - graphical style
-            if showStartDatePicker {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Start Date")
-                        .font(.custom("ProductSans-Medium", size: 12))
-                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                        .padding(.horizontal, 12)
-                    
-                    DatePicker("", selection: $startDate, displayedComponents: .date)
-                        .datePickerStyle(.graphical)
-                        .scaleEffect(0.85)
-                        .frame(height: 300)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(AppColors.surface(themeManager.colorScheme))
-                )
-                .transition(.opacity.combined(with: .scale(scale: 0.95)))
-            }
-            
-            // End Date picker - graphical style
-            if showEndDatePicker {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("End Date")
-                        .font(.custom("ProductSans-Medium", size: 12))
-                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                        .padding(.horizontal, 12)
-                    
-                    DatePicker("", selection: $endDate, in: startDate..., displayedComponents: .date)
-                        .datePickerStyle(.graphical)
-                        .scaleEffect(0.85)
-                        .frame(height: 300)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(AppColors.surface(themeManager.colorScheme))
-                )
-                .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
 
             // Input card with extra height
@@ -1057,6 +932,85 @@ struct ToastView: View {
             .padding(.top, 60)
             
             Spacer()
+        }
+    }
+}
+
+// MARK: - Date Picker Modal
+struct DatePickerModal: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    @Environment(\.dismiss) var dismiss
+    let title: String
+    @Binding var date: Date
+    @Binding var isPresented: Bool
+    var minDate: Date? = nil
+    
+    var body: some View {
+        NavigationView {
+            ZStack {
+                AppColors.modalBackground(themeManager.colorScheme)
+                    .ignoresSafeArea()
+                
+                VStack(spacing: 24) {
+                    if let minDate = minDate {
+                        DatePicker("", selection: $date, in: minDate..., displayedComponents: .date)
+                            .datePickerStyle(.graphical)
+                            .tint(AppColors.primary)
+                            .padding()
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(AppColors.inputBackground(themeManager.colorScheme))
+                            )
+                    } else {
+                        DatePicker("", selection: $date, displayedComponents: .date)
+                            .datePickerStyle(.graphical)
+                            .tint(AppColors.primary)
+                            .padding()
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(AppColors.inputBackground(themeManager.colorScheme))
+                            )
+                    }
+                    
+                    Button {
+                        isPresented = false
+                    } label: {
+                        Text("Done")
+                            .font(.custom("ProductSans-Bold", size: 16))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(
+                                Capsule()
+                                    .fill(AppColors.primary)
+                            )
+                    }
+                }
+                .padding(24)
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        isPresented = false
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            .frame(width: 32, height: 32)
+                            .background(
+                                Circle()
+                                    .fill(AppColors.inputBackground(themeManager.colorScheme))
+                            )
+                    }
+                }
+                
+                ToolbarItem(placement: .principal) {
+                    Text(title)
+                        .font(.custom("ProductSans-Bold", size: 17))
+                        .foregroundColor(AppColors.text(themeManager.colorScheme))
+                }
+            }
         }
     }
 }
