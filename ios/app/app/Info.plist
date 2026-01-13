@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>API_URL</key>
-	<string>https://lumo-8lft.onrender.com</string>
+	<string>https://api.lumo-blood.com</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
