@@ -292,11 +292,6 @@ class LoggingViewModel: ObservableObject {
                 items[index] = response.item
             }
 
-            // If the item is now marked as taken, cancel any pending follow-up notifications
-            if response.item.isTakenToday {
-                await NotificationManager.shared.cancelFollowUpNotifications(for: item.id)
-            }
-
             // Haptic feedback only (no toast notification)
             let generator = UINotificationFeedbackGenerator()
             generator.notificationOccurred(.success)
@@ -313,11 +308,6 @@ class LoggingViewModel: ObservableObject {
             // Update local item
             if let index = items.firstIndex(where: { $0.id == item.id }) {
                 items[index] = response.item
-            }
-
-            // If all doses are now taken, cancel any pending follow-up notifications
-            if response.allDosesTakenToday {
-                await NotificationManager.shared.cancelFollowUpNotifications(for: item.id)
             }
 
             // Haptic feedback only (no toast notification)

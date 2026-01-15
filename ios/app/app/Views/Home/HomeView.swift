@@ -4738,6 +4738,7 @@ struct NotificationSettingsView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @Binding var isPresented: Bool
     @State private var notificationsEnabled: Bool = false
+    @State private var selectedLevel: NotificationLevel = .timeSensitive
     @State private var isLoading: Bool = false
     @State private var showAlert: Bool = false
     @State private var alertTitle: String = ""
@@ -4758,57 +4759,74 @@ struct NotificationSettingsView: View {
                             .padding(.horizontal, 24)
                             .padding(.top, 20)
                         
-                        Text("Manage your notification preferences")
+                        Text("Choose how you want to be reminded about your medications")
                             .font(.custom("ProductSans-Regular", size: 16))
                             .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                             .padding(.horizontal, 24)
                         
-                        // Settings Card
-                        VStack(alignment: .leading, spacing: 16) {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("Enable Notifications")
-                                        .font(.custom("ProductSans-Bold", size: 16))
-                                        .foregroundColor(AppColors.text(themeManager.colorScheme))
-                                    
-                                    Text("Receive push notifications for important updates")
-                                        .font(.custom("ProductSans-Regular", size: 14))
-                                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                        // Notification Level Options
+                        VStack(spacing: 12) {
+                            ForEach(NotificationLevel.allCases) { level in
+                                SettingsNotificationLevelCard(
+                                    level: level,
+                                    isSelected: selectedLevel == level,
+                                    colorScheme: themeManager.colorScheme
+                                ) {
+                                    let impact = UIImpactFeedbackGenerator(style: .light)
+                                    impact.impactOccurred()
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                        selectedLevel = level
+                                    }
+                                    // Save the selection and request permissions if needed
+                                    handleLevelChange(level)
                                 }
-                                
-                                Spacer()
-                                
-                                Toggle("", isOn: $notificationsEnabled)
-                                    .toggleStyle(SwitchToggleStyle(tint: AppColors.primary))
-                                    .disabled(isLoading)
                             }
                         }
-                        .padding(24)
-                        .background(AppColors.surface(themeManager.colorScheme))
-                        .cornerRadius(16)
                         .padding(.horizontal, 24)
-                        .padding(.top, 20)
+                        .padding(.top, 8)
                         
-                        // Info text
-                        Text("You can manage notification permissions in your device settings.")
-                            .font(.custom("ProductSans-Regular", size: 14))
-                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                        // Current status
+                        if notificationsEnabled {
+                            HStack(spacing: 8) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                Text("Notifications are enabled")
+                                    .font(.custom("ProductSans-Regular", size: 14))
+                                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            }
                             .padding(.horizontal, 24)
+                            .padding(.top, 8)
+                        } else {
+                            HStack(spacing: 8) {
+                                Image(systemName: "exclamationmark.circle.fill")
+                                    .foregroundColor(.orange)
+                                Text("Notifications are disabled")
+                                    .font(.custom("ProductSans-Regular", size: 14))
+                                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            }
+                            .padding(.horizontal, 24)
+                            .padding(.top, 8)
+                        }
                         
                         // Button to open Settings
                         Button(action: openAppSettings) {
                             HStack {
                                 Spacer()
-                                Text("Open Settings")
+                                Text("Open System Settings")
                                     .font(.custom("ProductSans-Bold", size: 16))
-                                    .foregroundColor(.white)
+                                    .foregroundColor(AppColors.text(themeManager.colorScheme))
                                 Spacer()
                             }
                             .frame(height: 56)
-                            .background(AppColors.primary)
+                            .background(AppColors.surface(themeManager.colorScheme))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 28)
+                                    .stroke(AppColors.border(themeManager.colorScheme), lineWidth: 1)
+                            )
                             .cornerRadius(28)
                         }
                         .padding(.horizontal, 24)
+                        .padding(.top, 16)
                         .padding(.bottom, 40)
                     }
                 }
@@ -4820,7 +4838,8 @@ struct NotificationSettingsView: View {
                     Button("Done") {
                         isPresented = false
                     }
-                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+                    .font(.custom("ProductSans-Bold", size: 16))
+                    .foregroundColor(AppColors.primary)
                 }
             }
             .alert(alertTitle, isPresented: $showAlert) {
@@ -4830,54 +4849,38 @@ struct NotificationSettingsView: View {
             }
             .onAppear {
                 checkNotificationStatus()
-            }
-            .onChange(of: notificationsEnabled) { newValue in
-                handleToggleNotifications(enabled: newValue)
+                selectedLevel = NotificationManager.shared.notificationLevel
             }
         }
     }
     
     private func checkNotificationStatus() {
-        UNUserNotificationCenter.current().getNotificationSettings { settings in
-            DispatchQueue.main.async {
-                notificationsEnabled = settings.authorizationStatus == .authorized
+        Task {
+            let enabled = await NotificationManager.shared.areNotificationsEnabled()
+            await MainActor.run {
+                notificationsEnabled = enabled
             }
         }
     }
     
-    private func handleToggleNotifications(enabled: Bool) {
-        if enabled {
-            // Request notification permission
-            isLoading = true
-            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in
-                DispatchQueue.main.async {
-                    isLoading = false
-                    if let error = error {
-                        notificationsEnabled = false
-                        alertTitle = "Error"
-                        alertMessage = error.localizedDescription
-                        showAlert = true
-                    } else if !granted {
-                        notificationsEnabled = false
-                        alertTitle = "Permission Denied"
-                        alertMessage = "Please enable notifications in Settings to receive important updates."
-                        showAlert = true
-                    } else {
-                        notificationsEnabled = true
-                        // Register for remote notifications
-                        DispatchQueue.main.async {
-                            UIApplication.shared.registerForRemoteNotifications()
-                        }
+    private func handleLevelChange(_ level: NotificationLevel) {
+        isLoading = true
+        Task {
+            let granted = await NotificationManager.shared.requestPermissions(for: level)
+            await MainActor.run {
+                isLoading = false
+                notificationsEnabled = granted
+                if granted {
+                    // Reschedule all reminders with new level
+                    Task {
+                        await LoggingViewModel.shared.rescheduleAllReminders()
                     }
+                } else {
+                    alertTitle = "Permission Required"
+                    alertMessage = "Please enable notifications in Settings to receive medication reminders."
+                    showAlert = true
                 }
             }
-        } else {
-            // User disabled - show message that they need to disable in Settings
-            alertTitle = "Notifications"
-            alertMessage = "To disable notifications, please go to Settings > Notifications > Lumo and turn off notifications."
-            showAlert = true
-            // Revert the toggle
-            notificationsEnabled = true
         }
     }
     
@@ -4886,6 +4889,122 @@ struct NotificationSettingsView: View {
             if UIApplication.shared.canOpenURL(settingsURL) {
                 UIApplication.shared.open(settingsURL)
             }
+        }
+    }
+}
+
+// MARK: - Settings Notification Level Card
+struct SettingsNotificationLevelCard: View {
+    let level: NotificationLevel
+    let isSelected: Bool
+    let colorScheme: ColorScheme?
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(alignment: .top, spacing: 14) {
+                // Icon
+                ZStack {
+                    Circle()
+                        .fill(isSelected ? AppColors.primary : AppColors.primary.opacity(0.1))
+                        .frame(width: 44, height: 44)
+
+                    Image(systemName: level.icon)
+                        .font(.system(size: 18))
+                        .foregroundColor(isSelected ? .white : AppColors.primary)
+                }
+
+                // Content
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        Text(level.displayName)
+                            .font(.custom("ProductSans-Bold", size: 16))
+                            .foregroundColor(AppColors.text(colorScheme))
+
+                        if level == .timeSensitive {
+                            Text("Recommended")
+                                .font(.custom("ProductSans-Bold", size: 10))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .background(
+                                    Capsule()
+                                        .fill(AppColors.primary)
+                                )
+                        }
+                    }
+
+                    Text(level.description)
+                        .font(.custom("ProductSans-Regular", size: 13))
+                        .foregroundColor(AppColors.textSecondary(colorScheme))
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    // Priority indicator
+                    HStack(spacing: 3) {
+                        ForEach(0..<3) { index in
+                            Circle()
+                                .fill(index < priorityLevel(for: level)
+                                      ? priorityColor(for: level)
+                                      : AppColors.border(colorScheme))
+                                .frame(width: 6, height: 6)
+                        }
+                        Text(priorityText(for: level))
+                            .font(.custom("ProductSans-Regular", size: 11))
+                            .foregroundColor(AppColors.textSecondary(colorScheme))
+                    }
+                    .padding(.top, 2)
+                }
+
+                Spacer()
+
+                // Selection indicator
+                ZStack {
+                    Circle()
+                        .stroke(isSelected ? AppColors.primary : AppColors.border(colorScheme), lineWidth: 2)
+                        .frame(width: 22, height: 22)
+
+                    if isSelected {
+                        Circle()
+                            .fill(AppColors.primary)
+                            .frame(width: 12, height: 12)
+                    }
+                }
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(AppColors.surface(colorScheme))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(isSelected ? AppColors.primary : AppColors.border(colorScheme), lineWidth: isSelected ? 2 : 1)
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+
+    private func priorityLevel(for level: NotificationLevel) -> Int {
+        switch level {
+        case .standard: return 1
+        case .timeSensitive: return 2
+        case .critical: return 3
+        }
+    }
+
+    private func priorityColor(for level: NotificationLevel) -> Color {
+        switch level {
+        case .standard: return .gray
+        case .timeSensitive: return .orange
+        case .critical: return .red
+        }
+    }
+
+    private func priorityText(for level: NotificationLevel) -> String {
+        switch level {
+        case .standard: return "Normal priority"
+        case .timeSensitive: return "High priority"
+        case .critical: return "Maximum priority"
         }
     }
 }

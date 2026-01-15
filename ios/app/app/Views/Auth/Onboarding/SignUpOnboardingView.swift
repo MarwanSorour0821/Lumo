@@ -295,8 +295,8 @@ struct SignUpOnboardingView: View {
             NotificationPermissionView(
                 isPresented: $showNotificationPrompt,
                 isPostSignUp: true,
-                onEnableNotifications: {
-                    print("✅ Notifications enabled after sign up")
+                onEnableNotifications: { level in
+                    print("✅ Notifications enabled after sign up with level: \(level.displayName)")
                 }
             )
             .environmentObject(themeManager)

@@ -169,72 +169,134 @@ struct WelcomePage: View {
     }
 }
 
-// MARK: - Page 2: Permission Framing
+// MARK: - Page 2: Permission Framing (Notification Level Selection)
 struct PermissionFramingPage: View {
     @EnvironmentObject var themeManager: ThemeManager
     @ObservedObject var coordinator: MedicationOnboardingCoordinator
 
     @State private var contentOpacity: Double = 0
-    @State private var iconScale: CGFloat = 0.8
+    @State private var selectedLevel: NotificationLevel = .timeSensitive
+    @State private var isRequestingPermission = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            Spacer()
+        ZStack {
+            ScrollView {
+                VStack(spacing: 0) {
+                    // Header
+                    VStack(spacing: 16) {
+                        // Bell icon
+                        ZStack {
+                            Circle()
+                                .fill(AppColors.primary.opacity(0.1))
+                                .frame(width: 80, height: 80)
 
-            // Notification bell icon
-            ZStack {
-                Circle()
-                    .fill(AppColors.primary.opacity(0.1))
-                    .frame(width: 100, height: 100)
+                            Image(systemName: "bell.badge.fill")
+                                .font(.system(size: 36))
+                                .foregroundStyle(AppColors.primary)
+                        }
+                        .padding(.top, 32)
 
-                Image(systemName: "bell.badge.fill")
-                    .font(.system(size: 44))
-                    .foregroundStyle(AppColors.primary)
+                        // Title
+                        Text("How should we remind you?")
+                            .font(.custom("ProductSans-Bold", size: 26))
+                            .foregroundColor(AppColors.text(themeManager.colorScheme))
+                            .multilineTextAlignment(.center)
+
+                        // Description
+                        Text("Choose the notification style that works best for your lifestyle.")
+                            .font(.custom("ProductSans-Regular", size: 16))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 24)
+                    }
+                    .opacity(contentOpacity)
+                    .padding(.bottom, 24)
+
+                    // Notification Level Options
+                    VStack(spacing: 12) {
+                        ForEach(NotificationLevel.allCases) { level in
+                            OnboardingNotificationLevelCard(
+                                level: level,
+                                isSelected: selectedLevel == level,
+                                colorScheme: themeManager.colorScheme
+                            ) {
+                                let impact = UIImpactFeedbackGenerator(style: .light)
+                                impact.impactOccurred()
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                    selectedLevel = level
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 24)
+                    .opacity(contentOpacity)
+
+                    // Spacer for bottom button area
+                    Spacer(minLength: 140)
+                }
             }
-            .scaleEffect(iconScale)
-            .opacity(contentOpacity)
-            .padding(.bottom, 32)
 
-            // Headline
-            Text("Lumo reminds you — gently.")
-                .font(.custom("ProductSans-Bold", size: 28))
-                .foregroundColor(AppColors.text(themeManager.colorScheme))
-                .multilineTextAlignment(.center)
-                .opacity(contentOpacity)
-                .padding(.horizontal, 32)
+            // Bottom button (fixed)
+            VStack {
+                Spacer()
 
-            // Subtext
-            Text("We'll notify you when it's time to take your medication.")
-                .font(.custom("ProductSans-Regular", size: 17))
-                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                .multilineTextAlignment(.center)
-                .opacity(contentOpacity)
-                .padding(.top, 12)
-                .padding(.horizontal, 32)
+                VStack(spacing: 0) {
+                    Button(action: {
+                        let impact = UIImpactFeedbackGenerator(style: .light)
+                        impact.impactOccurred()
+                        requestNotificationPermission()
+                    }) {
+                        HStack {
+                            if isRequestingPermission {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            } else {
+                                Text("Enable Notifications")
+                                    .font(.custom("ProductSans-Bold", size: 17))
+                            }
+                        }
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
+                        .background(
+                            RoundedRectangle(cornerRadius: 28)
+                                .fill(AppColors.primary)
+                        )
+                        .shadow(color: AppColors.primary.opacity(0.4), radius: 16, x: 0, y: 8)
+                    }
+                    .disabled(isRequestingPermission)
+                    .opacity(contentOpacity)
 
-            Spacer()
-            Spacer()
-
-            // Continue button
-            Button(action: {
-                let impact = UIImpactFeedbackGenerator(style: .light)
-                impact.impactOccurred()
-                requestNotificationPermission()
-            }) {
-                Text("Continue")
-                    .font(.custom("ProductSans-Bold", size: 17))
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 56)
-                    .background(
-                        RoundedRectangle(cornerRadius: 28)
-                            .fill(AppColors.primary)
+                    // Skip option
+                    Button(action: {
+                        coordinator.setNotificationsEnabled(false)
+                        withAnimation {
+                            coordinator.nextStep()
+                        }
+                    }) {
+                        Text("Skip for now")
+                            .font(.custom("ProductSans-Regular", size: 15))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                    }
+                    .padding(.top, 16)
+                    .opacity(contentOpacity)
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 48)
+                .background(
+                    LinearGradient(
+                        colors: [
+                            AppColors.background(themeManager.colorScheme).opacity(0),
+                            AppColors.background(themeManager.colorScheme),
+                            AppColors.background(themeManager.colorScheme)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
                     )
-                    .shadow(color: AppColors.primary.opacity(0.4), radius: 16, x: 0, y: 8)
+                    .frame(height: 140)
+                    .allowsHitTesting(false)
+                )
             }
-            .opacity(contentOpacity)
-            .padding(.horizontal, 24)
-            .padding(.bottom, 48)
         }
         .onAppear {
             startAnimations()
@@ -242,22 +304,139 @@ struct PermissionFramingPage: View {
     }
 
     private func startAnimations() {
-        withAnimation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.1)) {
+        withAnimation(.easeOut(duration: 0.5).delay(0.1)) {
             contentOpacity = 1
-            iconScale = 1.0
         }
     }
 
     private func requestNotificationPermission() {
+        isRequestingPermission = true
         Task {
-            let granted = await NotificationManager.shared.requestPermissions()
+            let granted = await NotificationManager.shared.requestPermissions(for: selectedLevel)
             coordinator.setNotificationsEnabled(granted)
 
             await MainActor.run {
+                isRequestingPermission = false
                 withAnimation {
                     coordinator.nextStep()
                 }
             }
+        }
+    }
+}
+
+// MARK: - Onboarding Notification Level Card
+struct OnboardingNotificationLevelCard: View {
+    let level: NotificationLevel
+    let isSelected: Bool
+    let colorScheme: ColorScheme?
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(alignment: .top, spacing: 14) {
+                // Icon
+                ZStack {
+                    Circle()
+                        .fill(isSelected ? AppColors.primary : AppColors.primary.opacity(0.1))
+                        .frame(width: 44, height: 44)
+
+                    Image(systemName: level.icon)
+                        .font(.system(size: 18))
+                        .foregroundColor(isSelected ? .white : AppColors.primary)
+                }
+
+                // Content
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        Text(level.displayName)
+                            .font(.custom("ProductSans-Bold", size: 16))
+                            .foregroundColor(AppColors.text(colorScheme))
+
+                        if level == .timeSensitive {
+                            Text("Recommended")
+                                .font(.custom("ProductSans-Bold", size: 10))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .background(
+                                    Capsule()
+                                        .fill(AppColors.primary)
+                                )
+                        }
+                    }
+
+                    Text(level.description)
+                        .font(.custom("ProductSans-Regular", size: 13))
+                        .foregroundColor(AppColors.textSecondary(colorScheme))
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    // Priority indicator
+                    HStack(spacing: 3) {
+                        ForEach(0..<3) { index in
+                            Circle()
+                                .fill(index < priorityLevel(for: level)
+                                      ? priorityColor(for: level)
+                                      : AppColors.border(colorScheme))
+                                .frame(width: 6, height: 6)
+                        }
+                        Text(priorityText(for: level))
+                            .font(.custom("ProductSans-Regular", size: 11))
+                            .foregroundColor(AppColors.textSecondary(colorScheme))
+                    }
+                    .padding(.top, 2)
+                }
+
+                Spacer()
+
+                // Selection indicator
+                ZStack {
+                    Circle()
+                        .stroke(isSelected ? AppColors.primary : AppColors.border(colorScheme), lineWidth: 2)
+                        .frame(width: 22, height: 22)
+
+                    if isSelected {
+                        Circle()
+                            .fill(AppColors.primary)
+                            .frame(width: 12, height: 12)
+                    }
+                }
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(AppColors.surface(colorScheme))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(isSelected ? AppColors.primary : AppColors.border(colorScheme), lineWidth: isSelected ? 2 : 1)
+            )
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+
+    private func priorityLevel(for level: NotificationLevel) -> Int {
+        switch level {
+        case .standard: return 1
+        case .timeSensitive: return 2
+        case .critical: return 3
+        }
+    }
+
+    private func priorityColor(for level: NotificationLevel) -> Color {
+        switch level {
+        case .standard: return .gray
+        case .timeSensitive: return .orange
+        case .critical: return .red
+        }
+    }
+
+    private func priorityText(for level: NotificationLevel) -> String {
+        switch level {
+        case .standard: return "Normal priority"
+        case .timeSensitive: return "High priority"
+        case .critical: return "Maximum priority"
         }
     }
 }
