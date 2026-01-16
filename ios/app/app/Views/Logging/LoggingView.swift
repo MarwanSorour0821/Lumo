@@ -175,6 +175,7 @@ struct ReminderInputCard: View {
     @State private var hasConfiguredReminder = false
     @State private var showPaywall = false
     @State private var isCheckingSubscription = false
+    @State private var isSubmitting = false
     @FocusState private var isInputFocused: Bool
 
     private var formattedStartDate: String {
@@ -296,13 +297,20 @@ struct ReminderInputCard: View {
                                 .fill(hasInput ? AppColors.primary : AppColors.primary.opacity(0.3))
                                 .frame(width: 52, height: 52)
                                 .overlay(
-                                    Image(systemName: "arrow.up")
-                                        .font(.system(size: 18, weight: .bold))
-                                        .foregroundColor(.white)
+                                    Group {
+                                        if isSubmitting || isCheckingSubscription {
+                                            CustomSpinner(size: 20, lineWidth: 2.5)
+                                                .foregroundColor(.white)
+                                        } else {
+                                            Image(systemName: "arrow.up")
+                                                .font(.system(size: 18, weight: .bold))
+                                                .foregroundColor(.white)
+                                        }
+                                    }
                                 )
                         }
                         .buttonStyle(.plain)
-                        .disabled(!hasInput)
+                        .disabled(!hasInput || isSubmitting || isCheckingSubscription)
                     }
                 }
                 .padding(16)
@@ -448,12 +456,19 @@ struct ReminderInputCard: View {
                             .fill(hasInput ? AppColors.primary : AppColors.primary.opacity(0.3))
                             .frame(width: 52, height: 52)
                             .overlay(
-                                Image(systemName: "arrow.up")
-                                    .font(.system(size: 18, weight: .bold))
-                                    .foregroundColor(.white)
+                                Group {
+                                    if isSubmitting || isCheckingSubscription {
+                                        CustomSpinner(size: 20, lineWidth: 2.5)
+                                            .foregroundColor(.white)
+                                    } else {
+                                        Image(systemName: "arrow.up")
+                                            .font(.system(size: 18, weight: .bold))
+                                            .foregroundColor(.white)
+                                    }
+                                }
                             )
                     }
-                    .disabled(!hasInput)
+                    .disabled(!hasInput || isSubmitting || isCheckingSubscription)
                 }
             }
             .padding(16)
@@ -481,6 +496,7 @@ struct ReminderInputCard: View {
 
     private func submitReminder() {
         guard hasInput else { return }
+        guard !isSubmitting && !isCheckingSubscription else { return }
         
         isCheckingSubscription = true
 
@@ -494,6 +510,7 @@ struct ReminderInputCard: View {
                     
                     if hasSubscription {
                         // User has subscription, proceed with creating the item
+                        isSubmitting = true
                         createItem()
                     } else {
                         // No subscription, show paywall
@@ -533,17 +550,20 @@ struct ReminderInputCard: View {
                 )
             }
 
-            // Reset input
-            medicationName = ""
-            hasConfiguredReminder = false
-            reminderTimes = [{
-                var components = Calendar.current.dateComponents([.year, .month, .day], from: Date())
-                components.hour = 9
-                components.minute = 0
-                return Calendar.current.date(from: components) ?? Date()
-            }()]
-            reminderDays = Set([0, 1, 2, 3, 4, 5, 6])
-            isInputFocused = false
+            await MainActor.run {
+                // Reset input
+                medicationName = ""
+                hasConfiguredReminder = false
+                reminderTimes = [{
+                    var components = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+                    components.hour = 9
+                    components.minute = 0
+                    return Calendar.current.date(from: components) ?? Date()
+                }()]
+                reminderDays = Set([0, 1, 2, 3, 4, 5, 6])
+                isInputFocused = false
+                isSubmitting = false
+            }
         }
     }
 }

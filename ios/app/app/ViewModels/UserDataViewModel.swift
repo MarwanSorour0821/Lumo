@@ -344,6 +344,8 @@ class UserDataViewModel: ObservableObject {
             let biomarkers = HealthScoreService.shared.getTopBiomarkers(analyses: fetchedAnalyses, limit: 4)
             print("🔵 Found \(biomarkers.count) biomarkers needing attention")
             
+            // Update published properties (class is @MainActor so this is safe)
+            print("🔵 Setting healthScore to: \(score) (current value: \(healthScore))")
             healthScore = score
             topBiomarkers = biomarkers
             hasAnalyses = !fetchedAnalyses.isEmpty
@@ -354,7 +356,7 @@ class UserDataViewModel: ObservableObject {
             }
             
             hasLoadedHealthScore = true
-            print("✅ Health score loaded: \(score)")
+            print("✅ Health score loaded and set: \(healthScore) (verified: \(healthScore == score))")
         } catch {
             print("❌ Error loading health score: \(error.localizedDescription)")
             healthScoreError = error.localizedDescription

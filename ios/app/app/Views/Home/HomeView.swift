@@ -18,6 +18,8 @@ import StoreKit
 
 extension Notification.Name {
     static let switchTab = Notification.Name("SwitchTabNotification")
+    static let navigateToHistory = Notification.Name("NavigateToHistoryNotification")
+    static let analysisComplete = Notification.Name("AnalysisCompleteNotification")
 }
 
 // MARK: - Identifiable URL Wrapper for sheet(item:)
@@ -174,6 +176,9 @@ class AnalysisProcessingManager: ObservableObject {
         }
         
         sendCompletionNotification(fileName: fileName, success: true)
+        
+        // Notify that analysis is complete so health view can refresh
+        NotificationCenter.default.post(name: .analysisComplete, object: nil)
     }
     
     // MARK: - Fail Processing
@@ -558,6 +563,10 @@ struct HomeView: View {
                 isPresented: $showAnalyseModal,
                 onAnalysisStarted: { fileName in
                     selectedTab = 2
+                    // Navigate to history view after a short delay to ensure tab switch completes
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        NotificationCenter.default.post(name: .navigateToHistory, object: nil)
+                    }
                 },
                 onAnalysisComplete: { analysisData in
                     self.analysisResultForDisplay = analysisData
@@ -1290,13 +1299,13 @@ struct TodayMedicationCard: View {
                     .frame(width: 44, height: 44)
                     .overlay(
                         Circle()
-                            .stroke(item.allDosesTakenToday ? Color.green : AppColors.textSecondary(themeManager.colorScheme).opacity(0.3), lineWidth: 2)
+                            .stroke(item.allDosesTakenToday ? Color.green : AppColors.textSecondary(themeManager.colorScheme).opacity(0.25), lineWidth: 2)
                     )
 
                 Image(systemName: isExpanded ? "chevron.up" : "arrow.turn.down.right")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(item.allDosesTakenToday ? .white : (themeManager.colorScheme == .dark ? .white : .black))
-                    .opacity(item.allDosesTakenToday ? 1 : 0.7)
+                    .opacity(item.allDosesTakenToday ? 1 : 0.85)
             }
         }
         .buttonStyle(.plain)
@@ -1313,13 +1322,19 @@ struct TodayMedicationCard: View {
                     .frame(width: 44, height: 44)
                     .overlay(
                         Circle()
-                            .stroke(item.isTakenToday ? Color.green : AppColors.textSecondary(themeManager.colorScheme).opacity(0.3), lineWidth: 2)
+                            .stroke(item.isTakenToday ? Color.green : AppColors.textSecondary(themeManager.colorScheme).opacity(0.25), lineWidth: 2)
                     )
 
+                // Checkmark - always show, with different styling based on state
                 if item.isTakenToday {
                     Image(systemName: "checkmark")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.white)
+                } else {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(themeManager.colorScheme == .dark ? .white : .black)
+                        .opacity(0.85)
                 }
             }
         }
@@ -1332,7 +1347,7 @@ struct TodayMedicationCard: View {
             Button {
                 onReminder()
             } label: {
-                Image(systemName: item.reminderEnabled ? "bell.fill" : "bell")
+                Image(systemName: item.reminderEnabled ? "alarm.waves.left.and.right.fill" : "alarm.waves.left.and.right")
                     .font(.system(size: 20))
                     .foregroundColor(item.reminderEnabled ? AppColors.primary : AppColors.textSecondary(themeManager.colorScheme))
             }
@@ -1361,11 +1376,16 @@ struct TodayMedicationCard: View {
         .padding(.vertical, 12)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(Color(white: themeManager.colorScheme == .dark ? 0.18 : 0.94).opacity(0.92))
+                .fill(themeManager.colorScheme == .dark
+                    ? Color(white: 0.15).opacity(0.9)
+                    : Color(white: 0.96).opacity(0.95))
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color(white: themeManager.colorScheme == .dark ? 1.0 : 0.0).opacity(themeManager.colorScheme == .dark ? 0.15 : 0.08), lineWidth: 0.5)
+                        .stroke(themeManager.colorScheme == .dark
+                            ? Color.white.opacity(0.12)
+                            : Color.black.opacity(0.06), lineWidth: 0.5)
                 )
+                .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 4)
         )
     }
 
@@ -1688,9 +1708,10 @@ struct HomeTabView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @StateObject private var userData = UserDataViewModel.shared
     @State private var showInfoModal: Bool = false
+    @State private var navigateToHistory: Bool = false
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 // Background gradient
                 LinearGradient(
@@ -1741,9 +1762,110 @@ struct HomeTabView: View {
         .onAppear {
             // Data is loaded centrally, no need to reload here
         }
+        .onReceive(NotificationCenter.default.publisher(for: .navigateToHistory)) { _ in
+            navigateToHistory = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .analysisComplete)) { _ in
+            // Refresh health score when analysis completes
+            Task {
+                await userData.refreshHealthScore()
+            }
+        }
+        .navigationDestination(isPresented: $navigateToHistory) {
+            HistoryTabView()
+                .environmentObject(themeManager)
+        }
         .sheet(isPresented: $showInfoModal) {
             HealthScoreInfoModal(isPresented: $showInfoModal)
         }
+    }
+    
+    // MARK: - Biomarker Statistics
+    private func calculateBiomarkerStats() -> (total: Int, optimal: Int, normalRange: Int, outOfRange: Int)? {
+        // Get all analyses (not just the latest)
+        guard !userData.analyses.isEmpty else {
+            return nil
+        }
+        
+        // Process all analyses to get unique biomarkers with their latest values
+        // Similar to how TrendsService processes trends, but we'll use health score calculation
+        // to determine optimal vs good vs out of range status
+        let normalizer = BiomarkerNormalizer.shared
+        var latestBiomarkerValues: [String: (value: Double, date: Date, status: String?, unit: String?)] = [:]
+        
+        // Collect latest value for each unique biomarker across all tests
+        for analysis in userData.analyses {
+            guard let parsedData = analysis.getParsedData() else { continue }
+            let analysisDate = ISO8601DateFormatter().date(from: analysis.created_at) ?? Date.distantPast
+            
+            for result in parsedData.testResults {
+                guard let value = Double(result.value) else { continue }
+                
+                // Normalize marker name to canonical ID to group variations together
+                let canonicalId = normalizer.getCanonicalId(for: result.marker)
+                
+                // If this is the first time seeing this marker, or this test is newer
+                if latestBiomarkerValues[canonicalId] == nil {
+                    latestBiomarkerValues[canonicalId] = (value: value, date: analysisDate, status: result.status, unit: result.unit)
+                } else if let existing = latestBiomarkerValues[canonicalId], analysisDate > existing.date {
+                    // Found a newer value for this marker
+                    latestBiomarkerValues[canonicalId] = (value: value, date: analysisDate, status: result.status, unit: result.unit)
+                }
+            }
+        }
+        
+        let total = latestBiomarkerValues.count
+        
+        // Now use health score calculation to determine optimal/good/out of range status
+        // Calculate health score with all analyses to get biomarker sub-scores
+        // Use default profile for now (we could fetch it async, but this is called from UI)
+        let userProfile = UserHealthProfile.default
+        let detailedResult = HealthScoreService.shared.calculateDetailedHealthScore(
+            analyses: userData.analyses,
+            userProfile: userProfile
+        )
+        
+        // Count biomarkers by their status from sub-scores
+        // Note: optimal is separate from normalRange (normalRange = good biomarkers, not optimal)
+        var optimal = 0
+        var normalRange = 0
+        var outOfRange = 0
+        
+        // Create a set of canonical IDs we've seen
+        var processedBiomarkers: Set<String> = []
+        
+        for subScore in detailedResult.biomarkerScores {
+            // Use the biomarker ID to match with our latest values
+            let canonicalId = normalizer.getCanonicalId(for: subScore.biomarkerId)
+            processedBiomarkers.insert(canonicalId)
+            
+            switch subScore.status {
+            case .optimal:
+                optimal += 1
+            case .good:
+                normalRange += 1
+            case .borderline, .elevated, .low, .critical:
+                outOfRange += 1
+            }
+        }
+        
+        // For biomarkers that weren't in sub-scores (not in optimal ranges database),
+        // use their test result status
+        for (canonicalId, biomarkerData) in latestBiomarkerValues {
+            if !processedBiomarkers.contains(canonicalId) {
+                let status = (biomarkerData.status ?? "").lowercased()
+                if status == "normal" {
+                    normalRange += 1
+                } else if status == "high" || status == "low" {
+                    outOfRange += 1
+                } else {
+                    // If status is unknown, treat as normal range
+                    normalRange += 1
+                }
+            }
+        }
+        
+        return (total: total, optimal: optimal, normalRange: normalRange, outOfRange: outOfRange)
     }
     
     // MARK: - Home Content
@@ -1753,142 +1875,54 @@ struct HomeTabView: View {
                 
                 // Health Score Section
                 VStack(spacing: 12) {
-                        // Circular progress indicator
-                        ZStack {
-                            // Background circle (light gray, partial - cut off at bottom)
-                            Circle()
-                                .trim(from: 0.125, to: 0.875) // C-shape: gap at bottom
-                                .stroke(Color.gray.opacity(0.3), lineWidth: 8)
-                                .frame(width: 280, height: 280)
-                                .rotationEffect(.degrees(90)) // Rotate so gap is at bottom
-                            
-                            // Progress fill (adaptive color, partial - cut off at bottom) - animated
-                            Circle()
-                                .trim(from: 0.125, to: 0.125 + (userData.animatedProgress * 0.75)) // Fill based on animated progress
-                                .stroke(AppColors.text(themeManager.colorScheme), style: StrokeStyle(lineWidth: 8, lineCap: .round))
-                                .frame(width: 280, height: 280)
-                                .rotationEffect(.degrees(90)) // Rotate so gap is at bottom
-                                .animation(.easeOut(duration: 1.8), value: userData.animatedProgress)
-                            
-                            // Center score display
-                            if userData.isLoadingHealthScore {
-                                CustomSpinner(size: 24, lineWidth: 2.5)
-                                    .transition(.opacity.combined(with: .scale))
-                            } else if let error = userData.healthScoreError {
-                                VStack(spacing: 4) {
-                                    Text("Error")
-                                        .font(.system(size: 24, weight: .bold))
-                                        .foregroundColor(AppColors.text(themeManager.colorScheme))
-                                    Text(error)
-                                        .font(.system(size: 14))
-                                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                                }
-                                .transition(.opacity)
-                            } else {
-                                VStack(spacing: 4) {
-                                    AnimatedScoreView(
-                                        targetScore: userData.healthScore,
-                                        textColor: AppColors.text(themeManager.colorScheme)
-                                    )
-                                    
-                                    // "your health score" with info button
-                                    HStack(spacing: 6) {
-                                        Text("your health score")
-                                            .font(.system(size: 16))
-                                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                                        
-                                        Button(action: {
-                                            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                                            impactFeedback.impactOccurred()
-                                            showInfoModal = true
-                                        }) {
-                                            Image(systemName: "info.circle")
-                                                .font(.system(size: 14))
-                                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                                        }
-                                    }
-                                }
-                                .transition(.opacity.combined(with: .scale(scale: 0.95)))
-                            }
-                        }
-                        .animation(.easeInOut(duration: 0.4), value: userData.isLoadingHealthScore)
-                        .frame(width: 300, height: 300)
-                        
-                        // Your Trends Button with Icon
-                        HStack(spacing: 12) {
-                            NavigationLink(destination: ComingSoonView()) {
-                                Text("Your trends")
-                                    .font(.custom("ProductSans-Bold", size: 16))
-                                    .foregroundColor(AppColors.background(themeManager.colorScheme))
-                                    .padding(.horizontal, 32)
-                                    .padding(.vertical, 12)
-                                    .background(AppColors.text(themeManager.colorScheme))
-                                    .cornerRadius(25) // Pill shape
-                            }
-                            .simultaneousGesture(TapGesture().onEnded {
-                                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                                impactFeedback.impactOccurred()
-                            })
-                            
-                            Image(systemName: "chart.xyaxis.line")
-                                .font(.system(size: 20))
+                    if let error = userData.healthScoreError {
+                        VStack(spacing: 4) {
+                            Text("Error")
+                                .font(.system(size: 24, weight: .bold))
+                                .foregroundColor(AppColors.text(themeManager.colorScheme))
+                            Text(error)
+                                .font(.system(size: 14))
                                 .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                         }
-                        .padding(.top, -8) // Bring it closer to the health score
-                    }
-                    .padding(.top, 20)
-                    
-                    // Top Biomarkers Section
-                    if userData.hasAnalyses {
-                        VStack(alignment: .leading, spacing: 16) {
-                            HStack(spacing: 0) {
-                                Text("What Needs ")
-                                    .font(.custom("ProductSans-Bold", size: 24))
-                                    .foregroundColor(AppColors.text(themeManager.colorScheme))
-                                
-                                Text("Attention")
-                                    .font(.custom("InstrumentSerif-Italic", size: 24))
-                                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+                        .padding()
+                        .transition(.opacity)
+                    } else {
+                        HealthScoreCard(
+                            healthScore: userData.healthScore,
+                            isLoading: userData.isLoadingHealthScore,
+                            onInfoTapped: {
+                                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                                impactFeedback.impactOccurred()
+                                showInfoModal = true
                             }
-                            .padding(.horizontal, 24)
-                            
-                            if !userData.topBiomarkers.isEmpty {
-                                ForEach(Array(userData.topBiomarkers.enumerated()), id: \.element.id) { index, biomarker in
-                                    BiomarkerCard(biomarker: biomarker)
-                                        .transition(.asymmetric(
-                                            insertion: .opacity.combined(with: .move(edge: .bottom)).combined(with: .scale(scale: 0.95)),
-                                            removal: .opacity
-                                        ))
-                                        .animation(.easeOut(duration: 0.4).delay(Double(index) * 0.1), value: userData.topBiomarkers.count)
-                                }
-                            } else {
-                                // All biomarkers are optimal
-                                VStack(spacing: 12) {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .font(.system(size: 48))
-                                        .foregroundColor(.green)
-                                    
-                                    Text("All biomarkers are within optimal ranges")
-                                        .font(.custom("ProductSans-Bold", size: 18))
-                                        .foregroundColor(AppColors.text(themeManager.colorScheme))
-                                    
-                                    Text("Great job! Your blood test results look healthy.")
-                                        .font(.custom("ProductSans-Regular", size: 14))
-                                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                                        .multilineTextAlignment(.center)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding(24)
-                                .background(AppColors.surface(themeManager.colorScheme))
-                                .cornerRadius(12)
-                                .padding(.horizontal, 24)
-                                .transition(.opacity.combined(with: .scale(scale: 0.95)))
-                            }
+                        )
+                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                        .onAppear {
+                            print("🔵 HomeView: HealthScoreCard displayed with score: \(userData.healthScore), isLoading: \(userData.isLoadingHealthScore)")
                         }
-                        .padding(.top, 20)
-                        .transition(.opacity.combined(with: .move(edge: .bottom)))
-                        .animation(.easeOut(duration: 0.5).delay(0.3), value: userData.hasAnalyses)
+                        .onChange(of: userData.healthScore) { oldValue, newValue in
+                            print("🔵 HomeView: userData.healthScore changed from \(oldValue) to \(newValue)")
+                        }
                     }
+                    
+                    // Biomarkers Card
+                    if userData.hasAnalyses, let biomarkerStats = calculateBiomarkerStats() {
+                        BiomarkersCard(
+                            totalBiomarkers: biomarkerStats.total,
+                            optimalCount: biomarkerStats.optimal,
+                            normalRangeCount: biomarkerStats.normalRange,
+                            outOfRangeCount: biomarkerStats.outOfRange
+                        )
+                        .padding(.top, 16)
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                        
+                        // History Card
+                        HistoryCard()
+                            .padding(.top, 12)
+                            .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    }
+                }
+                .padding(.top, 20)
                 }
                 .padding(.bottom, 40)
             }
@@ -2017,7 +2051,8 @@ struct HistoryTabView: View {
                             }
                         }
                         .padding(.horizontal, 16)
-                        .padding(.vertical, 20)
+                        .padding(.top, 16)
+                        .padding(.bottom, 20)
                     }
                     .refreshable {
                         await loadAnalyses()
@@ -2035,9 +2070,15 @@ struct HistoryTabView: View {
             }
             .navigationBarTitle("History", displayMode: .inline)
             .onAppear {
-                if !hasLoaded {
+                // Only load if we haven't loaded before AND we don't have any analyses
+                // This prevents reloading every time we navigate back
+                if !hasLoaded && analyses.isEmpty {
                     Task { await loadAnalyses() }
                 }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .analysisComplete)) { _ in
+                // Refresh analyses when a new analysis completes
+                Task { await loadAnalyses() }
             }
             .navigationDestination(item: $selectedAnalysis) { analysis in
                 if let analysisData = analysis.toAnalysisData() {
@@ -2162,6 +2203,7 @@ struct HistoryTabView: View {
         return "Lab report"
     }
 }
+
 
 // MARK: - Processing Analysis Card (Shows progress while analyzing)
 struct ProcessingAnalysisCard: View {
