@@ -19,6 +19,7 @@ enum WidgetDataKeys {
     static let isLoggedIn = "widget_is_logged_in"
     static let accessToken = "widget_access_token"
     static let apiURL = "widget_api_url"
+    static let lastWidgetToggle = "widget_last_toggle_time"
 }
 
 // MARK: - Widget Supplement Model
@@ -252,6 +253,31 @@ class WidgetDataManager {
         sharedDefaults?.removeObject(forKey: WidgetDataKeys.apiURL)
         sharedDefaults?.synchronize()
         print("🗑️ WidgetDataManager: Cleared auth data")
+    }
+    
+    // MARK: - Widget Toggle Tracking
+    
+    /// Check if widget made a toggle recently (within specified seconds)
+    /// Returns true if we should skip app refresh to avoid overwriting widget changes
+    func hasRecentWidgetToggle(withinSeconds seconds: Double = 3.0) -> Bool {
+        guard let toggleTime = sharedDefaults?.double(forKey: WidgetDataKeys.lastWidgetToggle), toggleTime > 0 else {
+            return false
+        }
+        
+        let timeSinceToggle = Date().timeIntervalSince1970 - toggleTime
+        let isRecent = timeSinceToggle < seconds
+        
+        if isRecent {
+            print("⏱️ WidgetDataManager: Recent widget toggle detected (\(String(format: "%.1f", timeSinceToggle))s ago) - skipping app refresh")
+        }
+        
+        return isRecent
+    }
+    
+    /// Clear the widget toggle timestamp (call after app finishes refresh)
+    func clearWidgetToggleTimestamp() {
+        sharedDefaults?.removeObject(forKey: WidgetDataKeys.lastWidgetToggle)
+        sharedDefaults?.synchronize()
     }
     
     // MARK: - Toggle Supplement (called from widget)

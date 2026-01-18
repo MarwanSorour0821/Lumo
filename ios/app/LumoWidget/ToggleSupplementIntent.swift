@@ -16,6 +16,7 @@ private enum WidgetDataKeys {
     static let supplements = "widget_supplements"
     static let accessToken = "widget_access_token"
     static let apiURL = "widget_api_url"
+    static let lastWidgetToggle = "widget_last_toggle_time"
 }
 
 // MARK: - Toggle Supplement Intent
@@ -116,6 +117,11 @@ struct ToggleSupplementIntent: AppIntent {
             }
             
             print("✅ Widget Intent: API call SUCCESS!")
+            
+            // Save timestamp so app knows widget just made a change
+            sharedDefaults.set(Date().timeIntervalSince1970, forKey: WidgetDataKeys.lastWidgetToggle)
+            sharedDefaults.synchronize()
+            print("⏱️ Widget Intent: Saved toggle timestamp")
             
             // Update local data optimistically
             updateSupplementLocally(supplementId: supplementId, timeIndex: timeIndex >= 0 ? timeIndex : nil)

@@ -133,7 +133,14 @@ struct LumoApp: App {
                 // Refresh data when coming back from widget or background
                 if appState.isAuthenticated {
                     Task {
-                        // Refresh supplement data to sync with any widget changes
+                        // Check if widget just made a change - if so, delay refresh to let server process
+                        if WidgetDataManager.shared.hasRecentWidgetToggle(withinSeconds: 2.0) {
+                            print("⏱️ Widget just made a change - delaying refresh by 1.5 seconds")
+                            try? await Task.sleep(nanoseconds: 1_500_000_000) // 1.5 seconds
+                            WidgetDataManager.shared.clearWidgetToggleTimestamp()
+                        }
+                        
+                        // Refresh supplement data to sync with server
                         print("🔄 Refreshing logging data after app became active")
                         await LoggingViewModel.shared.refreshData()
                         
