@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		397EFA652F1CC9F600F71A58 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 397EFA642F1CC9F600F71A58 /* WidgetKit.framework */; };
+		397EFA672F1CC9F600F71A58 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 397EFA662F1CC9F600F71A58 /* SwiftUI.framework */; };
+		397EFA762F1CC9F700F71A58 /* LumoWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 397EFA632F1CC9F600F71A58 /* LumoWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A5E1CE592EF42B68004FA9B0 /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = A5E1CE582EF42B68004FA9B0 /* Auth */; };
 		A5E1CE5B2EF42B68004FA9B0 /* Functions in Frameworks */ = {isa = PBXBuildFile; productRef = A5E1CE5A2EF42B68004FA9B0 /* Functions */; };
 		A5E1CE5D2EF42B68004FA9B0 /* PostgREST in Frameworks */ = {isa = PBXBuildFile; productRef = A5E1CE5C2EF42B68004FA9B0 /* PostgREST */; };
@@ -15,7 +18,36 @@
 		A5E1CE642EF42DE2004FA9B0 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = A5E1CE632EF42DE2004FA9B0 /* Supabase */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		397EFA742F1CC9F700F71A58 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A5E1CE162EF416CB004FA9B0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 397EFA622F1CC9F600F71A58;
+			remoteInfo = LumoWidgetExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		397EFA772F1CC9F700F71A58 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				397EFA762F1CC9F700F71A58 /* LumoWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		397EF9B52F1CC96C00F71A58 /* app.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = app.xcodeproj; sourceTree = "<group>"; };
+		397EFA632F1CC9F600F71A58 /* LumoWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LumoWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		397EFA642F1CC9F600F71A58 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		397EFA662F1CC9F600F71A58 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		397EFA812F1D050600F71A58 /* LumoWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LumoWidgetExtension.entitlements; sourceTree = "<group>"; };
 		3987DC702F053A3300689D97 /* app.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = app.xcodeproj; sourceTree = "<group>"; };
 		399E36662F05494900D8A478 /* app.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = app.xcodeproj; sourceTree = "<group>"; };
 		39BFBA5F2F05360D006E5676 /* app.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = app.xcodeproj; sourceTree = "<group>"; };
@@ -24,6 +56,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		397EFA7B2F1CC9F700F71A58 /* Exceptions for "LumoWidget" folder in "LumoWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 397EFA622F1CC9F600F71A58 /* LumoWidgetExtension */;
+		};
 		A5E1CE472EF4197C004FA9B0 /* Exceptions for "app" folder in "app" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -34,6 +73,14 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		397EFA682F1CC9F600F71A58 /* LumoWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				397EFA7B2F1CC9F700F71A58 /* Exceptions for "LumoWidget" folder in "LumoWidgetExtension" target */,
+			);
+			path = LumoWidget;
+			sourceTree = "<group>";
+		};
 		A5E1CE202EF416CB004FA9B0 /* app */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -45,6 +92,15 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		397EFA602F1CC9F600F71A58 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				397EFA672F1CC9F600F71A58 /* SwiftUI.framework in Frameworks */,
+				397EFA652F1CC9F600F71A58 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		A5E1CE1B2EF416CB004FA9B0 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -61,6 +117,11 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		397EFA182F1CC96C00F71A58 /* Products */ = {
+			isa = PBXGroup;
+			name = Products;
+			sourceTree = "<group>";
+		};
 		3987DC952F053A3300689D97 /* Products */ = {
 			isa = PBXGroup;
 			name = Products;
@@ -84,7 +145,9 @@
 		A5E1CE152EF416CB004FA9B0 = {
 			isa = PBXGroup;
 			children = (
+				397EFA812F1D050600F71A58 /* LumoWidgetExtension.entitlements */,
 				A5E1CE202EF416CB004FA9B0 /* app */,
+				397EFA682F1CC9F600F71A58 /* LumoWidget */,
 				A5E1CE622EF42DD8004FA9B0 /* Frameworks */,
 				A5E1CE1F2EF416CB004FA9B0 /* Products */,
 			);
@@ -94,6 +157,7 @@
 			isa = PBXGroup;
 			children = (
 				A5E1CE1E2EF416CB004FA9B0 /* app.app */,
+				397EFA632F1CC9F600F71A58 /* LumoWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -101,6 +165,8 @@
 		A5E1CE622EF42DD8004FA9B0 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				397EFA642F1CC9F600F71A58 /* WidgetKit.framework */,
+				397EFA662F1CC9F600F71A58 /* SwiftUI.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -108,6 +174,28 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		397EFA622F1CC9F600F71A58 /* LumoWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 397EFA7A2F1CC9F700F71A58 /* Build configuration list for PBXNativeTarget "LumoWidgetExtension" */;
+			buildPhases = (
+				397EFA5F2F1CC9F600F71A58 /* Sources */,
+				397EFA602F1CC9F600F71A58 /* Frameworks */,
+				397EFA612F1CC9F600F71A58 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				397EFA682F1CC9F600F71A58 /* LumoWidget */,
+			);
+			name = LumoWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = LumoWidgetExtension;
+			productReference = 397EFA632F1CC9F600F71A58 /* LumoWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		A5E1CE1D2EF416CB004FA9B0 /* app */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = A5E1CE292EF416CD004FA9B0 /* Build configuration list for PBXNativeTarget "app" */;
@@ -115,10 +203,12 @@
 				A5E1CE1A2EF416CB004FA9B0 /* Sources */,
 				A5E1CE1B2EF416CB004FA9B0 /* Frameworks */,
 				A5E1CE1C2EF416CB004FA9B0 /* Resources */,
+				397EFA772F1CC9F700F71A58 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				397EFA752F1CC9F700F71A58 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				A5E1CE202EF416CB004FA9B0 /* app */,
@@ -143,9 +233,12 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2620;
+				LastSwiftUpdateCheck = 2600;
 				LastUpgradeCheck = 2620;
 				TargetAttributes = {
+					397EFA622F1CC9F600F71A58 = {
+						CreatedOnToolsVersion = 26.0.1;
+					};
 					A5E1CE1D2EF416CB004FA9B0 = {
 						CreatedOnToolsVersion = 26.2;
 					};
@@ -168,6 +261,10 @@
 			projectDirPath = "";
 			projectReferences = (
 				{
+					ProductGroup = 397EFA182F1CC96C00F71A58 /* Products */;
+					ProjectRef = 397EF9B52F1CC96C00F71A58 /* app.xcodeproj */;
+				},
+				{
 					ProductGroup = 399E36952F05494900D8A478 /* Products */;
 					ProjectRef = 399E36662F05494900D8A478 /* app.xcodeproj */;
 				},
@@ -187,11 +284,19 @@
 			projectRoot = "";
 			targets = (
 				A5E1CE1D2EF416CB004FA9B0 /* app */,
+				397EFA622F1CC9F600F71A58 /* LumoWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		397EFA612F1CC9F600F71A58 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		A5E1CE1C2EF416CB004FA9B0 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -202,6 +307,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		397EFA5F2F1CC9F600F71A58 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		A5E1CE1A2EF416CB004FA9B0 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -211,7 +323,79 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		397EFA752F1CC9F700F71A58 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 397EFA622F1CC9F600F71A58 /* LumoWidgetExtension */;
+			targetProxy = 397EFA742F1CC9F700F71A58 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		397EFA782F1CC9F700F71A58 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = LumoWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = C7RJ365M46;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = LumoWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = LumoWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.lumoblood.app.LumoWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		397EFA792F1CC9F700F71A58 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = LumoWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = C7RJ365M46;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = LumoWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = LumoWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.lumoblood.app.LumoWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		A5E1CE272EF416CD004FA9B0 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -341,14 +525,17 @@
 				CODE_SIGN_ENTITLEMENTS = app/app.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 20;
-				DEVELOPMENT_TEAM = C7RJ365M46;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = app/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Lumo;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.medical";
 				INFOPLIST_KEY_NSCameraUsageDescription = "We use the camera to capture lab test images so our AI can analyze your blood results for health insights.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "We use the microphone to capture your voice for logging supplements and food.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "We access photos so you can import lab reports for analysis and tracking.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "We access photos so you can import lab reports for analysis and tracking.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "We use speech recognition to let you quickly log supplements and food by speaking.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -380,14 +567,17 @@
 				CODE_SIGN_ENTITLEMENTS = app/app.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 20;
-				DEVELOPMENT_TEAM = C7RJ365M46;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = app/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Lumo;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.medical";
 				INFOPLIST_KEY_NSCameraUsageDescription = "We use the camera to capture lab test images so our AI can analyze your blood results for health insights.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "We use the microphone to capture your voice for logging supplements and food.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "We access photos so you can import lab reports for analysis and tracking.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "We access photos so you can import lab reports for analysis and tracking.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "We use speech recognition to let you quickly log supplements and food by speaking.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -414,6 +604,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		397EFA7A2F1CC9F700F71A58 /* Build configuration list for PBXNativeTarget "LumoWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				397EFA782F1CC9F700F71A58 /* Debug */,
+				397EFA792F1CC9F700F71A58 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		A5E1CE192EF416CB004FA9B0 /* Build configuration list for PBXProject "app" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

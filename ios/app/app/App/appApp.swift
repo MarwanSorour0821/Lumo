@@ -14,6 +14,8 @@ import UserNotifications
 // MARK: - App Delegate for Background Tasks and Notifications
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
+        print("🚀🚀🚀 APP LAUNCHED - didFinishLaunchingWithOptions 🚀🚀🚀")
+        
         // Register background task
         BGTaskScheduler.shared.register(forTaskWithIdentifier: "com.lumo.analyzeBloodTest", using: nil) { task in
             self.handleBackgroundAnalysis(task: task as! BGProcessingTask)
@@ -145,10 +147,19 @@ struct LumoApp: App {
 
 // MARK: - App State
 class AppState: ObservableObject {
-    @Published var isAuthenticated: Bool = false
+    @Published var isAuthenticated: Bool = false {
+        didSet {
+            // Sync authentication state with widget
+            print("🔔 isAuthenticated changed to: \(isAuthenticated) - syncing with widget")
+            WidgetDataManager.shared.setLoggedIn(isAuthenticated)
+        }
+    }
     @Published var isLoading: Bool = true
     
     init() {
+        print("🚀 AppState init - starting authentication check")
+        // Force sync logged in state on init in case we have an existing session
+        // This ensures widget gets updated even if isAuthenticated doesn't change
         checkAuthentication()
     }
     
@@ -174,6 +185,12 @@ class AppState: ObservableObject {
                     self.isAuthenticated = hasSession
                     self.isLoading = false
                     print("🔵 Authentication check: \(self.isAuthenticated ? "Authenticated" : "Not authenticated")")
+                    
+                    // Explicitly sync with widget (backup in case didSet doesn't fire)
+                    if hasSession {
+                        print("🔵 Explicitly syncing widget login state")
+                        WidgetDataManager.shared.setLoggedIn(true)
+                    }
                 }
                 
                 // Load user data if authenticated

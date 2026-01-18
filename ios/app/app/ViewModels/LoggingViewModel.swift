@@ -62,6 +62,19 @@ class LoggingViewModel: ObservableObject {
         successMessage = nil
         hasLoadedOnce = false
         selectedFilter = nil
+        
+        // Clear widget data on reset
+        WidgetDataManager.shared.clearSupplements()
+    }
+    
+    // MARK: - Widget Data
+    
+    /// Update widget with current supplement data
+    func updateWidgetData() {
+        // Only include non-archived items
+        let activeItems = items.filter { !$0.isArchived }
+        let widgetSupplements = activeItems.map { $0.toWidgetSupplement() }
+        WidgetDataManager.shared.saveSupplements(widgetSupplements)
     }
     
     /// Reschedule all reminders for items that have reminders enabled
@@ -113,6 +126,9 @@ class LoggingViewModel: ObservableObject {
         do {
             items = try await LoggingService.shared.getItems(type: selectedFilter)
             isLoading = false
+            
+            // Update widget with latest supplement data
+            updateWidgetData()
         } catch {
             self.error = error.localizedDescription
             isLoading = false
@@ -132,6 +148,9 @@ class LoggingViewModel: ObservableObject {
         await loadRecentLogs()
         await loadWeekLogs()
         hasLoadedOnce = true
+        
+        // Update widget after full refresh
+        updateWidgetData()
     }
 
     /// Load logs for the past week grouped by date
@@ -210,6 +229,9 @@ class LoggingViewModel: ObservableObject {
             items.insert(newItem, at: 0)
             successMessage = "\(name) added successfully"
             isLoading = false
+            
+            // Update widget
+            updateWidgetData()
         } catch {
             self.error = error.localizedDescription
             isLoading = false
@@ -252,6 +274,9 @@ class LoggingViewModel: ObservableObject {
             
             successMessage = "\(updated.name) updated successfully"
             isLoading = false
+            
+            // Update widget
+            updateWidgetData()
         } catch {
             self.error = error.localizedDescription
             isLoading = false
@@ -266,6 +291,9 @@ class LoggingViewModel: ObservableObject {
             try await LoggingService.shared.deleteItem(itemId: item.id)
             items.removeAll { $0.id == item.id }
             successMessage = "\(item.name) removed"
+            
+            // Update widget
+            updateWidgetData()
         } catch {
             self.error = error.localizedDescription
         }
@@ -278,6 +306,9 @@ class LoggingViewModel: ObservableObject {
                 items.remove(at: index)
             }
             successMessage = "\(updated.name) archived"
+            
+            // Update widget
+            updateWidgetData()
         } catch {
             self.error = error.localizedDescription
         }
@@ -295,6 +326,9 @@ class LoggingViewModel: ObservableObject {
             // Haptic feedback only (no toast notification)
             let generator = UINotificationFeedbackGenerator()
             generator.notificationOccurred(.success)
+            
+            // Update widget
+            updateWidgetData()
         } catch {
             self.error = error.localizedDescription
         }
@@ -313,6 +347,9 @@ class LoggingViewModel: ObservableObject {
             // Haptic feedback only (no toast notification)
             let generator = UINotificationFeedbackGenerator()
             generator.notificationOccurred(.success)
+            
+            // Update widget
+            updateWidgetData()
         } catch {
             self.error = error.localizedDescription
         }
