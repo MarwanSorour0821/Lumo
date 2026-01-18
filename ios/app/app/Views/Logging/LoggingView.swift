@@ -160,6 +160,7 @@ struct ReminderInputCard: View {
     @State private var medicationName: String = ""
     @State private var startDate: Date = Date()
     @State private var endDate: Date = Calendar.current.date(byAdding: .month, value: 1, to: Date()) ?? Date()
+    @State private var hasEndDate: Bool = true
     @State private var reminderTimes: [Date] = [{
         var components = Calendar.current.dateComponents([.year, .month, .day], from: Date())
         components.hour = 9
@@ -185,6 +186,9 @@ struct ReminderInputCard: View {
     }
     
     private var formattedEndDate: String {
+        if !hasEndDate {
+            return "No end date"
+        }
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d"
         return formatter.string(from: endDate)
@@ -327,6 +331,7 @@ struct ReminderInputCard: View {
                 reminderDays: $reminderDays,
                 startDate: $startDate,
                 endDate: $endDate,
+                hasEndDate: $hasEndDate,
                 onSave: {
                     hasConfiguredReminder = true
                 }
@@ -337,7 +342,8 @@ struct ReminderInputCard: View {
             DatePickerModal(
                 title: "Start Date",
                 date: $startDate,
-                isPresented: $showStartDateModal
+                isPresented: $showStartDateModal,
+                hasEndDate: nil
             )
             .environmentObject(themeManager)
             .presentationDetents([.height(550)])
@@ -347,10 +353,11 @@ struct ReminderInputCard: View {
                 title: "End Date",
                 date: $endDate,
                 isPresented: $showEndDateModal,
-                minDate: startDate
+                minDate: startDate,
+                hasEndDate: $hasEndDate
             )
             .environmentObject(themeManager)
-            .presentationDetents([.height(550)])
+            .presentationDetents([.height(620)])
         }
         .sheet(isPresented: $showPaywall) {
             PaywallView(isPresented: $showPaywall) {
@@ -537,7 +544,7 @@ struct ReminderInputCard: View {
                 frequency: .daily,
                 timesPerWeek: 7,
                 startDate: startDate,
-                endDate: endDate
+                endDate: hasEndDate ? endDate : nil
             )
 
             // Find the newly created item and set reminder with configured times and days
@@ -554,6 +561,8 @@ struct ReminderInputCard: View {
                 // Reset input
                 medicationName = ""
                 hasConfiguredReminder = false
+                hasEndDate = true
+                endDate = Calendar.current.date(byAdding: .month, value: 1, to: Date()) ?? Date()
                 reminderTimes = [{
                     var components = Calendar.current.dateComponents([.year, .month, .day], from: Date())
                     components.hour = 9
@@ -819,7 +828,11 @@ struct ItemCard: View {
                         Button {
                             onEdit()
                         } label: {
-                            Label("Edit", systemImage: "scribble.variable")
+                            HStack {
+                                Image(systemName: "scribble.variable")
+                                    .foregroundColor(themeManager.colorScheme == .dark ? .white : .black)
+                                Text("Edit")
+                            }
                         }
 
                         Button(role: .destructive) {
@@ -853,7 +866,11 @@ struct ItemCard: View {
                         Button {
                             onEdit()
                         } label: {
-                            Label("Edit", systemImage: "scribble.variable")
+                            HStack {
+                                Image(systemName: "scribble.variable")
+                                    .foregroundColor(themeManager.colorScheme == .dark ? .white : .black)
+                                Text("Edit")
+                            }
                         }
 
                         Button(role: .destructive) {
@@ -971,6 +988,19 @@ struct DatePickerModal: View {
     @Binding var date: Date
     @Binding var isPresented: Bool
     var minDate: Date? = nil
+    var hasEndDateBinding: Binding<Bool>?
+    @State private var localHasEndDate: Bool = true
+    
+    init(title: String, date: Binding<Date>, isPresented: Binding<Bool>, minDate: Date? = nil, hasEndDate: Binding<Bool>? = nil) {
+        self.title = title
+        self._date = date
+        self._isPresented = isPresented
+        self.minDate = minDate
+        self.hasEndDateBinding = hasEndDate
+        if let hasEndDate = hasEndDate {
+            self._localHasEndDate = State(initialValue: hasEndDate.wrappedValue)
+        }
+    }
     
     var body: some View {
         NavigationView {
@@ -979,6 +1009,38 @@ struct DatePickerModal: View {
                     .ignoresSafeArea()
                 
                 VStack(spacing: 24) {
+                    // No end date option (only for end date picker)
+                    if hasEndDateBinding != nil {
+                        Button {
+                            withAnimation {
+                                localHasEndDate.toggle()
+                                if !localHasEndDate {
+                                    // Set a default date when toggling off (won't be used but keeps binding valid)
+                                    date = Calendar.current.date(byAdding: .month, value: 1, to: Date()) ?? Date()
+                                }
+                            }
+                        } label: {
+                            HStack {
+                                Image(systemName: !localHasEndDate ? "checkmark.circle.fill" : "circle")
+                                    .font(.system(size: 18))
+                                    .foregroundColor(!localHasEndDate ? AppColors.primary : AppColors.textSecondary(themeManager.colorScheme))
+                                
+                                Text("No end date")
+                                    .font(.custom("ProductSans-Medium", size: 16))
+                                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+                                
+                                Spacer()
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 14)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(AppColors.inputBackground(themeManager.colorScheme))
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    
                     if let minDate = minDate {
                         DatePicker("", selection: $date, in: minDate..., displayedComponents: .date)
                             .datePickerStyle(.graphical)
@@ -988,6 +1050,8 @@ struct DatePickerModal: View {
                                 RoundedRectangle(cornerRadius: 16)
                                     .fill(AppColors.inputBackground(themeManager.colorScheme))
                             )
+                            .opacity(localHasEndDate ? 1.0 : 0.5)
+                            .disabled(!localHasEndDate)
                     } else {
                         DatePicker("", selection: $date, displayedComponents: .date)
                             .datePickerStyle(.graphical)
@@ -997,9 +1061,15 @@ struct DatePickerModal: View {
                                 RoundedRectangle(cornerRadius: 16)
                                     .fill(AppColors.inputBackground(themeManager.colorScheme))
                             )
+                            .opacity(localHasEndDate ? 1.0 : 0.5)
+                            .disabled(!localHasEndDate)
                     }
                     
                     Button {
+                        // Update the binding before dismissing
+                        if let hasEndDateBinding = hasEndDateBinding {
+                            hasEndDateBinding.wrappedValue = localHasEndDate
+                        }
                         isPresented = false
                     } label: {
                         Text("Done")

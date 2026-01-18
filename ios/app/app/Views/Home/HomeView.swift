@@ -1237,7 +1237,11 @@ struct TodayMedicationCard: View {
                                 Button {
                                     onEdit()
                                 } label: {
-                                    Label("Edit", systemImage: "scribble.variable")
+                                    HStack {
+                                        Image(systemName: "scribble.variable")
+                                            .foregroundColor(themeManager.colorScheme == .dark ? .white : .black)
+                                        Text("Edit")
+                                    }
                                 }
 
                                 Button(role: .destructive) {
@@ -1357,7 +1361,11 @@ struct TodayMedicationCard: View {
                 Button {
                     onEdit()
                 } label: {
-                    Label("Edit", systemImage: "scribble.variable")
+                    HStack {
+                        Image(systemName: "scribble.variable")
+                            .foregroundColor(themeManager.colorScheme == .dark ? .white : .black)
+                        Text("Edit")
+                    }
                 }
 
                 Button(role: .destructive) {

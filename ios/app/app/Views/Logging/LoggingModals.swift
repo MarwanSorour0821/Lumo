@@ -1013,12 +1013,12 @@ struct ReminderConfigSheet: View {
     @Binding var reminderDays: Set<Int>
     @Binding var startDate: Date
     @Binding var endDate: Date
+    @Binding var hasEndDate: Bool
     var onSave: () -> Void
 
     @State private var showingTimePicker = false
     @State private var editingTimeIndex: Int? = nil
     @State private var tempTime: Date = Date()
-    @State private var hasEndDate: Bool = true
     @State private var showStartDatePicker = false
     @State private var showEndDatePicker = false
     @State private var appearAnimation = false
@@ -1441,7 +1441,7 @@ struct ReminderConfigSheet: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
             .background(
-                RoundedRectangle(cornerRadius: 14)
+                Capsule()
                     .fill(AppColors.primary)
             )
         }

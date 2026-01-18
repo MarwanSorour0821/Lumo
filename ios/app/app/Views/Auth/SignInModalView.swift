@@ -59,8 +59,7 @@ struct SignInModalView: View {
                     InputField(
                         placeholder: "Email address",
                         text: $email,
-                        icon: .email,
-                        isEnabled: !showPassword
+                        icon: .email
                     )
                     .focused($focusedField, equals: .email)
                     .padding(.bottom, 24)
