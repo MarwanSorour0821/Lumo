@@ -2285,7 +2285,7 @@ struct EditItemSheet: View {
                                     .tracking(1.2)
 
                                 HStack(spacing: 0) {
-                                    ForEach(LogItemType.allCases, id: \.self) { type in
+                                    ForEach(LogItemType.allCases.filter { $0 != .food }, id: \.self) { type in
                                         Button {
                                             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                                                 selectedType = type
@@ -2937,8 +2937,8 @@ struct EditItemSheet: View {
             }
             
             await MainActor.run {
-                isSubmitting = false
-                dismiss()
+            isSubmitting = false
+            dismiss()
             }
         }
     }
