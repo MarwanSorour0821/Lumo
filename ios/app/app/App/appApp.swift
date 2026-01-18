@@ -130,9 +130,14 @@ struct LumoApp: App {
             case .active:
                 // App became active - processing manager will resume automatically
                 print("🔵 App became active")
-                // Check subscription status and cancel notifications if subscription ended
+                // Refresh data when coming back from widget or background
                 if appState.isAuthenticated {
                     Task {
+                        // Refresh supplement data to sync with any widget changes
+                        print("🔄 Refreshing logging data after app became active")
+                        await LoggingViewModel.shared.refreshData()
+                        
+                        // Check subscription status and cancel notifications if subscription ended
                         await SubscriptionService.shared.checkAndHandleSubscriptionStatus()
                     }
                 }
@@ -194,7 +199,16 @@ class AppState: ObservableObject {
                 }
                 
                 // Load user data if authenticated
-                if hasSession {
+                if hasSession, let session = session {
+                    // Save access token and API URL for widget to use
+                    print("🔑 Saving access token for widget (length: \(session.accessToken.count))")
+                    WidgetDataManager.shared.saveAccessToken(session.accessToken)
+                    if let apiURL = SupabaseManager.shared.getAPIURL() {
+                        print("🔑 Saving API URL for widget: \(apiURL)")
+                        WidgetDataManager.shared.saveAPIURL(apiURL)
+                    } else {
+                        print("⚠️ No API URL found to save for widget!")
+                    }
                     await UserDataViewModel.shared.loadAllUserData()
                     // Reset and load logging data for fresh session
                     await MainActor.run {
@@ -231,6 +245,8 @@ class AppState: ObservableObject {
                     // Clear all user data
                     UserDataViewModel.shared.clearAllData()
                     LoggingViewModel.shared.reset()
+                    // Clear widget auth data
+                    WidgetDataManager.shared.clearAuthData()
                     self.isAuthenticated = false
                 }
             } catch {

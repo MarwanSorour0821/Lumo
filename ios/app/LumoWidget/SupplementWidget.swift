@@ -7,6 +7,7 @@
 
 import WidgetKit
 import SwiftUI
+import AppIntents
 
 // MARK: - App Group Configuration
 
@@ -272,17 +273,29 @@ struct SupplementWidgetSmallView: View {
                 
                 Spacer()
                 
-                // Show first pending item
+                // Show first pending item with toggle button
                 if let first = entry.pendingSupplements.first {
-                    HStack(spacing: 6) {
-                        Circle()
-                            .fill(first.color)
-                            .frame(width: 8, height: 8)
-                        
-                        Text(first.name)
-                            .font(.system(size: 12, weight: .medium))
-                            .lineLimit(1)
+                    Button(intent: ToggleSupplementIntent(
+                        supplementId: first.id,
+                        supplementName: first.name,
+                        timeIndex: first.nextPendingDose?.timeIndex ?? -1
+                    )) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "circle")
+                                .font(.system(size: 14))
+                                .foregroundColor(.gray)
+                            
+                            Text(first.name)
+                                .font(.system(size: 12, weight: .medium))
+                                .lineLimit(1)
+                                .foregroundColor(.primary)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.gray.opacity(0.15))
+                        .cornerRadius(8)
                     }
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -439,6 +452,18 @@ struct SupplementRowView: View {
     
     var body: some View {
         HStack(spacing: 8) {
+            // Toggle button
+            Button(intent: ToggleSupplementIntent(
+                supplementId: supplement.id,
+                supplementName: supplement.name,
+                timeIndex: supplement.nextPendingDose?.timeIndex ?? -1
+            )) {
+                Image(systemName: supplement.allDosesTaken ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 18))
+                    .foregroundColor(supplement.allDosesTaken ? .green : .gray)
+            }
+            .buttonStyle(.plain)
+            
             Image(systemName: supplement.iconName)
                 .font(.system(size: 12))
                 .foregroundColor(supplement.color)
@@ -447,6 +472,8 @@ struct SupplementRowView: View {
             Text(supplement.name)
                 .font(.system(size: 13, weight: .medium))
                 .lineLimit(1)
+                .strikethrough(supplement.allDosesTaken, color: .secondary)
+                .foregroundColor(supplement.allDosesTaken ? .secondary : .primary)
             
             Spacer()
             
@@ -465,22 +492,31 @@ struct SupplementDetailRowView: View {
     
     var body: some View {
         HStack(spacing: 12) {
-            // Icon
-            ZStack {
-                Circle()
-                    .fill(supplement.color.opacity(0.15))
-                    .frame(width: 28, height: 28)
-                
-                Image(systemName: supplement.iconName)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(supplement.color)
+            // Toggle button
+            Button(intent: ToggleSupplementIntent(
+                supplementId: supplement.id,
+                supplementName: supplement.name,
+                timeIndex: supplement.nextPendingDose?.timeIndex ?? -1
+            )) {
+                ZStack {
+                    Circle()
+                        .fill(supplement.allDosesTaken ? Color.green.opacity(0.15) : supplement.color.opacity(0.15))
+                        .frame(width: 32, height: 32)
+                    
+                    Image(systemName: supplement.allDosesTaken ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 20))
+                        .foregroundColor(supplement.allDosesTaken ? .green : .gray)
+                }
             }
+            .buttonStyle(.plain)
             
             // Name and doses
             VStack(alignment: .leading, spacing: 2) {
                 Text(supplement.name)
                     .font(.system(size: 14, weight: .medium))
                     .lineLimit(1)
+                    .strikethrough(supplement.allDosesTaken, color: .secondary)
+                    .foregroundColor(supplement.allDosesTaken ? .secondary : .primary)
                 
                 // Show pending dose times
                 if !supplement.pendingDoses.isEmpty {
@@ -488,12 +524,16 @@ struct SupplementDetailRowView: View {
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
                         .lineLimit(1)
+                } else if supplement.allDosesTaken {
+                    Text("Completed ✓")
+                        .font(.system(size: 11))
+                        .foregroundColor(.green)
                 }
             }
             
             Spacer()
             
-            // Pending doses count
+            // Pending doses count badge
             if supplement.pendingDoses.count > 1 {
                 Text("\(supplement.pendingDoses.count) doses")
                     .font(.system(size: 11, weight: .medium))
@@ -502,6 +542,10 @@ struct SupplementDetailRowView: View {
                     .padding(.vertical, 3)
                     .background(supplement.color)
                     .clipShape(Capsule())
+            } else if supplement.allDosesTaken {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 16))
+                    .foregroundColor(.green)
             }
         }
     }

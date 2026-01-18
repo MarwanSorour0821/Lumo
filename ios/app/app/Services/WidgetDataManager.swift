@@ -17,6 +17,8 @@ enum WidgetDataKeys {
     static let supplements = "widget_supplements"
     static let lastUpdated = "widget_last_updated"
     static let isLoggedIn = "widget_is_logged_in"
+    static let accessToken = "widget_access_token"
+    static let apiURL = "widget_api_url"
 }
 
 // MARK: - Widget Supplement Model
@@ -196,6 +198,165 @@ class WidgetDataManager {
     /// Get last update time
     func lastUpdated() -> Date? {
         return sharedDefaults?.object(forKey: WidgetDataKeys.lastUpdated) as? Date
+    }
+    
+    // MARK: - Auth Token (for widget API calls)
+    
+    /// Save access token for widget to use
+    func saveAccessToken(_ token: String) {
+        guard let defaults = sharedDefaults else {
+            print("❌ WidgetDataManager: Cannot save token - sharedDefaults is nil")
+            return
+        }
+        defaults.set(token, forKey: WidgetDataKeys.accessToken)
+        defaults.synchronize()
+        
+        // Verify the save
+        if let saved = defaults.string(forKey: WidgetDataKeys.accessToken) {
+            print("✅ WidgetDataManager: Saved access token (length: \(saved.count), verified: true)")
+        } else {
+            print("❌ WidgetDataManager: Token save FAILED - could not read back")
+        }
+    }
+    
+    /// Get access token
+    func getAccessToken() -> String? {
+        return sharedDefaults?.string(forKey: WidgetDataKeys.accessToken)
+    }
+    
+    /// Save API URL for widget to use
+    func saveAPIURL(_ url: String) {
+        guard let defaults = sharedDefaults else {
+            print("❌ WidgetDataManager: Cannot save API URL - sharedDefaults is nil")
+            return
+        }
+        defaults.set(url, forKey: WidgetDataKeys.apiURL)
+        defaults.synchronize()
+        
+        // Verify the save
+        if let saved = defaults.string(forKey: WidgetDataKeys.apiURL) {
+            print("✅ WidgetDataManager: Saved API URL: \(saved)")
+        } else {
+            print("❌ WidgetDataManager: API URL save FAILED")
+        }
+    }
+    
+    /// Get API URL
+    func getAPIURL() -> String? {
+        return sharedDefaults?.string(forKey: WidgetDataKeys.apiURL)
+    }
+    
+    /// Clear auth data on logout
+    func clearAuthData() {
+        sharedDefaults?.removeObject(forKey: WidgetDataKeys.accessToken)
+        sharedDefaults?.removeObject(forKey: WidgetDataKeys.apiURL)
+        sharedDefaults?.synchronize()
+        print("🗑️ WidgetDataManager: Cleared auth data")
+    }
+    
+    // MARK: - Toggle Supplement (called from widget)
+    
+    /// Toggle a supplement's taken status and update local data
+    /// Returns true if successful
+    func toggleSupplementTaken(supplementId: String, timeIndex: Int? = nil) async -> Bool {
+        guard let token = getAccessToken(),
+              let apiURL = getAPIURL() else {
+            print("❌ Widget: No auth token or API URL available")
+            return false
+        }
+        
+        // Determine the endpoint based on whether it's a multi-dose or single-dose
+        let endpoint: String
+        if let timeIndex = timeIndex {
+            endpoint = "\(apiURL)/api/logging/items/\(supplementId)/toggle-dose/\(timeIndex)/"
+        } else {
+            endpoint = "\(apiURL)/api/logging/items/\(supplementId)/toggle-taken/"
+        }
+        
+        guard let url = URL(string: endpoint) else {
+            print("❌ Widget: Invalid URL")
+            return false
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            
+            guard let httpResponse = response as? HTTPURLResponse,
+                  httpResponse.statusCode == 200 else {
+                print("❌ Widget: Toggle request failed")
+                return false
+            }
+            
+            print("✅ Widget: Successfully toggled supplement \(supplementId)")
+            
+            // Update local data optimistically
+            updateSupplementLocally(supplementId: supplementId, timeIndex: timeIndex)
+            
+            // Trigger widget refresh
+            WidgetCenter.shared.reloadTimelines(ofKind: "SupplementWidget")
+            
+            return true
+        } catch {
+            print("❌ Widget: Network error - \(error.localizedDescription)")
+            return false
+        }
+    }
+    
+    /// Update supplement data locally after toggle
+    private func updateSupplementLocally(supplementId: String, timeIndex: Int?) {
+        var supplements = loadSupplements()
+        
+        guard let index = supplements.firstIndex(where: { $0.id == supplementId }) else {
+            return
+        }
+        
+        var supplement = supplements[index]
+        
+        // Update dose statuses
+        var updatedDoseStatuses = supplement.doseStatuses
+        if let timeIndex = timeIndex {
+            // Multi-dose: toggle specific dose
+            if let doseIndex = updatedDoseStatuses.firstIndex(where: { $0.timeIndex == timeIndex }) {
+                let dose = updatedDoseStatuses[doseIndex]
+                updatedDoseStatuses[doseIndex] = WidgetDoseStatus(
+                    supplementId: supplementId,
+                    timeIndex: dose.timeIndex,
+                    time: dose.time,
+                    isTaken: !dose.isTaken
+                )
+            }
+        } else {
+            // Single-dose: toggle all doses
+            updatedDoseStatuses = updatedDoseStatuses.map { dose in
+                WidgetDoseStatus(
+                    supplementId: supplementId,
+                    timeIndex: dose.timeIndex,
+                    time: dose.time,
+                    isTaken: !dose.isTaken
+                )
+            }
+        }
+        
+        // Check if all doses are taken
+        let allTaken = updatedDoseStatuses.allSatisfy { $0.isTaken }
+        
+        // Create updated supplement
+        let updatedSupplement = WidgetSupplement(
+            id: supplement.id,
+            name: supplement.name,
+            type: supplement.type,
+            reminderTimes: supplement.reminderTimes,
+            isTakenToday: allTaken,
+            doseStatuses: updatedDoseStatuses
+        )
+        
+        supplements[index] = updatedSupplement
+        saveSupplements(supplements)
     }
 }
 
