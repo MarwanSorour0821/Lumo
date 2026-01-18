@@ -40,11 +40,14 @@
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>com.lumo.analyzeBloodTest</string>
+		<string>com.lumo.checkLiveActivities</string>
 	</array>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>processing</string>
 		<string>fetch</string>
 	</array>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 </dict>
 </plist>

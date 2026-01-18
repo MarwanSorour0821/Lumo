@@ -13,7 +13,42 @@
 		A5E1CE5F2EF42B68004FA9B0 /* Realtime in Frameworks */ = {isa = PBXBuildFile; productRef = A5E1CE5E2EF42B68004FA9B0 /* Realtime */; };
 		A5E1CE612EF42B68004FA9B0 /* Storage in Frameworks */ = {isa = PBXBuildFile; productRef = A5E1CE602EF42B68004FA9B0 /* Storage */; };
 		A5E1CE642EF42DE2004FA9B0 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = A5E1CE632EF42DE2004FA9B0 /* Supabase */; };
+		PILL001002F0B58B000000001 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = PILL001002F0B58B000000002 /* WidgetKit.framework */; };
+		PILL001002F0B58B000000003 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = PILL001002F0B58B000000004 /* SwiftUI.framework */; };
+		PILL001002F0B58B000000005 /* PillReminderWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = PILL001002F0B58B000000006 /* PillReminderWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		PILL001002F0B58B000000007 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A5E1CE162EF416CB004FA9B0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = PILL001002F0B58B000000008;
+			remoteInfo = PillReminderWidgetExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXTargetDependency section */
+		PILL001002F0B58B00000000F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = PILL001002F0B58B000000008 /* PillReminderWidgetExtension */;
+			targetProxy = PILL001002F0B58B000000007 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		PILL001002F0B58B000000009 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				PILL001002F0B58B000000005 /* PillReminderWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		3987DC702F053A3300689D97 /* app.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = app.xcodeproj; sourceTree = "<group>"; };
@@ -21,6 +56,9 @@
 		39BFBA5F2F05360D006E5676 /* app.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = app.xcodeproj; sourceTree = "<group>"; };
 		39CC8C332F05378300863968 /* app.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = app.xcodeproj; sourceTree = "<group>"; };
 		A5E1CE1E2EF416CB004FA9B0 /* app.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = app.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		PILL001002F0B58B000000002 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		PILL001002F0B58B000000004 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		PILL001002F0B58B000000006 /* PillReminderWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PillReminderWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -31,6 +69,13 @@
 			);
 			target = A5E1CE1D2EF416CB004FA9B0 /* app */;
 		};
+		PILL001002F0B58B00000000B /* Exceptions for "PillReminderWidget" folder in "PillReminderWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = PILL001002F0B58B000000008 /* PillReminderWidgetExtension */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -40,6 +85,14 @@
 				A5E1CE472EF4197C004FA9B0 /* Exceptions for "app" folder in "app" target */,
 			);
 			path = app;
+			sourceTree = "<group>";
+		};
+		PILL001002F0B58B00000000A /* PillReminderWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				PILL001002F0B58B00000000B /* Exceptions for "PillReminderWidget" folder in "PillReminderWidgetExtension" target */,
+			);
+			path = PillReminderWidget;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -55,6 +108,15 @@
 				A5E1CE592EF42B68004FA9B0 /* Auth in Frameworks */,
 				A5E1CE612EF42B68004FA9B0 /* Storage in Frameworks */,
 				A5E1CE5F2EF42B68004FA9B0 /* Realtime in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		PILL001002F0B58B00000000C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				PILL001002F0B58B000000001 /* WidgetKit.framework in Frameworks */,
+				PILL001002F0B58B000000003 /* SwiftUI.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -85,6 +147,7 @@
 			isa = PBXGroup;
 			children = (
 				A5E1CE202EF416CB004FA9B0 /* app */,
+				PILL001002F0B58B00000000A /* PillReminderWidget */,
 				A5E1CE622EF42DD8004FA9B0 /* Frameworks */,
 				A5E1CE1F2EF416CB004FA9B0 /* Products */,
 			);
@@ -94,6 +157,7 @@
 			isa = PBXGroup;
 			children = (
 				A5E1CE1E2EF416CB004FA9B0 /* app.app */,
+				PILL001002F0B58B000000006 /* PillReminderWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -101,6 +165,8 @@
 		A5E1CE622EF42DD8004FA9B0 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				PILL001002F0B58B000000002 /* WidgetKit.framework */,
+				PILL001002F0B58B000000004 /* SwiftUI.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -115,10 +181,12 @@
 				A5E1CE1A2EF416CB004FA9B0 /* Sources */,
 				A5E1CE1B2EF416CB004FA9B0 /* Frameworks */,
 				A5E1CE1C2EF416CB004FA9B0 /* Resources */,
+				PILL001002F0B58B000000009 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				PILL001002F0B58B00000000F /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				A5E1CE202EF416CB004FA9B0 /* app */,
@@ -136,6 +204,26 @@
 			productReference = A5E1CE1E2EF416CB004FA9B0 /* app.app */;
 			productType = "com.apple.product-type.application";
 		};
+		PILL001002F0B58B000000008 /* PillReminderWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = PILL001002F0B58B000000010 /* Build configuration list for PBXNativeTarget "PillReminderWidgetExtension" */;
+			buildPhases = (
+				PILL001002F0B58B00000000E /* Sources */,
+				PILL001002F0B58B00000000C /* Frameworks */,
+				PILL001002F0B58B00000000D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				PILL001002F0B58B00000000A /* PillReminderWidget */,
+			);
+			name = PillReminderWidgetExtension;
+			productName = PillReminderWidgetExtension;
+			productReference = PILL001002F0B58B000000006 /* PillReminderWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -147,6 +235,9 @@
 				LastUpgradeCheck = 2620;
 				TargetAttributes = {
 					A5E1CE1D2EF416CB004FA9B0 = {
+						CreatedOnToolsVersion = 26.2;
+					};
+					PILL001002F0B58B000000008 = {
 						CreatedOnToolsVersion = 26.2;
 					};
 				};
@@ -187,6 +278,7 @@
 			projectRoot = "";
 			targets = (
 				A5E1CE1D2EF416CB004FA9B0 /* app */,
+				PILL001002F0B58B000000008 /* PillReminderWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -199,10 +291,24 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		PILL001002F0B58B00000000D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		A5E1CE1A2EF416CB004FA9B0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		PILL001002F0B58B00000000E /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -411,6 +517,62 @@
 			};
 			name = Release;
 		};
+		PILL001002F0B58B000000011 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 20;
+				DEVELOPMENT_TEAM = C7RJ365M46;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PillReminderWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Pill Reminder";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.3;
+				PRODUCT_BUNDLE_IDENTIFIER = com.lumoblood.app.PillReminderWidgetExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		PILL001002F0B58B000000012 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 20;
+				DEVELOPMENT_TEAM = C7RJ365M46;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PillReminderWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Pill Reminder";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.3;
+				PRODUCT_BUNDLE_IDENTIFIER = com.lumoblood.app.PillReminderWidgetExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -428,6 +590,15 @@
 			buildConfigurations = (
 				A5E1CE2A2EF416CD004FA9B0 /* Debug */,
 				A5E1CE2B2EF416CD004FA9B0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		PILL001002F0B58B000000010 /* Build configuration list for PBXNativeTarget "PillReminderWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				PILL001002F0B58B000000011 /* Debug */,
+				PILL001002F0B58B000000012 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

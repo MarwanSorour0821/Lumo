@@ -440,8 +440,12 @@ struct ReminderSheet: View {
     @State private var startDate: Date
     @State private var endDate: Date
     @State private var hasEndDate: Bool
-    @State private var showStartDatePicker = false
-    @State private var showEndDatePicker = false
+    @State private var showScheduleOptions = false
+    @State private var activeSection: ReminderSection? = nil
+
+    private enum ReminderSection {
+        case startDate, endDate
+    }
 
     let dayNames = ["S", "M", "T", "W", "T", "F", "S"]
     let fullDayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
@@ -450,7 +454,6 @@ struct ReminderSheet: View {
         self.item = item
         self.viewModel = viewModel
 
-        // Parse reminder times
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm:ss"
 
@@ -458,26 +461,23 @@ struct ReminderSheet: View {
             let times = item.reminderTimes.compactMap { formatter.date(from: $0) }
             _reminderTimes = State(initialValue: times.isEmpty ? [ReminderSheet.defaultTime(hour: 9)] : times)
         } else {
-            // Default to 9:00 AM
             _reminderTimes = State(initialValue: [ReminderSheet.defaultTime(hour: 9)])
         }
 
         _selectedDays = State(initialValue: Set(item.reminderDays.isEmpty ? [0,1,2,3,4,5,6] : item.reminderDays))
 
-        // Parse start date
         if let startDateString = item.startDate {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy-MM-dd"
-            _startDate = State(initialValue: formatter.date(from: startDateString) ?? Date())
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd"
+            _startDate = State(initialValue: dateFormatter.date(from: startDateString) ?? Date())
         } else {
             _startDate = State(initialValue: Date())
         }
 
-        // Parse end date
         if let endDateString = item.endDate {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy-MM-dd"
-            _endDate = State(initialValue: formatter.date(from: endDateString) ?? Calendar.current.date(byAdding: .month, value: 1, to: Date())!)
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd"
+            _endDate = State(initialValue: dateFormatter.date(from: endDateString) ?? Calendar.current.date(byAdding: .month, value: 1, to: Date())!)
             _hasEndDate = State(initialValue: true)
         } else {
             _endDate = State(initialValue: Calendar.current.date(byAdding: .month, value: 1, to: Date()) ?? Date())
@@ -513,327 +513,400 @@ struct ReminderSheet: View {
         return formatter.string(from: date)
     }
 
+    private func formatTimeShort(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm"
+        return formatter.string(from: date)
+    }
+
+    private func formatTimePeriod(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "a"
+        return formatter.string(from: date).lowercased()
+    }
+
     private var formattedStartDate: String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d, yyyy"
+        formatter.dateFormat = "MMM d"
         return formatter.string(from: startDate)
     }
 
     private var formattedEndDate: String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d, yyyy"
+        formatter.dateFormat = "MMM d"
         return formatter.string(from: endDate)
     }
 
     var body: some View {
-        NavigationView {
             ZStack {
+            // Background
                 AppColors.modalBackground(themeManager.colorScheme)
                     .ignoresSafeArea()
 
                 VStack(spacing: 0) {
-                    ScrollView {
-                        VStack(spacing: 20) {
-                            reminderTimesSection
+                // Header
+                headerSection
+
+                // Content
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 28) {
+                        // Time Display & Picker
+                        timeSection
+
+                        // Quick Presets
                             presetsSection
-                            if showingTimePicker { timePickerSection }
-                            daySelectorSection
+
+                        // Days
+                        daysSection
+
+                        // Schedule
                             scheduleSection
-                            Spacer(minLength: 80)
-                        }
-                        .padding(20)
                     }
-                    saveButton
+                    .padding(.horizontal, 24)
+                    .padding(.top, 8)
+                    .padding(.bottom, 120)
                 }
+
+                Spacer(minLength: 0)
             }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    closeButton
-                }
-                ToolbarItem(placement: .principal) {
-                    Text("Set Reminder")
-                        .font(.custom("ProductSans-Bold", size: 17))
-                        .foregroundColor(AppColors.text(themeManager.colorScheme))
-                }
+
+            // Bottom Save Button
+            VStack {
+                Spacer()
+                saveButtonSection
             }
         }
         .onAppear {
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.8).delay(0.1)) {
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.1)) {
                 appearAnimation = true
             }
         }
     }
 
-    // MARK: - Subviews
+    // MARK: - Header
 
-    private var headerIcon: some View {
-        ZStack {
-            Circle()
-                .fill(AppColors.primary.opacity(0.12))
-                .frame(width: 64, height: 64)
-            Image(systemName: "alarm.waves.left.and.right.fill")
-                .font(.system(size: 26))
-                .foregroundColor(AppColors.primary)
-        }
-        .scaleEffect(appearAnimation ? 1 : 0.8)
-        .opacity(appearAnimation ? 1 : 0)
-        .padding(.top, 8)
-    }
-
-    private var closeButton: some View {
+    private var headerSection: some View {
+        HStack {
         Button {
+                let impact = UIImpactFeedbackGenerator(style: .light)
+                impact.impactOccurred()
             dismiss()
         } label: {
             Image(systemName: "xmark")
-                .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 15, weight: .medium))
                 .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                .frame(width: 32, height: 32)
-                .background(Circle().fill(AppColors.inputBackground(themeManager.colorScheme)))
-        }
-    }
+                    .frame(width: 36, height: 36)
+                    .background(
+                        Circle()
+                            .fill(AppColors.surface(themeManager.colorScheme))
+                    )
+            }
 
-    private var reminderTimesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("REMINDER TIMES")
-                    .font(.custom("ProductSans-Medium", size: 11))
-                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                    .tracking(1.2)
                 Spacer()
-                if reminderTimes.count < 5 {
-                    Button { addNewTime() } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "plus.circle.fill").font(.system(size: 14))
-                            Text("Add Time").font(.custom("ProductSans-Medium", size: 13))
-                        }
-                        .foregroundColor(AppColors.primary)
-                    }
-                }
+
+            VStack(spacing: 2) {
+                Text("Reminder")
+                    .font(.custom("ProductSans-Bold", size: 18))
+                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+
+                Text(item.name)
+                    .font(.custom("ProductSans-Regular", size: 13))
+                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                    .lineLimit(1)
             }
-            VStack(spacing: 8) {
-                ForEach(Array(reminderTimes.enumerated()), id: \.offset) { index, time in
-                    timeRow(index: index, time: time)
-                }
-            }
+
+            Spacer()
+
+            // Invisible button for balance
+            Color.clear
+                .frame(width: 36, height: 36)
         }
-        .padding(16)
-        .background(RoundedRectangle(cornerRadius: 16).fill(AppColors.surface(themeManager.colorScheme).opacity(0.5)))
-        .opacity(appearAnimation ? 1 : 0)
-        .offset(y: appearAnimation ? 0 : 10)
+        .padding(.horizontal, 20)
+        .padding(.top, 16)
+        .padding(.bottom, 8)
     }
 
-    private func timeRow(index: Int, time: Date) -> some View {
-        HStack {
-            ZStack {
-                Circle().fill(AppColors.primary.opacity(0.1)).frame(width: 36, height: 36)
-                Image(systemName: timeIcon(for: time)).font(.system(size: 14)).foregroundColor(AppColors.primary)
-            }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(formatTime(time)).font(.custom("ProductSans-Bold", size: 17)).foregroundColor(AppColors.text(themeManager.colorScheme))
-                Text(timePeriodLabel(for: time)).font(.custom("ProductSans-Regular", size: 12)).foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-            }
-            Spacer()
-            Button {
+    // MARK: - Time Section
+
+    private var timeSection: some View {
+        VStack(spacing: 16) {
+            // Time cards
+            VStack(spacing: 10) {
+                ForEach(Array(reminderTimes.enumerated()), id: \.offset) { index, time in
+                    TimeCard(
+                        time: time,
+                        isEditing: showingTimePicker && editingTimeIndex == index,
+                        onEdit: {
+                            let impact = UIImpactFeedbackGenerator(style: .light)
+                            impact.impactOccurred()
                 editingTimeIndex = index
                 tempTime = time
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { showingTimePicker = true }
-            } label: {
-                Image(systemName: "pencil.circle.fill").font(.system(size: 22)).foregroundColor(AppColors.textSecondary(themeManager.colorScheme).opacity(0.5))
-            }
-            if reminderTimes.count > 1 {
-                Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                        var times = reminderTimes
-                        times.remove(at: index)
-                        reminderTimes = times
-                    }
-                } label: {
-                    Image(systemName: "xmark.circle.fill").font(.system(size: 22)).foregroundColor(.red.opacity(0.6))
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                showingTimePicker = true
+                            }
+                        },
+                        onDelete: reminderTimes.count > 1 ? {
+                            let impact = UIImpactFeedbackGenerator(style: .medium)
+                            impact.impactOccurred()
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                                reminderTimes.remove(at: index)
+                            }
+                        } : nil,
+                        themeManager: themeManager
+                    )
+                    .transition(.asymmetric(
+                        insertion: .scale(scale: 0.9).combined(with: .opacity),
+                        removal: .scale(scale: 0.9).combined(with: .opacity)
+                    ))
                 }
             }
-        }
-        .padding(12)
-        .background(RoundedRectangle(cornerRadius: 12).fill(AppColors.surface(themeManager.colorScheme)))
-    }
 
-    private var timePickerSection: some View {
-        VStack(spacing: 12) {
-            HStack {
-                Text(editingTimeIndex != nil ? "Edit Time" : "Add Time")
-                    .font(.custom("ProductSans-Bold", size: 15))
-                    .foregroundColor(AppColors.text(themeManager.colorScheme))
-                Spacer()
+            // Time picker
+            if showingTimePicker {
+                VStack(spacing: 16) {
+                    DatePicker("", selection: $tempTime, displayedComponents: .hourAndMinute)
+                        .datePickerStyle(.wheel)
+                        .labelsHidden()
+                        .frame(height: 150)
+
+                    HStack(spacing: 12) {
                 Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            let impact = UIImpactFeedbackGenerator(style: .light)
+                            impact.impactOccurred()
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                         showingTimePicker = false
                         editingTimeIndex = nil
                     }
                 } label: {
-                    Image(systemName: "xmark.circle.fill").font(.system(size: 24)).foregroundColor(AppColors.textSecondary(themeManager.colorScheme).opacity(0.5))
-                }
-            }
-            DatePicker("", selection: $tempTime, displayedComponents: .hourAndMinute).datePickerStyle(.wheel).labelsHidden().frame(height: 150)
+                            Text("Cancel")
+                                .font(.custom("ProductSans-Medium", size: 15))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 48)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 14)
+                                        .fill(AppColors.surface(themeManager.colorScheme))
+                                )
+                        }
+
             Button {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                    if let idx = editingTimeIndex { reminderTimes[idx] = tempTime }
-                    else { reminderTimes.append(tempTime); reminderTimes.sort { $0 < $1 } }
+                            let impact = UIImpactFeedbackGenerator(style: .light)
+                            impact.impactOccurred()
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                if let idx = editingTimeIndex {
+                                    reminderTimes[idx] = tempTime
+                                }
+                                reminderTimes.sort { $0 < $1 }
                     showingTimePicker = false
                     editingTimeIndex = nil
                 }
             } label: {
-                Text(editingTimeIndex != nil ? "Update" : "Add")
+                            Text("Done")
                     .font(.custom("ProductSans-Bold", size: 15))
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(Capsule().fill(AppColors.primary))
-            }
-        }
-        .padding(16)
-        .background(RoundedRectangle(cornerRadius: 16).fill(AppColors.surface(themeManager.colorScheme)).shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5))
-    }
-
-    private var daySelectorSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("REPEAT ON")
-                .font(.custom("ProductSans-Medium", size: 11))
-                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                .tracking(1.2)
-            HStack(spacing: 6) {
-                ForEach(0..<7, id: \.self) { day in
-                    Button {
-                        withAnimation(.spring(response: 0.25, dampingFraction: 0.6)) {
-                            if selectedDays.contains(day) { selectedDays.remove(day) }
-                            else { selectedDays.insert(day) }
+                                .frame(height: 48)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 14)
+                                        .fill(AppColors.primary)
+                                )
                         }
-                    } label: {
-                        Text(dayNames[day])
-                            .font(.custom("ProductSans-Bold", size: 13))
-                            .foregroundColor(selectedDays.contains(day) ? .white : AppColors.text(themeManager.colorScheme))
-                            .frame(width: 38, height: 38)
-                            .background(RoundedRectangle(cornerRadius: 8).fill(selectedDays.contains(day) ? AppColors.primary : AppColors.inputBackground(themeManager.colorScheme)))
                     }
                 }
+                .padding(20)
+                .background(
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(AppColors.surface(themeManager.colorScheme))
+                        .shadow(color: Color.black.opacity(0.08), radius: 20, x: 0, y: 8)
+                )
+                .transition(.asymmetric(
+                    insertion: .scale(scale: 0.95).combined(with: .opacity).combined(with: .move(edge: .top)),
+                    removal: .scale(scale: 0.98).combined(with: .opacity)
+                ))
             }
-            Text(selectedDaysDescription)
-                .font(.custom("ProductSans-Regular", size: 12))
-                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+
+            // Add time button
+            if reminderTimes.count < 5 && !showingTimePicker {
+                    Button {
+                    let impact = UIImpactFeedbackGenerator(style: .light)
+                    impact.impactOccurred()
+                    addNewTime()
+                    } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("Add Time")
+                            .font(.custom("ProductSans-Medium", size: 14))
+                    }
+                    .foregroundColor(AppColors.primary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 48)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14)
+                            .strokeBorder(AppColors.primary.opacity(0.3), lineWidth: 1.5)
+                            .background(
+                                RoundedRectangle(cornerRadius: 14)
+                                    .fill(AppColors.primary.opacity(0.05))
+                            )
+                    )
+                }
+                .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            }
         }
-        .padding(.horizontal, 16)
         .opacity(appearAnimation ? 1 : 0)
-        .offset(y: appearAnimation ? 0 : 10)
+        .offset(y: appearAnimation ? 0 : 15)
     }
+
+    // MARK: - Presets Section
+
+    private var presetsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Quick Set")
+                .font(.custom("ProductSans-Medium", size: 13))
+                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+
+            HStack(spacing: 10) {
+                PresetChip(title: "Morning", icon: "sunrise.fill", iconColor: .orange) {
+                    applyPreset(times: [8])
+                }
+                PresetChip(title: "2x Daily", icon: "repeat", iconColor: AppColors.primary) {
+                    applyPreset(times: [8, 20])
+                }
+                PresetChip(title: "3x Daily", icon: "repeat.circle", iconColor: .purple) {
+                    applyPreset(times: [8, 14, 20])
+                }
+            }
+        }
+        .opacity(appearAnimation ? 1 : 0)
+        .offset(y: appearAnimation ? 0 : 15)
+        .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.05), value: appearAnimation)
+    }
+
+    // MARK: - Days Section
+
+    private var daysSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("Repeat")
+                                .font(.custom("ProductSans-Medium", size: 13))
+                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+
+                        Spacer()
+
+                Text(selectedDaysDescription)
+                    .font(.custom("ProductSans-Regular", size: 13))
+                    .foregroundColor(AppColors.primary)
+            }
+
+            HStack(spacing: 8) {
+                ForEach(0..<7, id: \.self) { day in
+                    DayChip(
+                        day: dayNames[day],
+                        isSelected: selectedDays.contains(day),
+                        onTap: {
+                            let impact = UIImpactFeedbackGenerator(style: .light)
+                            impact.impactOccurred()
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                if selectedDays.contains(day) {
+                                    selectedDays.remove(day)
+                                } else {
+                                    selectedDays.insert(day)
+                                }
+                            }
+                        },
+                        themeManager: themeManager
+                    )
+                }
+            }
+        }
+        .opacity(appearAnimation ? 1 : 0)
+        .offset(y: appearAnimation ? 0 : 15)
+        .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.1), value: appearAnimation)
+    }
+
+    // MARK: - Schedule Section
 
     private var scheduleSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("SCHEDULE")
-                .font(.custom("ProductSans-Medium", size: 11))
-                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                .tracking(1.2)
-
-            // Duration - start and end dates
-            HStack(spacing: 12) {
-                // Start date
-                Button {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        showStartDatePicker.toggle()
-                        showEndDatePicker = false
-                    }
-                } label: {
-                    HStack {
-                        Image(systemName: "calendar")
-                            .font(.system(size: 14))
-                            .foregroundColor(showStartDatePicker ? AppColors.primary : AppColors.textSecondary(themeManager.colorScheme))
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Start")
-                                .font(.custom("ProductSans-Regular", size: 11))
-                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                            Text(formattedStartDate)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("Duration")
                                 .font(.custom("ProductSans-Medium", size: 13))
-                                .foregroundColor(showStartDatePicker ? AppColors.primary : AppColors.text(themeManager.colorScheme))
-                        }
+                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
 
                         Spacer()
 
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                            .rotationEffect(.degrees(showStartDatePicker ? 180 : 0))
-                    }
-                    .padding(12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(AppColors.inputBackground(themeManager.colorScheme))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(showStartDatePicker ? AppColors.primary.opacity(0.5) : Color.clear, lineWidth: 1.5)
-                            )
-                    )
-                }
-
-                // End date
                 Button {
+                    let impact = UIImpactFeedbackGenerator(style: .light)
+                    impact.impactOccurred()
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        showEndDatePicker.toggle()
-                        showStartDatePicker = false
-                        if !hasEndDate {
-                            hasEndDate = true
+                        showScheduleOptions.toggle()
+                        if !showScheduleOptions {
+                            activeSection = nil
                         }
                     }
                 } label: {
-                    HStack {
-                        Image(systemName: hasEndDate ? "calendar.badge.checkmark" : "calendar.badge.plus")
-                            .font(.system(size: 14))
-                            .foregroundColor(showEndDatePicker ? AppColors.primary : AppColors.textSecondary(themeManager.colorScheme))
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("End")
-                                .font(.custom("ProductSans-Regular", size: 11))
-                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                            Text(hasEndDate ? formattedEndDate : "Optional")
-                                .font(.custom("ProductSans-Medium", size: 13))
-                                .foregroundColor(showEndDatePicker ? AppColors.primary : (hasEndDate ? AppColors.text(themeManager.colorScheme) : AppColors.textSecondary(themeManager.colorScheme)))
-                        }
-
-                        Spacer()
-
+                    HStack(spacing: 4) {
+                        Text(hasEndDate ? "\(formattedStartDate) - \(formattedEndDate)" : "From \(formattedStartDate)")
+                            .font(.custom("ProductSans-Medium", size: 13))
                         Image(systemName: "chevron.down")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                            .rotationEffect(.degrees(showEndDatePicker ? 180 : 0))
+                            .font(.system(size: 10, weight: .semibold))
+                            .rotationEffect(.degrees(showScheduleOptions ? 180 : 0))
                     }
-                    .padding(12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(AppColors.inputBackground(themeManager.colorScheme))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(showEndDatePicker ? AppColors.primary.opacity(0.5) : Color.clear, lineWidth: 1.5)
-                            )
-                    )
+                    .foregroundColor(AppColors.primary)
                 }
             }
 
-            // Start date picker
-            if showStartDatePicker {
+            if showScheduleOptions {
+                VStack(spacing: 12) {
+                    // Start date
+                    ScheduleRow(
+                        label: "Start",
+                        value: formattedStartDate,
+                        icon: "play.circle.fill",
+                        iconColor: .green,
+                        isExpanded: activeSection == .startDate,
+                        onTap: {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                activeSection = activeSection == .startDate ? nil : .startDate
+                            }
+                        },
+                        themeManager: themeManager
+                    )
+
+                    if activeSection == .startDate {
                 DatePicker("", selection: $startDate, displayedComponents: .date)
                     .datePickerStyle(.graphical)
                     .tint(AppColors.primary)
-                    .padding(8)
+                            .padding(12)
                     .background(
                         RoundedRectangle(cornerRadius: 16)
-                            .fill(AppColors.inputBackground(themeManager.colorScheme))
+                                    .fill(AppColors.surface(themeManager.colorScheme))
                     )
                     .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .top)),
-                        removal: .opacity.combined(with: .scale(scale: 0.98))
-                    ))
-            }
+                                insertion: .scale(scale: 0.95).combined(with: .opacity),
+                                removal: .scale(scale: 0.98).combined(with: .opacity)
+                            ))
+                    }
 
-            // End date picker
-            if showEndDatePicker {
+                    // End date
+                    ScheduleRow(
+                        label: "End",
+                        value: hasEndDate ? formattedEndDate : "No end date",
+                        icon: hasEndDate ? "stop.circle.fill" : "infinity.circle.fill",
+                        iconColor: hasEndDate ? .red : AppColors.textSecondary(themeManager.colorScheme),
+                        isExpanded: activeSection == .endDate,
+                        onTap: {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                if !hasEndDate {
+                                    hasEndDate = true
+                                }
+                                activeSection = activeSection == .endDate ? nil : .endDate
+                            }
+                        },
+                        themeManager: themeManager
+                    )
+
+                    if activeSection == .endDate {
                 VStack(spacing: 12) {
                     DatePicker("", selection: $endDate, in: startDate..., displayedComponents: .date)
                         .datePickerStyle(.graphical)
@@ -841,99 +914,131 @@ struct ReminderSheet: View {
 
                     if hasEndDate {
                         Button {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                    let impact = UIImpactFeedbackGenerator(style: .light)
+                                    impact.impactOccurred()
+                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                                 hasEndDate = false
-                                showEndDatePicker = false
+                                        activeSection = nil
                             }
                         } label: {
                             HStack(spacing: 6) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.system(size: 14))
-                                Text("Remove end date")
+                                        Image(systemName: "infinity")
+                                            .font(.system(size: 12, weight: .medium))
+                                        Text("Continue indefinitely")
                                     .font(.custom("ProductSans-Medium", size: 13))
                             }
-                            .foregroundColor(.red.opacity(0.8))
+                                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                         }
                     }
                 }
-                .padding(8)
+                        .padding(12)
                 .background(
                     RoundedRectangle(cornerRadius: 16)
-                        .fill(AppColors.inputBackground(themeManager.colorScheme))
+                                .fill(AppColors.surface(themeManager.colorScheme))
                 )
                 .transition(.asymmetric(
-                    insertion: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .top)),
-                    removal: .opacity.combined(with: .scale(scale: 0.98))
+                            insertion: .scale(scale: 0.95).combined(with: .opacity),
+                            removal: .scale(scale: 0.98).combined(with: .opacity)
+                        ))
+                    }
+                }
+                .transition(.asymmetric(
+                    insertion: .scale(scale: 0.95).combined(with: .opacity),
+                    removal: .scale(scale: 0.98).combined(with: .opacity)
                 ))
             }
         }
-        .padding(16)
-        .background(RoundedRectangle(cornerRadius: 16).fill(AppColors.surface(themeManager.colorScheme).opacity(0.5)))
         .opacity(appearAnimation ? 1 : 0)
-        .offset(y: appearAnimation ? 0 : 10)
+        .offset(y: appearAnimation ? 0 : 15)
+        .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.15), value: appearAnimation)
     }
 
-    private var presetsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("QUICK PRESETS")
-                .font(.custom("ProductSans-Medium", size: 11))
-                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                .tracking(1.2)
-            HStack(spacing: 8) {
-                PresetButton(title: "Morning", icon: "sunrise.fill") { applyPreset(times: [9]) }
-                PresetButton(title: "Twice Daily", icon: "clock.badge.checkmark") { applyPreset(times: [9, 21]) }
-                PresetButton(title: "Three Times", icon: "clock.fill") { applyPreset(times: [9, 14, 21]) }
-            }
-        }
-        .padding(16)
-        .background(RoundedRectangle(cornerRadius: 16).fill(AppColors.surface(themeManager.colorScheme).opacity(0.5)))
-        .opacity(appearAnimation ? 1 : 0)
-        .offset(y: appearAnimation ? 0 : 10)
-    }
+    // MARK: - Save Button
 
-    private var saveButton: some View {
-        VStack {
-            Button { saveReminder() } label: {
-                HStack(spacing: 8) {
+    private var saveButtonSection: some View {
+        VStack(spacing: 0) {
+            LinearGradient(
+                colors: [
+                    AppColors.modalBackground(themeManager.colorScheme).opacity(0),
+                    AppColors.modalBackground(themeManager.colorScheme)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 40)
+            .allowsHitTesting(false)
+
+            VStack(spacing: 0) {
+                Button {
+                    let impact = UIImpactFeedbackGenerator(style: .medium)
+                    impact.impactOccurred()
+                    saveReminder()
+                } label: {
+                    HStack(spacing: 10) {
                     if isSaving {
-                        CustomSpinner(size: 18, lineWidth: 2)
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .scaleEffect(0.9)
                     } else {
-                        Text("Save Reminder\(reminderTimes.count > 1 ? "s" : "")").font(.custom("ProductSans-Bold", size: 16))
+                            Image(systemName: "bell.badge.fill")
+                                .font(.system(size: 16))
+                            Text("Save Reminder")
+                                .font(.custom("ProductSans-Bold", size: 16))
                     }
                 }
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
+                    .frame(height: 56)
                 .background(
-                    Capsule()
-                        .fill(selectedDays.isEmpty || reminderTimes.isEmpty ? AppColors.primary.opacity(0.4) : AppColors.primary)
-                        .shadow(color: AppColors.primary.opacity(0.3), radius: 12, x: 0, y: 6)
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(
+                                selectedDays.isEmpty || reminderTimes.isEmpty
+                                    ? AppColors.primary.opacity(0.4)
+                                    : AppColors.primary
+                            )
+                            .shadow(
+                                color: selectedDays.isEmpty || reminderTimes.isEmpty
+                                    ? Color.clear
+                                    : AppColors.primary.opacity(0.3),
+                                radius: 12,
+                                x: 0,
+                                y: 6
+                            )
                 )
             }
             .disabled(isSaving || selectedDays.isEmpty || reminderTimes.isEmpty)
-            .padding(.horizontal, 20)
-            .padding(.bottom, 24)
-            .opacity(appearAnimation ? 1 : 0)
-            .offset(y: appearAnimation ? 0 : 20)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 32)
+            }
+            .background(AppColors.modalBackground(themeManager.colorScheme))
         }
+        .opacity(appearAnimation ? 1 : 0)
+        .offset(y: appearAnimation ? 0 : 30)
     }
 
+    // MARK: - Helper Functions
+
     private func addNewTime() {
-        // Find a suitable default time that's different from existing times
         let existingHours = Set(reminderTimes.map { Calendar.current.component(.hour, from: $0) })
         let defaultHours = [9, 12, 15, 18, 21, 8, 7, 10, 14, 20]
         let newHour = defaultHours.first { !existingHours.contains($0) } ?? 12
 
         tempTime = ReminderSheet.defaultTime(hour: newHour)
-        editingTimeIndex = nil
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+        editingTimeIndex = reminderTimes.count
+        reminderTimes.append(tempTime)
+
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
             showingTimePicker = true
         }
     }
 
     private func applyPreset(times: [Int]) {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+        let impact = UIImpactFeedbackGenerator(style: .light)
+        impact.impactOccurred()
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
             reminderTimes = times.map { ReminderSheet.defaultTime(hour: $0) }
+            showingTimePicker = false
+            editingTimeIndex = nil
         }
     }
 
@@ -966,7 +1071,6 @@ struct ReminderSheet: View {
     private func saveReminder() {
         isSaving = true
         Task {
-            // First update start and end dates (don't schedule yet)
             await viewModel.updateItem(
                 item,
                 startDate: startDate,
@@ -974,13 +1078,9 @@ struct ReminderSheet: View {
                 clearEndDate: !hasEndDate
             )
             
-            // Small delay to ensure the item is updated in the array
-            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+            try? await Task.sleep(nanoseconds: 100_000_000)
             
-            // Then update reminder times and days (this will schedule with correct dates)
-            // Need to get the updated item from the viewModel
             if let updatedItem = await MainActor.run(body: { viewModel.items.first(where: { $0.id == item.id }) }) {
-                print("🔔 saveReminder: Got updated item with startDate=\(updatedItem.startDate ?? "nil"), endDate=\(updatedItem.endDate ?? "nil")")
                 await viewModel.updateReminder(
                     for: updatedItem,
                     enabled: true,
@@ -988,8 +1088,6 @@ struct ReminderSheet: View {
                     days: Array(selectedDays)
                 )
             } else {
-                print("⚠️ saveReminder: Item not found, using original item")
-                // Fallback if item not found
                 await viewModel.updateReminder(
                     for: item,
                     enabled: true,
@@ -1001,6 +1099,238 @@ struct ReminderSheet: View {
             isSaving = false
             dismiss()
         }
+    }
+}
+
+// MARK: - Time Card Component
+
+private struct TimeCard: View {
+    let time: Date
+    let isEditing: Bool
+    let onEdit: () -> Void
+    let onDelete: (() -> Void)?
+    let themeManager: ThemeManager
+
+    private var timeIcon: String {
+        let hour = Calendar.current.component(.hour, from: time)
+        if hour >= 5 && hour < 12 {
+            return "sunrise.fill"
+        } else if hour >= 12 && hour < 17 {
+            return "sun.max.fill"
+        } else if hour >= 17 && hour < 21 {
+            return "sunset.fill"
+        } else {
+            return "moon.fill"
+        }
+    }
+
+    private var iconColor: Color {
+        let hour = Calendar.current.component(.hour, from: time)
+        if hour >= 5 && hour < 12 {
+            return .orange
+        } else if hour >= 12 && hour < 17 {
+            return .yellow
+        } else if hour >= 17 && hour < 21 {
+            return .orange
+        } else {
+            return .indigo
+        }
+    }
+
+    private var periodLabel: String {
+        let hour = Calendar.current.component(.hour, from: time)
+        if hour >= 5 && hour < 12 {
+            return "Morning"
+        } else if hour >= 12 && hour < 17 {
+            return "Afternoon"
+        } else if hour >= 17 && hour < 21 {
+            return "Evening"
+        } else {
+            return "Night"
+        }
+    }
+
+    private var formattedTime: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        return formatter.string(from: time)
+    }
+
+    var body: some View {
+        HStack(spacing: 14) {
+            // Icon
+            ZStack {
+                Circle()
+                    .fill(iconColor.opacity(0.15))
+                    .frame(width: 44, height: 44)
+
+                Image(systemName: timeIcon)
+                    .font(.system(size: 18))
+                    .foregroundColor(iconColor)
+            }
+
+            // Time info
+            VStack(alignment: .leading, spacing: 2) {
+                Text(formattedTime)
+                    .font(.custom("ProductSans-Bold", size: 18))
+                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+
+                Text(periodLabel)
+                    .font(.custom("ProductSans-Regular", size: 13))
+                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+            }
+
+            Spacer()
+
+            // Actions
+            HStack(spacing: 8) {
+                Button(action: onEdit) {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(AppColors.primary)
+                        .frame(width: 36, height: 36)
+                        .background(
+                            Circle()
+                                .fill(AppColors.primary.opacity(0.1))
+                        )
+                }
+
+                if let onDelete = onDelete {
+                    Button(action: onDelete) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.red.opacity(0.8))
+                            .frame(width: 36, height: 36)
+                            .background(
+                                Circle()
+                                    .fill(Color.red.opacity(0.1))
+                            )
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(AppColors.surface(themeManager.colorScheme))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(isEditing ? AppColors.primary.opacity(0.3) : Color.clear, lineWidth: 1.5)
+                )
+        )
+    }
+}
+
+// MARK: - Preset Chip Component
+
+private struct PresetChip: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    let title: String
+    let icon: String
+    let iconColor: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(iconColor)
+
+                Text(title)
+                    .font(.custom("ProductSans-Medium", size: 13))
+                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+                Capsule()
+                    .fill(AppColors.surface(themeManager.colorScheme))
+            )
+        }
+        .buttonStyle(ScaleButtonStyle())
+    }
+}
+
+// MARK: - Day Chip Component
+
+private struct DayChip: View {
+    let day: String
+    let isSelected: Bool
+    let onTap: () -> Void
+    let themeManager: ThemeManager
+
+    var body: some View {
+        Button(action: onTap) {
+            Text(day)
+                .font(.custom("ProductSans-Bold", size: 13))
+                .foregroundColor(isSelected ? .white : AppColors.text(themeManager.colorScheme))
+                .frame(maxWidth: .infinity)
+                .frame(height: 42)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(isSelected ? AppColors.primary : AppColors.surface(themeManager.colorScheme))
+                )
+        }
+        .buttonStyle(ScaleButtonStyle())
+    }
+}
+
+// MARK: - Schedule Row Component
+
+private struct ScheduleRow: View {
+    let label: String
+    let value: String
+    let icon: String
+    let iconColor: Color
+    let isExpanded: Bool
+    let onTap: () -> Void
+    let themeManager: ThemeManager
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 18))
+                    .foregroundColor(iconColor)
+                    .frame(width: 24)
+
+                Text(label)
+                    .font(.custom("ProductSans-Regular", size: 15))
+                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+
+                Spacer()
+
+                Text(value)
+                    .font(.custom("ProductSans-Medium", size: 15))
+                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme).opacity(0.5))
+                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
+            }
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(AppColors.surface(themeManager.colorScheme))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(isExpanded ? AppColors.primary.opacity(0.2) : Color.clear, lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(ScaleButtonStyle())
+    }
+}
+
+// MARK: - Scale Button Style
+
+private struct ScaleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: configuration.isPressed)
     }
 }
 
@@ -1019,9 +1349,13 @@ struct ReminderConfigSheet: View {
     @State private var showingTimePicker = false
     @State private var editingTimeIndex: Int? = nil
     @State private var tempTime: Date = Date()
-    @State private var showStartDatePicker = false
-    @State private var showEndDatePicker = false
+    @State private var showScheduleOptions = false
+    @State private var activeSection: ConfigSection? = nil
     @State private var appearAnimation = false
+
+    private enum ConfigSection {
+        case startDate, endDate
+    }
 
     let dayNames = ["S", "M", "T", "W", "T", "F", "S"]
     let fullDayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
@@ -1049,214 +1383,633 @@ struct ReminderConfigSheet: View {
 
     private var formattedStartDate: String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d, yyyy"
+        formatter.dateFormat = "MMM d"
         return formatter.string(from: startDate)
     }
 
     private var formattedEndDate: String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d, yyyy"
+        formatter.dateFormat = "MMM d"
         return formatter.string(from: endDate)
     }
 
     var body: some View {
-        NavigationView {
             ZStack {
+            // Background
                 AppColors.modalBackground(themeManager.colorScheme)
                     .ignoresSafeArea()
                 
                 VStack(spacing: 0) {
-                    ScrollView {
-                        VStack(spacing: 20) {
-                            reminderTimesSection
+                // Header
+                headerSection
+
+                // Content
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 28) {
+                        // Time Display & Picker
+                        timeSection
+
+                        // Quick Presets
                             presetsSection
-                            if showingTimePicker { timePickerSection }
-                            daySelectorSection
+
+                        // Days
+                        daysSection
+
+                        // Schedule
                             scheduleSection
-                            Spacer(minLength: 80)
-                        }
-                        .padding(20)
                     }
-                    saveButton
+                    .padding(.horizontal, 24)
+                    .padding(.top, 8)
+                    .padding(.bottom, 120)
                 }
+
+                Spacer(minLength: 0)
             }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    closeButton
-                }
-                ToolbarItem(placement: .principal) {
-                    Text("Set Reminder")
-                        .font(.custom("ProductSans-Bold", size: 17))
-                        .foregroundColor(AppColors.text(themeManager.colorScheme))
-                }
+
+            // Bottom Save Button
+            VStack {
+                Spacer()
+                saveButtonSection
             }
         }
         .onAppear {
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.8).delay(0.1)) {
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.1)) {
                 appearAnimation = true
             }
         }
     }
     
-    // MARK: - Subviews
+    // MARK: - Header
     
-    private var closeButton: some View {
+    private var headerSection: some View {
+        HStack {
         Button {
+                let impact = UIImpactFeedbackGenerator(style: .light)
+                impact.impactOccurred()
             dismiss()
         } label: {
-            Image(systemName: "xmark.circle.fill")
-                .font(.system(size: 24))
+                Image(systemName: "xmark")
+                    .font(.system(size: 15, weight: .medium))
                 .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-        }
-    }
-    
-    private var reminderTimesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("REMINDER TIMES")
-                .font(.custom("ProductSans-Medium", size: 11))
-                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                .tracking(0.5)
-            
-            VStack(spacing: 8) {
-                ForEach(Array(reminderTimes.enumerated()), id: \.offset) { index, time in
-                    HStack {
-                        Image(systemName: "alarm.fill")
-                            .font(.system(size: 14))
-                            .foregroundColor(AppColors.primary)
-                        
-                        Text(formatTime(time))
-                            .font(.custom("ProductSans-Medium", size: 16))
+                    .frame(width: 36, height: 36)
+                    .background(
+                        Circle()
+                            .fill(AppColors.surface(themeManager.colorScheme))
+                    )
+            }
+
+            Spacer()
+
+            Text("Set Reminder")
+                .font(.custom("ProductSans-Bold", size: 18))
                             .foregroundColor(AppColors.text(themeManager.colorScheme))
                         
                         Spacer()
                         
-                        Button {
+            Color.clear
+                .frame(width: 36, height: 36)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 16)
+        .padding(.bottom, 8)
+    }
+
+    // MARK: - Time Section
+
+    private var timeSection: some View {
+        VStack(spacing: 16) {
+            VStack(spacing: 10) {
+                ForEach(Array(reminderTimes.enumerated()), id: \.offset) { index, time in
+                    ConfigTimeCard(
+                        time: time,
+                        isEditing: showingTimePicker && editingTimeIndex == index,
+                        onEdit: {
+                            let impact = UIImpactFeedbackGenerator(style: .light)
+                            impact.impactOccurred()
                             editingTimeIndex = index
                             tempTime = time
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                                 showingTimePicker = true
                             }
-                        } label: {
-                            Text("Edit")
-                                .font(.custom("ProductSans-Medium", size: 13))
-                                .foregroundColor(AppColors.primary)
-                        }
-                        
-                        if reminderTimes.count > 1 {
-                            Button {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                    var times = reminderTimes
-                                    times.remove(at: index)
-                                    reminderTimes = times
-                                }
-                            } label: {
-                                Image(systemName: "minus.circle.fill")
-                                    .font(.system(size: 18))
-                                    .foregroundColor(.red.opacity(0.8))
+                        },
+                        onDelete: reminderTimes.count > 1 ? {
+                            let impact = UIImpactFeedbackGenerator(style: .medium)
+                            impact.impactOccurred()
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                                reminderTimes.remove(at: index)
                             }
-                        }
-                    }
-                    .padding(12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(AppColors.surface(themeManager.colorScheme))
+                        } : nil,
+                        themeManager: themeManager
                     )
-                }
-                
-                Button {
-                    var components = Calendar.current.dateComponents([.year, .month, .day], from: Date())
-                    components.hour = 12
-                    components.minute = 0
-                    let newTime = Calendar.current.date(from: components) ?? Date()
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        reminderTimes.append(newTime)
-                    }
-                } label: {
-                    HStack {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 16))
-                        Text("Add another time")
-                            .font(.custom("ProductSans-Medium", size: 14))
-                    }
-                    .foregroundColor(AppColors.primary)
-                    .frame(maxWidth: .infinity)
-                    .padding(12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(AppColors.primary.opacity(0.3), lineWidth: 1)
-                    )
+                    .transition(.asymmetric(
+                        insertion: .scale(scale: 0.9).combined(with: .opacity),
+                        removal: .scale(scale: 0.9).combined(with: .opacity)
+                    ))
                 }
             }
-        }
-    }
-    
-    private var presetsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("QUICK PRESETS")
-                .font(.custom("ProductSans-Medium", size: 11))
-                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                .tracking(0.5)
-            
-            HStack(spacing: 8) {
-                PresetButton(title: "Morning", icon: "sunrise.fill") {
-                    setPresetTime(hour: 8, minute: 0)
-                }
-                PresetButton(title: "Noon", icon: "sun.max.fill") {
-                    setPresetTime(hour: 12, minute: 0)
-                }
-                PresetButton(title: "Evening", icon: "sunset.fill") {
-                    setPresetTime(hour: 18, minute: 0)
-                }
-                PresetButton(title: "Night", icon: "moon.fill") {
-                    setPresetTime(hour: 21, minute: 0)
-                }
-            }
-        }
-    }
-    
-    private var timePickerSection: some View {
-        VStack(spacing: 12) {
+
+            // Time picker
+            if showingTimePicker {
+                VStack(spacing: 16) {
             DatePicker("", selection: $tempTime, displayedComponents: .hourAndMinute)
                 .datePickerStyle(.wheel)
                 .labelsHidden()
+                        .frame(height: 150)
             
             HStack(spacing: 12) {
                 Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            let impact = UIImpactFeedbackGenerator(style: .light)
+                            impact.impactOccurred()
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                         showingTimePicker = false
                         editingTimeIndex = nil
                     }
                 } label: {
                     Text("Cancel")
-                        .font(.custom("ProductSans-Medium", size: 14))
+                                .font(.custom("ProductSans-Medium", size: 15))
                         .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
+                                .frame(height: 48)
                         .background(
-                            RoundedRectangle(cornerRadius: 10)
+                                    RoundedRectangle(cornerRadius: 14)
                                 .fill(AppColors.surface(themeManager.colorScheme))
                         )
                 }
                 
                 Button {
-                    if let index = editingTimeIndex {
-                        reminderTimes[index] = tempTime
-                    }
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            let impact = UIImpactFeedbackGenerator(style: .light)
+                            impact.impactOccurred()
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                if let idx = editingTimeIndex {
+                                    reminderTimes[idx] = tempTime
+                                }
+                                reminderTimes.sort { $0 < $1 }
                         showingTimePicker = false
                         editingTimeIndex = nil
                     }
                 } label: {
-                    Text("Set Time")
-                        .font(.custom("ProductSans-Medium", size: 14))
+                            Text("Done")
+                                .font(.custom("ProductSans-Bold", size: 15))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
+                                .frame(height: 48)
                         .background(
-                            RoundedRectangle(cornerRadius: 10)
+                                    RoundedRectangle(cornerRadius: 14)
                                 .fill(AppColors.primary)
                         )
+                }
+            }
+        }
+                .padding(20)
+        .background(
+                    RoundedRectangle(cornerRadius: 20)
+                .fill(AppColors.surface(themeManager.colorScheme))
+                        .shadow(color: Color.black.opacity(0.08), radius: 20, x: 0, y: 8)
+                )
+                .transition(.asymmetric(
+                    insertion: .scale(scale: 0.95).combined(with: .opacity).combined(with: .move(edge: .top)),
+                    removal: .scale(scale: 0.98).combined(with: .opacity)
+                ))
+            }
+
+            // Add time button
+            if reminderTimes.count < 5 && !showingTimePicker {
+                Button {
+                    let impact = UIImpactFeedbackGenerator(style: .light)
+                    impact.impactOccurred()
+                    addNewTime()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("Add Time")
+                            .font(.custom("ProductSans-Medium", size: 14))
+                    }
+                    .foregroundColor(AppColors.primary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 48)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14)
+                            .strokeBorder(AppColors.primary.opacity(0.3), lineWidth: 1.5)
+                            .background(
+                                RoundedRectangle(cornerRadius: 14)
+                                    .fill(AppColors.primary.opacity(0.05))
+                            )
+                    )
+                }
+                .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            }
+        }
+        .opacity(appearAnimation ? 1 : 0)
+        .offset(y: appearAnimation ? 0 : 15)
+    }
+
+    // MARK: - Presets Section
+
+    private var presetsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Quick Set")
+                .font(.custom("ProductSans-Medium", size: 13))
+                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+
+            HStack(spacing: 10) {
+                PresetChip(title: "Morning", icon: "sunrise.fill", iconColor: .orange) {
+                    setPresetTime(hour: 8)
+                }
+                PresetChip(title: "2x Daily", icon: "repeat", iconColor: AppColors.primary) {
+                    setPresetTimes(hours: [8, 20])
+                }
+                PresetChip(title: "3x Daily", icon: "repeat.circle", iconColor: .purple) {
+                    setPresetTimes(hours: [8, 14, 20])
+                }
+            }
+        }
+        .opacity(appearAnimation ? 1 : 0)
+        .offset(y: appearAnimation ? 0 : 15)
+        .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.05), value: appearAnimation)
+    }
+
+    // MARK: - Days Section
+
+    private var daysSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("Repeat")
+                    .font(.custom("ProductSans-Medium", size: 13))
+                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                
+                Spacer()
+                
+                Text(selectedDaysDescription)
+                    .font(.custom("ProductSans-Regular", size: 13))
+                    .foregroundColor(AppColors.primary)
+            }
+
+            HStack(spacing: 8) {
+                ForEach(0..<7, id: \.self) { day in
+                    DayChip(
+                        day: dayNames[day],
+                        isSelected: reminderDays.contains(day),
+                        onTap: {
+                            let impact = UIImpactFeedbackGenerator(style: .light)
+                            impact.impactOccurred()
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                if reminderDays.contains(day) {
+                                    reminderDays.remove(day)
+                            } else {
+                                    reminderDays.insert(day)
+                                }
+                            }
+                        },
+                        themeManager: themeManager
+                    )
+                }
+            }
+        }
+        .opacity(appearAnimation ? 1 : 0)
+        .offset(y: appearAnimation ? 0 : 15)
+        .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.1), value: appearAnimation)
+    }
+
+    // MARK: - Schedule Section
+    
+    private var scheduleSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("Duration")
+                    .font(.custom("ProductSans-Medium", size: 13))
+                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+            
+                Spacer()
+
+                Button {
+                    let impact = UIImpactFeedbackGenerator(style: .light)
+                    impact.impactOccurred()
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        showScheduleOptions.toggle()
+                        if !showScheduleOptions {
+                            activeSection = nil
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(hasEndDate ? "\(formattedStartDate) - \(formattedEndDate)" : "From \(formattedStartDate)")
+                            .font(.custom("ProductSans-Medium", size: 13))
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 10, weight: .semibold))
+                            .rotationEffect(.degrees(showScheduleOptions ? 180 : 0))
+                    }
+                            .foregroundColor(AppColors.primary)
+                }
+            }
+
+            if showScheduleOptions {
+                VStack(spacing: 12) {
+                    // Start date
+                    ScheduleRow(
+                        label: "Start",
+                        value: formattedStartDate,
+                        icon: "play.circle.fill",
+                        iconColor: .green,
+                        isExpanded: activeSection == .startDate,
+                        onTap: {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                activeSection = activeSection == .startDate ? nil : .startDate
+                            }
+                        },
+                        themeManager: themeManager
+                    )
+
+                    if activeSection == .startDate {
+                    DatePicker("", selection: $startDate, displayedComponents: .date)
+                        .datePickerStyle(.graphical)
+                            .tint(AppColors.primary)
+                        .padding(12)
+                        .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                .fill(AppColors.surface(themeManager.colorScheme))
+                        )
+                            .transition(.asymmetric(
+                                insertion: .scale(scale: 0.95).combined(with: .opacity),
+                                removal: .scale(scale: 0.98).combined(with: .opacity)
+                            ))
+                    }
+
+                    // End date
+                    ScheduleRow(
+                        label: "End",
+                        value: hasEndDate ? formattedEndDate : "No end date",
+                        icon: hasEndDate ? "stop.circle.fill" : "infinity.circle.fill",
+                        iconColor: hasEndDate ? .red : AppColors.textSecondary(themeManager.colorScheme),
+                        isExpanded: activeSection == .endDate,
+                        onTap: {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                if !hasEndDate {
+                                    hasEndDate = true
+                                }
+                                activeSection = activeSection == .endDate ? nil : .endDate
+                            }
+                        },
+                        themeManager: themeManager
+                    )
+
+                    if activeSection == .endDate {
+                        VStack(spacing: 12) {
+                            DatePicker("", selection: $endDate, in: startDate..., displayedComponents: .date)
+                                .datePickerStyle(.graphical)
+                                .tint(AppColors.primary)
+
+                if hasEndDate {
+                    Button {
+                                    let impact = UIImpactFeedbackGenerator(style: .light)
+                                    impact.impactOccurred()
+                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                        hasEndDate = false
+                                        activeSection = nil
+                        }
+                    } label: {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "infinity")
+                                            .font(.system(size: 12, weight: .medium))
+                                        Text("Continue indefinitely")
+                                            .font(.custom("ProductSans-Medium", size: 13))
+                                    }
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                        }
+                    }
+                        }
+                            .padding(12)
+                            .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                    .fill(AppColors.surface(themeManager.colorScheme))
+                            )
+                        .transition(.asymmetric(
+                            insertion: .scale(scale: 0.95).combined(with: .opacity),
+                            removal: .scale(scale: 0.98).combined(with: .opacity)
+                        ))
+                    }
+                }
+                .transition(.asymmetric(
+                    insertion: .scale(scale: 0.95).combined(with: .opacity),
+                    removal: .scale(scale: 0.98).combined(with: .opacity)
+                ))
+            }
+        }
+        .opacity(appearAnimation ? 1 : 0)
+        .offset(y: appearAnimation ? 0 : 15)
+        .animation(.spring(response: 0.6, dampingFraction: 0.8).delay(0.15), value: appearAnimation)
+    }
+
+    // MARK: - Save Button
+
+    private var saveButtonSection: some View {
+        VStack(spacing: 0) {
+            LinearGradient(
+                colors: [
+                    AppColors.modalBackground(themeManager.colorScheme).opacity(0),
+                    AppColors.modalBackground(themeManager.colorScheme)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 40)
+            .allowsHitTesting(false)
+
+            VStack(spacing: 0) {
+        Button {
+                    let impact = UIImpactFeedbackGenerator(style: .medium)
+                    impact.impactOccurred()
+            onSave()
+            dismiss()
+        } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "bell.badge.fill")
+                            .font(.system(size: 16))
+                Text("Save Reminder")
+                    .font(.custom("ProductSans-Bold", size: 16))
+            }
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity)
+                    .frame(height: 56)
+            .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(
+                                reminderDays.isEmpty || reminderTimes.isEmpty
+                                    ? AppColors.primary.opacity(0.4)
+                                    : AppColors.primary
+                            )
+                            .shadow(
+                                color: reminderDays.isEmpty || reminderTimes.isEmpty
+                                    ? Color.clear
+                                    : AppColors.primary.opacity(0.3),
+                                radius: 12,
+                                x: 0,
+                                y: 6
+                            )
+                    )
+                }
+                .disabled(reminderDays.isEmpty || reminderTimes.isEmpty)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 32)
+            }
+            .background(AppColors.modalBackground(themeManager.colorScheme))
+        }
+        .opacity(appearAnimation ? 1 : 0)
+        .offset(y: appearAnimation ? 0 : 30)
+    }
+
+    // MARK: - Helper Functions
+
+    private func addNewTime() {
+        var components = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        components.hour = 12
+        components.minute = 0
+        let newTime = Calendar.current.date(from: components) ?? Date()
+
+        tempTime = newTime
+        editingTimeIndex = reminderTimes.count
+        reminderTimes.append(newTime)
+
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            showingTimePicker = true
+        }
+    }
+
+    private func setPresetTime(hour: Int) {
+        let impact = UIImpactFeedbackGenerator(style: .light)
+        impact.impactOccurred()
+
+        var components = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        components.hour = hour
+        components.minute = 0
+
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+        if let time = Calendar.current.date(from: components) {
+                reminderTimes = [time]
+            }
+            showingTimePicker = false
+            editingTimeIndex = nil
+        }
+    }
+
+    private func setPresetTimes(hours: [Int]) {
+        let impact = UIImpactFeedbackGenerator(style: .light)
+        impact.impactOccurred()
+
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+            reminderTimes = hours.compactMap { hour in
+                var components = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+                components.hour = hour
+                components.minute = 0
+                return Calendar.current.date(from: components)
+            }
+            showingTimePicker = false
+            editingTimeIndex = nil
+        }
+    }
+}
+
+// MARK: - Config Time Card Component
+
+private struct ConfigTimeCard: View {
+    let time: Date
+    let isEditing: Bool
+    let onEdit: () -> Void
+    let onDelete: (() -> Void)?
+    let themeManager: ThemeManager
+
+    private var timeIcon: String {
+        let hour = Calendar.current.component(.hour, from: time)
+        if hour >= 5 && hour < 12 {
+            return "sunrise.fill"
+        } else if hour >= 12 && hour < 17 {
+            return "sun.max.fill"
+        } else if hour >= 17 && hour < 21 {
+            return "sunset.fill"
+            } else {
+            return "moon.fill"
+        }
+    }
+
+    private var iconColor: Color {
+        let hour = Calendar.current.component(.hour, from: time)
+        if hour >= 5 && hour < 12 {
+            return .orange
+        } else if hour >= 12 && hour < 17 {
+            return .yellow
+        } else if hour >= 17 && hour < 21 {
+            return .orange
+        } else {
+            return .indigo
+        }
+    }
+
+    private var periodLabel: String {
+        let hour = Calendar.current.component(.hour, from: time)
+        if hour >= 5 && hour < 12 {
+            return "Morning"
+        } else if hour >= 12 && hour < 17 {
+            return "Afternoon"
+        } else if hour >= 17 && hour < 21 {
+            return "Evening"
+        } else {
+            return "Night"
+        }
+    }
+
+    private var formattedTime: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        return formatter.string(from: time)
+    }
+
+    var body: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(iconColor.opacity(0.15))
+                    .frame(width: 44, height: 44)
+
+                Image(systemName: timeIcon)
+                    .font(.system(size: 18))
+                    .foregroundColor(iconColor)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(formattedTime)
+                    .font(.custom("ProductSans-Bold", size: 18))
+                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+
+                Text(periodLabel)
+                    .font(.custom("ProductSans-Regular", size: 13))
+                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+            }
+
+            Spacer()
+
+            HStack(spacing: 8) {
+                Button(action: onEdit) {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(AppColors.primary)
+                        .frame(width: 36, height: 36)
+                        .background(
+                            Circle()
+                                .fill(AppColors.primary.opacity(0.1))
+                        )
+                }
+
+                if let onDelete = onDelete {
+                    Button(action: onDelete) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.red.opacity(0.8))
+                            .frame(width: 36, height: 36)
+                            .background(
+                                Circle()
+                                    .fill(Color.red.opacity(0.1))
+                            )
+                    }
                 }
             }
         }
@@ -1264,202 +2017,11 @@ struct ReminderConfigSheet: View {
         .background(
             RoundedRectangle(cornerRadius: 16)
                 .fill(AppColors.surface(themeManager.colorScheme))
-        )
-    }
-    
-    private var daySelectorSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("REPEAT ON")
-                    .font(.custom("ProductSans-Medium", size: 11))
-                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                    .tracking(0.5)
-                
-                Spacer()
-                
-                Text(selectedDaysDescription)
-                    .font(.custom("ProductSans-Regular", size: 11))
-                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-            }
-            
-            HStack(spacing: 6) {
-                ForEach(0..<7, id: \.self) { index in
-                    Button {
-                        withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
-                            if reminderDays.contains(index) {
-                                reminderDays.remove(index)
-                            } else {
-                                reminderDays.insert(index)
-                            }
-                        }
-                    } label: {
-                        Text(dayNames[index])
-                            .font(.custom("ProductSans-Medium", size: 12))
-                            .foregroundColor(reminderDays.contains(index) ? .white : AppColors.text(themeManager.colorScheme))
-                            .frame(width: 40, height: 40)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(reminderDays.contains(index) ? AppColors.primary : AppColors.inputBackground(themeManager.colorScheme))
-                            )
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity)
-        }
-        .padding(.horizontal, 16)
-    }
-    
-    private var scheduleSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("SCHEDULE")
-                .font(.custom("ProductSans-Medium", size: 11))
-                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                .tracking(0.5)
-            
-            VStack(spacing: 8) {
-                // Start date
-                Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        showStartDatePicker.toggle()
-                        showEndDatePicker = false
-                    }
-                } label: {
-                    HStack {
-                        Image(systemName: "calendar")
-                            .font(.system(size: 14))
-                            .foregroundColor(AppColors.primary)
-                        
-                        Text("Starts")
-                            .font(.custom("ProductSans-Regular", size: 14))
-                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                        
-                        Spacer()
-                        
-                        Text(formattedStartDate)
-                            .font(.custom("ProductSans-Medium", size: 14))
-                            .foregroundColor(AppColors.text(themeManager.colorScheme))
-                        
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 12))
-                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                    }
-                    .padding(12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(AppColors.surface(themeManager.colorScheme))
-                    )
-                }
-                
-                if showStartDatePicker {
-                    DatePicker("", selection: $startDate, displayedComponents: .date)
-                        .datePickerStyle(.graphical)
-                        .padding(12)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(AppColors.surface(themeManager.colorScheme))
-                        )
-                }
-                
-                // End date toggle
-                HStack {
-                    Toggle(isOn: $hasEndDate) {
-                        HStack {
-                            Image(systemName: "calendar.badge.clock")
-                                .font(.system(size: 14))
-                                .foregroundColor(AppColors.primary)
-                            
-                            Text("Set end date")
-                                .font(.custom("ProductSans-Regular", size: 14))
-                                .foregroundColor(AppColors.text(themeManager.colorScheme))
-                        }
-                    }
-                    .tint(AppColors.primary)
-                }
-                .padding(12)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(AppColors.surface(themeManager.colorScheme))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(isEditing ? AppColors.primary.opacity(0.3) : Color.clear, lineWidth: 1.5)
                 )
-                
-                if hasEndDate {
-                    Button {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            showEndDatePicker.toggle()
-                            showStartDatePicker = false
-                        }
-                    } label: {
-                        HStack {
-                            Image(systemName: "calendar")
-                                .font(.system(size: 14))
-                                .foregroundColor(AppColors.primary)
-                            
-                            Text("Ends")
-                                .font(.custom("ProductSans-Regular", size: 14))
-                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                            
-                            Spacer()
-                            
-                            Text(formattedEndDate)
-                                .font(.custom("ProductSans-Medium", size: 14))
-                                .foregroundColor(AppColors.text(themeManager.colorScheme))
-                            
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 12))
-                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                        }
-                        .padding(12)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(AppColors.surface(themeManager.colorScheme))
-                        )
-                    }
-                    
-                    if showEndDatePicker {
-                        DatePicker("", selection: $endDate, in: startDate..., displayedComponents: .date)
-                            .datePickerStyle(.graphical)
-                            .padding(12)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(AppColors.surface(themeManager.colorScheme))
-                            )
-                    }
-                }
-            }
-        }
-    }
-    
-    private var saveButton: some View {
-        Button {
-            onSave()
-            dismiss()
-        } label: {
-            HStack(spacing: 8) {
-                Text("Save Reminder")
-                    .font(.custom("ProductSans-Bold", size: 16))
-            }
-            .foregroundColor(.white)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
-            .background(
-                Capsule()
-                    .fill(AppColors.primary)
-            )
-        }
-        .padding(.horizontal, 20)
-        .padding(.bottom, 20)
-    }
-    
-    private func setPresetTime(hour: Int, minute: Int) {
-        var components = Calendar.current.dateComponents([.year, .month, .day], from: Date())
-        components.hour = hour
-        components.minute = minute
-        if let time = Calendar.current.date(from: components) {
-            if reminderTimes.isEmpty {
-                reminderTimes = [time]
-            } else {
-                reminderTimes[0] = time
-            }
-        }
+        )
     }
 }
 
@@ -1470,22 +2032,54 @@ struct PresetButton: View {
     let icon: String
     let action: () -> Void
 
+    private var iconColor: Color {
+        switch icon {
+        case "sunrise.fill": return .orange
+        case "sun.max.fill": return .yellow
+        case "sunset.fill": return .orange
+        case "moon.fill": return .indigo
+        default: return AppColors.primary
+        }
+    }
+
     var body: some View {
-        Button(action: action) {
-            VStack(spacing: 6) {
+        Button {
+            let impact = UIImpactFeedbackGenerator(style: .light)
+            impact.impactOccurred()
+            action()
+        } label: {
+            VStack(spacing: 8) {
+                ZStack {
+                    Circle()
+                        .fill(iconColor.opacity(0.12))
+                        .frame(width: 40, height: 40)
+
                 Image(systemName: icon)
-                    .font(.system(size: 16))
-                Text(title)
-                    .font(.custom("ProductSans-Medium", size: 11))
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(iconColor)
             }
+
+                Text(title)
+                    .font(.custom("ProductSans-Medium", size: 12))
             .foregroundColor(AppColors.text(themeManager.colorScheme))
+            }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
+            .padding(.vertical, 14)
             .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(AppColors.inputBackground(themeManager.colorScheme))
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(AppColors.surface(themeManager.colorScheme))
             )
         }
+        .buttonStyle(PresetButtonStyle())
+    }
+}
+
+// MARK: - Preset Button Style
+private struct PresetButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: configuration.isPressed)
     }
 }
 
@@ -1497,16 +2091,36 @@ struct DayButton: View {
     let action: () -> Void
     
     var body: some View {
-        Button(action: action) {
+        Button {
+            let impact = UIImpactFeedbackGenerator(style: .light)
+            impact.impactOccurred()
+            action()
+        } label: {
             Text(day)
-                .font(.custom("ProductSans-Medium", size: 12))
+                .font(.custom("ProductSans-Bold", size: 13))
                 .foregroundColor(isSelected ? .white : AppColors.text(themeManager.colorScheme))
-                .frame(width: 40, height: 40)
+                .frame(width: 42, height: 42)
                 .background(
-                    Circle()
-                        .fill(isSelected ? AppColors.primary : AppColors.inputBackground(themeManager.colorScheme))
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(isSelected ? AppColors.primary : AppColors.surface(themeManager.colorScheme))
+                        .shadow(
+                            color: isSelected ? AppColors.primary.opacity(0.3) : Color.clear,
+                            radius: 8,
+                            x: 0,
+                            y: 4
+                        )
                 )
         }
+        .buttonStyle(DayButtonStyle())
+    }
+}
+
+// MARK: - Day Button Style
+private struct DayButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.92 : 1)
+            .animation(.spring(response: 0.25, dampingFraction: 0.65), value: configuration.isPressed)
     }
 }
 
@@ -1791,265 +2405,407 @@ struct EditItemSheet: View {
     }
 
     // MARK: - Reminder Section Views
+
+    private func editTimeIconColor(for date: Date) -> Color {
+        let hour = Calendar.current.component(.hour, from: date)
+        if hour >= 5 && hour < 12 {
+            return .orange
+        } else if hour >= 12 && hour < 17 {
+            return .yellow
+        } else if hour >= 17 && hour < 21 {
+            return .orange
+        } else {
+            return .indigo
+        }
+    }
     
     private var editReminderTimesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("REMINDER TIMES")
-                    .font(.custom("ProductSans-Medium", size: 11))
+        VStack(alignment: .leading, spacing: 16) {
+            // Section header
+            Text("Reminder Times")
+                .font(.custom("ProductSans-Medium", size: 13))
                     .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                    .tracking(1.2)
-                Spacer()
-                if reminderTimes.count < 5 {
-                    Button { editAddNewTime() } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "plus.circle.fill").font(.system(size: 14))
-                            Text("Add Time").font(.custom("ProductSans-Medium", size: 13))
-                        }
-                        .foregroundColor(AppColors.primary)
-                    }
-                }
-            }
-            VStack(spacing: 8) {
+
+            // Time cards
+            VStack(spacing: 10) {
                 ForEach(Array(reminderTimes.enumerated()), id: \.offset) { index, time in
                     editTimeRow(index: index, time: time)
+                        .transition(.asymmetric(
+                            insertion: .scale(scale: 0.9).combined(with: .opacity),
+                            removal: .scale(scale: 0.9).combined(with: .opacity)
+                        ))
+                }
+            }
+
+            // Add time button
+            if reminderTimes.count < 5 && !showingTimePicker {
+                Button {
+                    let impact = UIImpactFeedbackGenerator(style: .light)
+                    impact.impactOccurred()
+                    editAddNewTime()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("Add Time")
+                            .font(.custom("ProductSans-Medium", size: 14))
+                    }
+                    .foregroundColor(AppColors.primary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 48)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14)
+                            .strokeBorder(AppColors.primary.opacity(0.3), lineWidth: 1.5)
+                            .background(
+                                RoundedRectangle(cornerRadius: 14)
+                                    .fill(AppColors.primary.opacity(0.05))
+                            )
+                    )
                 }
             }
         }
-        .padding(16)
-        .background(RoundedRectangle(cornerRadius: 16).fill(AppColors.surface(themeManager.colorScheme).opacity(0.5)))
         .opacity(appearAnimation ? 1 : 0)
         .offset(y: appearAnimation ? 0 : 10)
     }
     
     private func editTimeRow(index: Int, time: Date) -> some View {
-        HStack {
+        let iconColor = editTimeIconColor(for: time)
+
+        return HStack(spacing: 14) {
+            // Icon
             ZStack {
-                Circle().fill(AppColors.primary.opacity(0.1)).frame(width: 36, height: 36)
-                Image(systemName: editTimeIcon(for: time)).font(.system(size: 14)).foregroundColor(AppColors.primary)
+                Circle()
+                    .fill(iconColor.opacity(0.15))
+                    .frame(width: 44, height: 44)
+
+                Image(systemName: editTimeIcon(for: time))
+                    .font(.system(size: 18))
+                    .foregroundColor(iconColor)
             }
+
+            // Time info
             VStack(alignment: .leading, spacing: 2) {
-                Text(formatTime(time)).font(.custom("ProductSans-Bold", size: 17)).foregroundColor(AppColors.text(themeManager.colorScheme))
-                Text(editTimePeriodLabel(for: time)).font(.custom("ProductSans-Regular", size: 12)).foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                Text(formatTime(time))
+                    .font(.custom("ProductSans-Bold", size: 18))
+                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+
+                Text(editTimePeriodLabel(for: time))
+                    .font(.custom("ProductSans-Regular", size: 13))
+                    .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
             }
+
             Spacer()
+
+            // Actions
+            HStack(spacing: 8) {
             Button {
+                    let impact = UIImpactFeedbackGenerator(style: .light)
+                    impact.impactOccurred()
                 editingTimeIndex = index
                 tempTime = time
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { showingTimePicker = true }
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        showingTimePicker = true
+                    }
             } label: {
-                Image(systemName: "pencil.circle.fill").font(.system(size: 22)).foregroundColor(AppColors.textSecondary(themeManager.colorScheme).opacity(0.5))
-            }
+                    Image(systemName: "pencil")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(AppColors.primary)
+                        .frame(width: 36, height: 36)
+                        .background(
+                            Circle()
+                                .fill(AppColors.primary.opacity(0.1))
+                        )
+                }
+
             if reminderTimes.count > 1 {
                 Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                        var times = reminderTimes
-                        times.remove(at: index)
-                        reminderTimes = times
+                        let impact = UIImpactFeedbackGenerator(style: .medium)
+                        impact.impactOccurred()
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                            reminderTimes.remove(at: index)
                     }
                 } label: {
-                    Image(systemName: "xmark.circle.fill").font(.system(size: 22)).foregroundColor(.red.opacity(0.6))
+                        Image(systemName: "trash")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.red.opacity(0.8))
+                            .frame(width: 36, height: 36)
+                            .background(
+                                Circle()
+                                    .fill(Color.red.opacity(0.1))
+                            )
+                    }
                 }
             }
         }
-        .padding(12)
-        .background(RoundedRectangle(cornerRadius: 12).fill(AppColors.surface(themeManager.colorScheme)))
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(AppColors.surface(themeManager.colorScheme))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(
+                            showingTimePicker && editingTimeIndex == index
+                                ? AppColors.primary.opacity(0.3)
+                                : Color.clear,
+                            lineWidth: 1.5
+                        )
+                )
+        )
     }
     
     private var editTimePickerSection: some View {
-        VStack(spacing: 12) {
-            HStack {
-                Text(editingTimeIndex != nil ? "Edit Time" : "Add Time")
-                    .font(.custom("ProductSans-Bold", size: 15))
-                    .foregroundColor(AppColors.text(themeManager.colorScheme))
-                Spacer()
+        VStack(spacing: 16) {
+            DatePicker("", selection: $tempTime, displayedComponents: .hourAndMinute)
+                .datePickerStyle(.wheel)
+                .labelsHidden()
+                .frame(height: 150)
+
+            HStack(spacing: 12) {
                 Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    let impact = UIImpactFeedbackGenerator(style: .light)
+                    impact.impactOccurred()
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                         showingTimePicker = false
                         editingTimeIndex = nil
                     }
                 } label: {
-                    Image(systemName: "xmark.circle.fill").font(.system(size: 24)).foregroundColor(AppColors.textSecondary(themeManager.colorScheme).opacity(0.5))
+                    Text("Cancel")
+                        .font(.custom("ProductSans-Medium", size: 15))
+                        .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 48)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14)
+                                .fill(AppColors.surface(themeManager.colorScheme))
+                        )
                 }
-            }
-            DatePicker("", selection: $tempTime, displayedComponents: .hourAndMinute).datePickerStyle(.wheel).labelsHidden().frame(height: 150)
+
             Button {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                    if let idx = editingTimeIndex { reminderTimes[idx] = tempTime }
-                    else { reminderTimes.append(tempTime); reminderTimes.sort { $0 < $1 } }
+                    let impact = UIImpactFeedbackGenerator(style: .light)
+                    impact.impactOccurred()
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        if let idx = editingTimeIndex {
+                            reminderTimes[idx] = tempTime
+                        } else {
+                            reminderTimes.append(tempTime)
+                        }
+                        reminderTimes.sort { $0 < $1 }
                     showingTimePicker = false
                     editingTimeIndex = nil
                 }
             } label: {
-                Text(editingTimeIndex != nil ? "Update" : "Add")
+                    Text("Done")
                     .font(.custom("ProductSans-Bold", size: 15))
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(Capsule().fill(AppColors.primary))
+                        .frame(height: 48)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14)
+                                .fill(AppColors.primary)
+                        )
+                }
             }
         }
-        .padding(16)
-        .background(RoundedRectangle(cornerRadius: 16).fill(AppColors.surface(themeManager.colorScheme)).shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5))
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(AppColors.surface(themeManager.colorScheme))
+                .shadow(color: Color.black.opacity(0.08), radius: 20, x: 0, y: 8)
+        )
+        .transition(.asymmetric(
+            insertion: .scale(scale: 0.95).combined(with: .opacity).combined(with: .move(edge: .top)),
+            removal: .scale(scale: 0.98).combined(with: .opacity)
+        ))
     }
     
     private var editDaySelectorSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("REPEAT ON")
-                .font(.custom("ProductSans-Medium", size: 11))
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("Repeat")
+                    .font(.custom("ProductSans-Medium", size: 13))
                 .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                .tracking(1.2)
-            HStack(spacing: 6) {
+
+                Spacer()
+
+                Text(selectedDaysDescription)
+                    .font(.custom("ProductSans-Regular", size: 13))
+                    .foregroundColor(AppColors.primary)
+            }
+
+            HStack(spacing: 8) {
                 ForEach(0..<7, id: \.self) { day in
                     Button {
-                        withAnimation(.spring(response: 0.25, dampingFraction: 0.6)) {
-                            if selectedDays.contains(day) { selectedDays.remove(day) }
-                            else { selectedDays.insert(day) }
+                        let impact = UIImpactFeedbackGenerator(style: .light)
+                        impact.impactOccurred()
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            if selectedDays.contains(day) {
+                                selectedDays.remove(day)
+                            } else {
+                                selectedDays.insert(day)
+                            }
                         }
                     } label: {
                         Text(dayNames[day])
                             .font(.custom("ProductSans-Bold", size: 13))
                             .foregroundColor(selectedDays.contains(day) ? .white : AppColors.text(themeManager.colorScheme))
-                            .frame(width: 38, height: 38)
-                            .background(RoundedRectangle(cornerRadius: 8).fill(selectedDays.contains(day) ? AppColors.primary : AppColors.inputBackground(themeManager.colorScheme)))
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 42)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(selectedDays.contains(day) ? AppColors.primary : AppColors.surface(themeManager.colorScheme))
+                                    .shadow(
+                                        color: selectedDays.contains(day) ? AppColors.primary.opacity(0.3) : Color.clear,
+                                        radius: 8,
+                                        x: 0,
+                                        y: 4
+                                    )
+                            )
                     }
+                    .buttonStyle(ScaleButtonStyle())
                 }
             }
-            Text(selectedDaysDescription)
-                .font(.custom("ProductSans-Regular", size: 12))
-                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
         }
-        .padding(.horizontal, 16)
         .opacity(appearAnimation ? 1 : 0)
         .offset(y: appearAnimation ? 0 : 10)
     }
     
     private var editPresetsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("QUICK PRESETS")
-                .font(.custom("ProductSans-Medium", size: 11))
+            Text("Quick Set")
+                .font(.custom("ProductSans-Medium", size: 13))
                 .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                .tracking(1.2)
-            HStack(spacing: 8) {
-                PresetButton(title: "Morning", icon: "sunrise.fill") { editApplyPreset(times: [9]) }
-                PresetButton(title: "Twice Daily", icon: "clock.badge.checkmark") { editApplyPreset(times: [9, 21]) }
-                PresetButton(title: "Three Times", icon: "clock.fill") { editApplyPreset(times: [9, 14, 21]) }
+
+            HStack(spacing: 10) {
+                EditPresetChip(title: "Morning", icon: "sunrise.fill", iconColor: .orange) {
+                    editApplyPreset(times: [8])
+                }
+                EditPresetChip(title: "2x Daily", icon: "repeat", iconColor: AppColors.primary) {
+                    editApplyPreset(times: [8, 20])
+                }
+                EditPresetChip(title: "3x Daily", icon: "repeat.circle", iconColor: .purple) {
+                    editApplyPreset(times: [8, 14, 20])
+                }
             }
         }
-        .padding(16)
-        .background(RoundedRectangle(cornerRadius: 16).fill(AppColors.surface(themeManager.colorScheme).opacity(0.5)))
         .opacity(appearAnimation ? 1 : 0)
         .offset(y: appearAnimation ? 0 : 10)
     }
     
     private var editScheduleSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("SCHEDULE")
-                .font(.custom("ProductSans-Medium", size: 11))
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("Duration")
+                    .font(.custom("ProductSans-Medium", size: 13))
                 .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                .tracking(1.2)
 
-            // Duration - start and end dates
-            HStack(spacing: 12) {
+                Spacer()
+
+                Text(hasEndDate ? "\(formattedStartDate) - \(formattedEndDate)" : "From \(formattedStartDate)")
+                    .font(.custom("ProductSans-Regular", size: 13))
+                    .foregroundColor(AppColors.primary)
+            }
+
+            VStack(spacing: 12) {
                 // Start date
                 Button {
+                    let impact = UIImpactFeedbackGenerator(style: .light)
+                    impact.impactOccurred()
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                         showStartDatePicker.toggle()
                         showEndDatePicker = false
                     }
                 } label: {
-                    HStack {
-                        Image(systemName: "calendar")
-                            .font(.system(size: 14))
-                            .foregroundColor(showStartDatePicker ? AppColors.primary : AppColors.textSecondary(themeManager.colorScheme))
+                    HStack(spacing: 12) {
+                        Image(systemName: "play.circle.fill")
+                            .font(.system(size: 18))
+                            .foregroundColor(.green)
+                            .frame(width: 24)
 
-                        VStack(alignment: .leading, spacing: 2) {
                             Text("Start")
-                                .font(.custom("ProductSans-Regular", size: 11))
+                            .font(.custom("ProductSans-Regular", size: 15))
                                 .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                            Text(formattedStartDate)
-                                .font(.custom("ProductSans-Medium", size: 13))
-                                .foregroundColor(showStartDatePicker ? AppColors.primary : AppColors.text(themeManager.colorScheme))
-                        }
 
                         Spacer()
 
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                            .rotationEffect(.degrees(showStartDatePicker ? 180 : 0))
+                        Text(formattedStartDate)
+                            .font(.custom("ProductSans-Medium", size: 15))
+                            .foregroundColor(AppColors.text(themeManager.colorScheme))
+
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme).opacity(0.5))
+                            .rotationEffect(.degrees(showStartDatePicker ? 90 : 0))
                     }
-                    .padding(12)
+                    .padding(14)
                     .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(AppColors.inputBackground(themeManager.colorScheme))
+                        RoundedRectangle(cornerRadius: 14)
+                            .fill(AppColors.surface(themeManager.colorScheme))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(showStartDatePicker ? AppColors.primary.opacity(0.5) : Color.clear, lineWidth: 1.5)
+                                RoundedRectangle(cornerRadius: 14)
+                                    .stroke(showStartDatePicker ? AppColors.primary.opacity(0.2) : Color.clear, lineWidth: 1)
                             )
                     )
+                }
+
+                if showStartDatePicker {
+                    DatePicker("", selection: $startDate, displayedComponents: .date)
+                        .datePickerStyle(.graphical)
+                        .tint(AppColors.primary)
+                        .padding(12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(AppColors.surface(themeManager.colorScheme))
+                        )
+                        .transition(.asymmetric(
+                            insertion: .scale(scale: 0.95).combined(with: .opacity),
+                            removal: .scale(scale: 0.98).combined(with: .opacity)
+                        ))
                 }
 
                 // End date
                 Button {
+                    let impact = UIImpactFeedbackGenerator(style: .light)
+                    impact.impactOccurred()
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        showEndDatePicker.toggle()
-                        showStartDatePicker = false
                         if !hasEndDate {
                             hasEndDate = true
                         }
+                        showEndDatePicker.toggle()
+                        showStartDatePicker = false
                     }
                 } label: {
-                    HStack {
-                        Image(systemName: hasEndDate ? "calendar.badge.checkmark" : "calendar.badge.plus")
-                            .font(.system(size: 14))
-                            .foregroundColor(showEndDatePicker ? AppColors.primary : AppColors.textSecondary(themeManager.colorScheme))
+                    HStack(spacing: 12) {
+                        Image(systemName: hasEndDate ? "stop.circle.fill" : "infinity.circle.fill")
+                            .font(.system(size: 18))
+                            .foregroundColor(hasEndDate ? .red : AppColors.textSecondary(themeManager.colorScheme))
+                            .frame(width: 24)
 
-                        VStack(alignment: .leading, spacing: 2) {
                             Text("End")
-                                .font(.custom("ProductSans-Regular", size: 11))
+                            .font(.custom("ProductSans-Regular", size: 15))
                                 .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                            Text(hasEndDate ? formattedEndDate : "Optional")
-                                .font(.custom("ProductSans-Medium", size: 13))
-                                .foregroundColor(showEndDatePicker ? AppColors.primary : (hasEndDate ? AppColors.text(themeManager.colorScheme) : AppColors.textSecondary(themeManager.colorScheme)))
-                        }
 
                         Spacer()
 
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
-                            .rotationEffect(.degrees(showEndDatePicker ? 180 : 0))
+                        Text(hasEndDate ? formattedEndDate : "No end date")
+                            .font(.custom("ProductSans-Medium", size: 15))
+                            .foregroundColor(AppColors.text(themeManager.colorScheme))
+
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(AppColors.textSecondary(themeManager.colorScheme).opacity(0.5))
+                            .rotationEffect(.degrees(showEndDatePicker ? 90 : 0))
                     }
-                    .padding(12)
+                    .padding(14)
                     .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(AppColors.inputBackground(themeManager.colorScheme))
+                        RoundedRectangle(cornerRadius: 14)
+                            .fill(AppColors.surface(themeManager.colorScheme))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(showEndDatePicker ? AppColors.primary.opacity(0.5) : Color.clear, lineWidth: 1.5)
+                                RoundedRectangle(cornerRadius: 14)
+                                    .stroke(showEndDatePicker ? AppColors.primary.opacity(0.2) : Color.clear, lineWidth: 1)
                             )
                     )
                 }
-            }
 
-            // Start date picker
-            if showStartDatePicker {
-                DatePicker("", selection: $startDate, displayedComponents: .date)
-                    .datePickerStyle(.graphical)
-                    .tint(AppColors.primary)
-                    .padding(8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(AppColors.inputBackground(themeManager.colorScheme))
-                    )
-                    .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .top)),
-                        removal: .opacity.combined(with: .scale(scale: 0.98))
-                    ))
-            }
-
-            // End date picker
             if showEndDatePicker {
                 VStack(spacing: 12) {
                     DatePicker("", selection: $endDate, in: startDate..., displayedComponents: .date)
@@ -2058,34 +2814,35 @@ struct EditItemSheet: View {
 
                     if hasEndDate {
                         Button {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                let impact = UIImpactFeedbackGenerator(style: .light)
+                                impact.impactOccurred()
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                                 hasEndDate = false
                                 showEndDatePicker = false
                             }
                         } label: {
                             HStack(spacing: 6) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.system(size: 14))
-                                Text("Remove end date")
+                                    Image(systemName: "infinity")
+                                        .font(.system(size: 12, weight: .medium))
+                                    Text("Continue indefinitely")
                                     .font(.custom("ProductSans-Medium", size: 13))
                             }
-                            .foregroundColor(.red.opacity(0.8))
+                                .foregroundColor(AppColors.textSecondary(themeManager.colorScheme))
                         }
                     }
                 }
-                .padding(8)
+                    .padding(12)
                 .background(
                     RoundedRectangle(cornerRadius: 16)
-                        .fill(AppColors.inputBackground(themeManager.colorScheme))
+                            .fill(AppColors.surface(themeManager.colorScheme))
                 )
                 .transition(.asymmetric(
-                    insertion: .opacity.combined(with: .scale(scale: 0.95)).combined(with: .move(edge: .top)),
-                    removal: .opacity.combined(with: .scale(scale: 0.98))
+                        insertion: .scale(scale: 0.95).combined(with: .opacity),
+                        removal: .scale(scale: 0.98).combined(with: .opacity)
                 ))
             }
         }
-        .padding(16)
-        .background(RoundedRectangle(cornerRadius: 16).fill(AppColors.surface(themeManager.colorScheme).opacity(0.5)))
+        }
         .opacity(appearAnimation ? 1 : 0)
         .offset(y: appearAnimation ? 0 : 10)
     }
@@ -2096,15 +2853,21 @@ struct EditItemSheet: View {
         let newHour = defaultHours.first { !existingHours.contains($0) } ?? 12
 
         tempTime = EditItemSheet.defaultTime(hour: newHour)
-        editingTimeIndex = nil
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+        editingTimeIndex = reminderTimes.count
+        reminderTimes.append(tempTime)
+
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
             showingTimePicker = true
         }
     }
     
     private func editApplyPreset(times: [Int]) {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+        let impact = UIImpactFeedbackGenerator(style: .light)
+        impact.impactOccurred()
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
             reminderTimes = times.map { EditItemSheet.defaultTime(hour: $0) }
+            showingTimePicker = false
+            editingTimeIndex = nil
         }
     }
     
@@ -2173,9 +2936,42 @@ struct EditItemSheet: View {
                 )
             }
             
-            isSubmitting = false
-            dismiss()
+            await MainActor.run {
+                isSubmitting = false
+                dismiss()
+            }
         }
+    }
+}
+
+// MARK: - Edit Preset Chip Component
+
+private struct EditPresetChip: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    let title: String
+    let icon: String
+    let iconColor: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(iconColor)
+
+                Text(title)
+                    .font(.custom("ProductSans-Medium", size: 13))
+                    .foregroundColor(AppColors.text(themeManager.colorScheme))
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+                Capsule()
+                    .fill(AppColors.surface(themeManager.colorScheme))
+            )
+        }
+        .buttonStyle(ScaleButtonStyle())
     }
 }
 

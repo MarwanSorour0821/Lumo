@@ -3,11 +3,13 @@
 //  app
 //
 //  Manages local notifications with actionable buttons for medication reminders
+//  and Live Activities for Dynamic Island pill reminders
 //
 
 import Foundation
 import UserNotifications
 import UIKit
+import ActivityKit
 
 // MARK: - Notification Level
 enum NotificationLevel: String, CaseIterable, Identifiable {
@@ -56,6 +58,7 @@ enum NotificationLevel: String, CaseIterable, Identifiable {
 // MARK: - Notification Type
 enum MedicationNotificationType: String {
     case onTime = "ontime"      // At the scheduled time
+    case startLiveActivity = "startLiveActivity"  // 10 minutes before scheduled time
 }
 
 // MARK: - Notification Manager
@@ -123,9 +126,17 @@ class NotificationManager: NSObject {
             intentIdentifiers: [],
             options: [.customDismissAction]
         )
+        
+        // Define category for Live Activity trigger (silent, no actions)
+        let liveActivityTriggerCategory = UNNotificationCategory(
+            identifier: "LIVE_ACTIVITY_TRIGGER",
+            actions: [],
+            intentIdentifiers: [],
+            options: []
+        )
 
-        // Register category
-        UNUserNotificationCenter.current().setNotificationCategories([medicationCategory])
+        // Register categories
+        UNUserNotificationCenter.current().setNotificationCategories([medicationCategory, liveActivityTriggerCategory])
         print("✅ Notification categories registered")
     }
 
@@ -340,83 +351,22 @@ class NotificationManager: NSObject {
         // Create a unique time identifier
         let scheduledTimeId = "\(hour)_\(minute)"
 
-        // If there's an end date, schedule individual notifications for each occurrence
-        if let endDate = endDate {
-            print("   📅 Has end date - using time-interval based scheduling")
-            let endDateStartOfDay = calendar.startOfDay(for: endDate)
-            print("   actualStartDate: \(actualStartDate)")
-            print("   endDateStartOfDay: \(endDateStartOfDay)")
-
-            // Calculate all occurrences between start and end dates
-            var occurrences: [Date] = []
-            var currentDate = actualStartDate
-            var daysChecked = 0
-
-            while currentDate <= endDateStartOfDay {
-                daysChecked += 1
-                // Get the weekday component (1 = Sunday, 2 = Monday, etc.)
-                let currentWeekday = calendar.component(.weekday, from: currentDate)
-
-                // If this day matches the reminder weekday
-                if currentWeekday == weekday {
-                    // Create a date with the specified hour and minute
-                    var components = calendar.dateComponents([.year, .month, .day], from: currentDate)
-                    components.hour = hour
-                    components.minute = minute
-                    components.second = 0
-
-                    if let notificationDate = calendar.date(from: components) {
-                        if notificationDate >= Date() {
-                            occurrences.append(notificationDate)
-                            print("   ✅ Added occurrence: \(notificationDate)")
-                        } else {
-                            print("   ⏭️ Skipped past occurrence: \(notificationDate) (now is \(Date()))")
-                        }
-                    }
-                }
-
-                // Move to next day
-                guard let nextDate = calendar.date(byAdding: .day, value: 1, to: currentDate) else { break }
-                currentDate = nextDate
-            }
-            
-            print("   📊 Checked \(daysChecked) days, found \(occurrences.count) future occurrences for weekday \(weekday)")
-
-            // Schedule notifications for each occurrence
-            for (index, occurrenceDate) in occurrences.enumerated() {
-                await scheduleOnTimeNotification(
-                    center: center,
-                    itemId: itemId,
-                    itemName: itemName,
-                    itemType: itemType,
-                    scheduledDate: occurrenceDate,
-                    timeString: timeString,
-                    scheduledTimeId: scheduledTimeId,
-                    requestIdBase: "\(itemId)_time\(timeIndex)_day\(weekday)_\(index)_\(Int(occurrenceDate.timeIntervalSince1970))"
-                )
-            }
-
-            if !occurrences.isEmpty {
-                print("✅ Scheduled \(occurrences.count) on-time notifications for \(itemName) at time slot \(timeIndex + 1) until \(endDateStartOfDay)")
-            } else {
-                print("⚠️ No future occurrences found for \(itemName) on weekday \(weekday)")
-            }
-        } else {
-            print("   🔁 No end date - using repeating calendar notifications")
-            // No end date - use repeating notifications
-            await scheduleRepeatingOnTimeNotification(
-                center: center,
-                itemId: itemId,
-                itemName: itemName,
-                itemType: itemType,
-                hour: hour,
-                minute: minute,
-                weekday: weekday,
-                timeString: timeString,
-                scheduledTimeId: scheduledTimeId,
-                requestIdBase: "\(itemId)_time\(timeIndex)_day\(weekday)"
-            )
-        }
+        // Always use repeating notifications for efficiency (even with end dates)
+        // We'll cancel them when the end date passes via background check
+        print("   🔁 Using repeating calendar notifications (will auto-cancel after end date)")
+        await scheduleRepeatingOnTimeNotification(
+            center: center,
+            itemId: itemId,
+            itemName: itemName,
+            itemType: itemType,
+            hour: hour,
+            minute: minute,
+            weekday: weekday,
+            timeString: timeString,
+            scheduledTimeId: scheduledTimeId,
+            requestIdBase: "\(itemId)_time\(timeIndex)_day\(weekday)",
+            endDate: endDate
+        )
     }
 
     /// Schedule on-time notification for a specific date
@@ -439,10 +389,15 @@ class NotificationManager: NSObject {
         content.sound = notificationLevel == .critical ? .defaultCritical : .default
         content.categoryIdentifier = NotificationManager.medicationReminderCategory
         content.interruptionLevel = notificationLevel.interruptionLevel
+        // Include Live Activity trigger info in on-time notification
         content.userInfo = [
             "itemId": itemId,
+            "itemName": itemName,
+            "itemType": itemType,
+            "scheduledTime": ISO8601DateFormatter().string(from: scheduledDate),
             "notificationType": MedicationNotificationType.onTime.rawValue,
-            "scheduledTime": scheduledTimeId
+            "scheduledTimeId": scheduledTimeId,
+            "shouldStartLiveActivity": true // Start Live Activity when notification fires
         ]
 
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: onTimeInterval, repeats: false)
@@ -459,6 +414,51 @@ class NotificationManager: NSObject {
             print("❌ Failed to schedule on-time notification: \(error.localizedDescription)")
         }
     }
+    
+    /// Schedule a notification to trigger Live Activity 10 minutes before scheduled time
+    private func scheduleLiveActivityTrigger(
+        center: UNUserNotificationCenter,
+        itemId: String,
+        itemName: String,
+        itemType: String,
+        scheduledDate: Date,
+        requestIdBase: String
+    ) async {
+        let tenMinutesBefore = scheduledDate.addingTimeInterval(-10 * 60)
+        let triggerInterval = tenMinutesBefore.timeIntervalSinceNow
+        
+        guard triggerInterval > 0 else { return }
+        
+        let content = UNMutableNotificationContent()
+        // Minimal content to ensure notification is delivered (iOS may not deliver empty notifications)
+        content.title = "Reminder"
+        content.body = "\(itemName) in 10 minutes"
+        content.sound = nil // Silent
+        // Add content-available to wake app in background (though it may not work for local notifications)
+        content.userInfo = [
+            "itemId": itemId,
+            "itemName": itemName,
+            "itemType": itemType,
+            "scheduledTime": ISO8601DateFormatter().string(from: scheduledDate),
+            "notificationType": MedicationNotificationType.startLiveActivity.rawValue
+        ]
+        // Try to make it trigger even in background by setting category
+        content.categoryIdentifier = "LIVE_ACTIVITY_TRIGGER"
+        
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: triggerInterval, repeats: false)
+        let request = UNNotificationRequest(
+            identifier: "\(requestIdBase)_startLiveActivity",
+            content: content,
+            trigger: trigger
+        )
+        
+        do {
+            try await center.add(request)
+            print("✅ Scheduled Live Activity trigger for \(itemName) 10 minutes before scheduled time")
+        } catch {
+            print("❌ Failed to schedule Live Activity trigger: \(error.localizedDescription)")
+        }
+    }
 
     /// Schedule repeating on-time notification for a specific weekday/time
     private func scheduleRepeatingOnTimeNotification(
@@ -471,7 +471,8 @@ class NotificationManager: NSObject {
         weekday: Int,
         timeString: String,
         scheduledTimeId: String,
-        requestIdBase: String
+        requestIdBase: String,
+        endDate: Date? = nil
     ) async {
         var onTimeComponents = DateComponents()
         onTimeComponents.hour = hour
@@ -484,11 +485,35 @@ class NotificationManager: NSObject {
         onTimeContent.sound = notificationLevel == .critical ? .defaultCritical : .default
         onTimeContent.categoryIdentifier = NotificationManager.medicationReminderCategory
         onTimeContent.interruptionLevel = notificationLevel.interruptionLevel
-        onTimeContent.userInfo = [
+        
+        // Find next occurrence for Live Activity scheduling
+        let calendar = Calendar.current
+        var scheduledTimeComponents = DateComponents()
+        scheduledTimeComponents.weekday = weekday
+        scheduledTimeComponents.hour = hour
+        scheduledTimeComponents.minute = minute
+        
+        var scheduledTimeString = ""
+        if let nextOccurrence = calendar.nextDate(after: Date(), matching: scheduledTimeComponents, matchingPolicy: .nextTime) {
+            scheduledTimeString = ISO8601DateFormatter().string(from: nextOccurrence)
+        }
+        
+        // Include end date in userInfo so we can cancel when it passes
+        var userInfo: [String: Any] = [
             "itemId": itemId,
+            "itemName": itemName,
+            "itemType": itemType,
+            "scheduledTime": scheduledTimeString,
             "notificationType": MedicationNotificationType.onTime.rawValue,
-            "scheduledTime": scheduledTimeId
+            "scheduledTimeId": scheduledTimeId,
+            "shouldStartLiveActivity": true // Start Live Activity when notification fires
         ]
+        
+        if let endDate = endDate {
+            userInfo["endDate"] = ISO8601DateFormatter().string(from: endDate)
+        }
+        
+        onTimeContent.userInfo = userInfo
 
         let onTimeTrigger = UNCalendarNotificationTrigger(dateMatching: onTimeComponents, repeats: true)
         let onTimeRequest = UNNotificationRequest(
@@ -502,6 +527,67 @@ class NotificationManager: NSObject {
             print("✅ Scheduled repeating on-time notification for \(itemName) on weekday \(weekday) at \(hour):\(minute)")
         } catch {
             print("❌ Failed to schedule on-time notification: \(error.localizedDescription)")
+        }
+    }
+    
+    /// Schedule repeating Live Activity trigger (10 minutes before each occurrence)
+    private func scheduleLiveActivityTriggerForRepeating(
+        center: UNUserNotificationCenter,
+        itemId: String,
+        itemName: String,
+        itemType: String,
+        scheduledTime: Date,
+        liveActivityComponents: DateComponents,
+        requestIdBase: String
+    ) async {
+        // For repeating, we'll schedule the first one, then reschedule when it fires
+        let tenMinutesBefore = scheduledTime.addingTimeInterval(-10 * 60)
+        let triggerInterval = tenMinutesBefore.timeIntervalSinceNow
+        
+        print("🕐 Repeating Live Activity: scheduledTime=\(scheduledTime), tenMinutesBefore=\(tenMinutesBefore), triggerInterval=\(triggerInterval)s")
+        
+        // If less than 10 minutes away, start Live Activity immediately
+        if triggerInterval <= 0 {
+            print("🚀 Starting Live Activity immediately for repeating reminder (less than 10 minutes away)")
+            if #available(iOS 16.2, *) {
+                await startPillReminderLiveActivity(
+                    itemId: itemId,
+                    itemName: itemName,
+                    itemType: itemType,
+                    scheduledTime: scheduledTime
+                )
+            } else {
+                print("⚠️ iOS 16.2+ required for Live Activities")
+            }
+            return
+        }
+        
+        let content = UNMutableNotificationContent()
+        content.title = "" // Silent notification
+        content.body = ""
+        content.sound = nil
+        content.userInfo = [
+            "itemId": itemId,
+            "itemName": itemName,
+            "itemType": itemType,
+            "scheduledTime": ISO8601DateFormatter().string(from: scheduledTime),
+            "notificationType": MedicationNotificationType.startLiveActivity.rawValue,
+            "isRepeating": true,
+            "requestIdBase": requestIdBase
+        ]
+        
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: triggerInterval, repeats: false)
+        let request = UNNotificationRequest(
+            identifier: "\(requestIdBase)_startLiveActivity",
+            content: content,
+            trigger: trigger
+        )
+        
+        do {
+            try await center.add(request)
+            print("✅ Scheduled repeating Live Activity trigger for \(itemName) 10 minutes before scheduled time")
+        } catch {
+            print("❌ Failed to schedule Live Activity trigger: \(error.localizedDescription)")
         }
     }
 
@@ -565,18 +651,18 @@ class NotificationManager: NSObject {
     /// Cancel ALL medication reminders (used when subscription ends)
     func cancelAllMedicationReminders() async {
         let center = UNUserNotificationCenter.current()
-        
+
         // Get all pending notifications
         let pendingRequests = await center.pendingNotificationRequests()
-        
+
         // Get all item IDs from LoggingViewModel to identify which notifications to cancel
         let allItemIds = await MainActor.run {
             LoggingViewModel.shared.items.map { $0.id }
         }
-        
+
         // Find all notification IDs that belong to any medication item
         var notificationIdsToRemove: [String] = []
-        
+
         for request in pendingRequests {
             // Check if this notification belongs to any medication item
             for itemId in allItemIds {
@@ -586,12 +672,196 @@ class NotificationManager: NSObject {
                 }
             }
         }
-        
+
         if !notificationIdsToRemove.isEmpty {
             center.removePendingNotificationRequests(withIdentifiers: notificationIdsToRemove)
             print("🗑️ Cancelled all \(notificationIdsToRemove.count) medication reminders due to subscription cancellation")
         } else {
             print("⚠️ No medication reminders found to cancel, or unable to identify them")
+        }
+    }
+
+    // MARK: - Live Activity Support
+
+    /// Start a Live Activity for pill reminder (Dynamic Island)
+    @available(iOS 16.2, *)
+    func startPillReminderLiveActivity(
+        itemId: String,
+        itemName: String,
+        itemType: String,
+        scheduledTime: Date,
+        previousPillName: String? = nil,
+        doseIndex: Int = 0
+    ) async {
+        print("🎯 startPillReminderLiveActivity called:")
+        print("   itemId: \(itemId)")
+        print("   itemName: \(itemName)")
+        print("   scheduledTime: \(scheduledTime)")
+        print("   timeUntil: \(scheduledTime.timeIntervalSinceNow)s")
+        
+        // Check if Live Activities are supported and enabled
+        let authInfo = ActivityAuthorizationInfo()
+        print("   Live Activities enabled: \(authInfo.areActivitiesEnabled)")
+        
+        guard authInfo.areActivitiesEnabled else {
+            print("⚠️ Live Activities are not enabled on this device")
+            return
+        }
+
+        // End any existing activity
+        await endAllPillReminderActivities()
+
+        let attributes = PillReminderAttributes(
+            itemId: itemId,
+            itemType: itemType,
+            doseIndex: doseIndex
+        )
+
+        let contentState = PillReminderAttributes.ContentState(
+            pillName: itemName,
+            scheduledTime: scheduledTime,
+            previousPillName: previousPillName,
+            isActive: true
+        )
+
+        let activityContent = ActivityContent(
+            state: contentState,
+            staleDate: Calendar.current.date(byAdding: .hour, value: 2, to: scheduledTime)
+        )
+
+        do {
+            let activity = try Activity.request(
+                attributes: attributes,
+                content: activityContent,
+                pushType: nil
+            )
+            print("✅ Started Live Activity for \(itemName) - ID: \(activity.id)")
+        } catch {
+            print("❌ Failed to start Live Activity: \(error.localizedDescription)")
+        }
+    }
+
+    /// Update existing Live Activity with new state
+    @available(iOS 16.2, *)
+    func updatePillReminderLiveActivity(
+        itemId: String,
+        pillName: String,
+        scheduledTime: Date,
+        previousPillName: String?,
+        isActive: Bool
+    ) async {
+        // Find the activity for this item
+        for activity in Activity<PillReminderAttributes>.activities {
+            if activity.attributes.itemId == itemId {
+                let updatedState = PillReminderAttributes.ContentState(
+                    pillName: pillName,
+                    scheduledTime: scheduledTime,
+                    previousPillName: previousPillName,
+                    isActive: isActive
+                )
+
+                let updatedContent = ActivityContent(
+                    state: updatedState,
+                    staleDate: Calendar.current.date(byAdding: .hour, value: 2, to: scheduledTime)
+                )
+
+                await activity.update(updatedContent)
+                print("✅ Updated Live Activity for \(pillName)")
+                return
+            }
+        }
+
+        print("⚠️ No Live Activity found for item: \(itemId)")
+    }
+
+    /// End Live Activity for a specific item (when taken or skipped)
+    @available(iOS 16.2, *)
+    func endPillReminderLiveActivity(for itemId: String, wasTaken: Bool) async {
+        for activity in Activity<PillReminderAttributes>.activities {
+            if activity.attributes.itemId == itemId {
+                let finalState = PillReminderAttributes.ContentState(
+                    pillName: activity.content.state.pillName,
+                    scheduledTime: activity.content.state.scheduledTime,
+                    previousPillName: activity.content.state.previousPillName,
+                    isActive: false
+                )
+
+                let finalContent = ActivityContent(
+                    state: finalState,
+                    staleDate: nil
+                )
+
+                await activity.end(finalContent, dismissalPolicy: .immediate)
+                print("✅ Ended Live Activity for item: \(itemId) - \(wasTaken ? "Taken" : "Skipped")")
+                return
+            }
+        }
+    }
+
+    /// End all pill reminder Live Activities
+    @available(iOS 16.2, *)
+    func endAllPillReminderActivities() async {
+        for activity in Activity<PillReminderAttributes>.activities {
+            let finalState = PillReminderAttributes.ContentState(
+                pillName: activity.content.state.pillName,
+                scheduledTime: activity.content.state.scheduledTime,
+                previousPillName: activity.content.state.previousPillName,
+                isActive: false
+            )
+
+            let finalContent = ActivityContent(
+                state: finalState,
+                staleDate: nil
+            )
+
+            await activity.end(finalContent, dismissalPolicy: .immediate)
+        }
+        print("✅ Ended all Live Activities")
+    }
+
+    /// Check if there's an active Live Activity for an item
+    @available(iOS 16.2, *)
+    func hasActiveLiveActivity(for itemId: String) -> Bool {
+        for activity in Activity<PillReminderAttributes>.activities {
+            if activity.attributes.itemId == itemId && activity.activityState == .active {
+                return true
+            }
+        }
+        return false
+    }
+
+    /// Get the previous pill name for Live Activity display
+    func getPreviousPillName(currentItemId: String) async -> String? {
+        return await MainActor.run {
+            // Get all items sorted by their most recent log time
+            let items = LoggingViewModel.shared.items
+
+            // Find items that have been taken recently (today)
+            let takenItems = items.filter { item in
+                item.id != currentItemId && item.isTakenToday
+            }
+
+            // Return the most recently taken item's name
+            return takenItems.first?.name
+        }
+    }
+
+    /// Start Live Activity when notification fires
+    func handleNotificationForLiveActivity(
+        itemId: String,
+        itemName: String,
+        itemType: String,
+        scheduledTime: Date
+    ) async {
+        if #available(iOS 16.2, *) {
+            let previousPill = await getPreviousPillName(currentItemId: itemId)
+            await startPillReminderLiveActivity(
+                itemId: itemId,
+                itemName: itemName,
+                itemType: itemType,
+                scheduledTime: scheduledTime,
+                previousPillName: previousPill
+            )
         }
     }
 }
