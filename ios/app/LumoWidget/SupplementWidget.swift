@@ -14,6 +14,42 @@ import AppIntents
 /// App Group identifier - must match in both app and widget entitlements
 private let appGroupIdentifier = "group.com.lumoblood.app"
 
+// MARK: - Lumo Colors
+
+/// Lumo brand colors
+enum LumoColors {
+    static let primary = Color(hex: "#C7002B")  // Lumo red
+    static let primaryDark = Color(hex: "#8E0F20")
+    static let primaryLight = Color(hex: "#D4283D")
+}
+
+/// Color hex extension for widget
+extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 3:
+            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6:
+            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 8:
+            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (255, 0, 0, 0)
+        }
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue: Double(b) / 255,
+            opacity: Double(a) / 255
+        )
+    }
+}
+
 /// Keys for shared UserDefaults
 private enum WidgetDataKeys {
     static let supplements = "widget_supplements"
@@ -113,9 +149,37 @@ struct SupplementEntry: TimelineEntry {
         supplements.filter { !$0.allDosesTaken }
     }
     
+    /// Supplements that have been fully taken today
+    var completedSupplements: [WidgetSupplement] {
+        supplements.filter { $0.allDosesTaken }
+    }
+    
     /// Count of pending items
     var pendingCount: Int {
         pendingSupplements.count
+    }
+    
+    /// Count of completed items
+    var completedCount: Int {
+        completedSupplements.count
+    }
+    
+    /// Total supplements count
+    var totalCount: Int {
+        supplements.count
+    }
+    
+    /// Completion progress (0.0 to 1.0)
+    var completionProgress: Double {
+        guard totalCount > 0 else { return 0 }
+        return Double(completedCount) / Double(totalCount)
+    }
+    
+    /// Formatted date string (e.g., "January 18")
+    var formattedDate: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM dd"
+        return formatter.string(from: date)
     }
     
     /// Total pending doses across all supplements
@@ -141,14 +205,14 @@ struct SupplementProvider: TimelineProvider {
             name: "Vitamin D3",
             type: "supplement",
             reminderTimes: ["09:00:00"],
-            isTakenToday: false,
+            isTakenToday: true,
             doseStatuses: [
-                WidgetDoseStatus(supplementId: "1", timeIndex: 0, time: "09:00:00", isTaken: false)
+                WidgetDoseStatus(supplementId: "1", timeIndex: 0, time: "09:00:00", isTaken: true)
             ]
         ),
         WidgetSupplement(
             id: "2",
-            name: "Omega-3",
+            name: "Omega-3 Fish Oil",
             type: "supplement",
             reminderTimes: ["09:00:00", "21:00:00"],
             isTakenToday: false,
@@ -159,12 +223,32 @@ struct SupplementProvider: TimelineProvider {
         ),
         WidgetSupplement(
             id: "3",
-            name: "Magnesium",
+            name: "Magnesium Glycinate",
             type: "supplement",
             reminderTimes: ["21:00:00"],
             isTakenToday: false,
             doseStatuses: [
                 WidgetDoseStatus(supplementId: "3", timeIndex: 0, time: "21:00:00", isTaken: false)
+            ]
+        ),
+        WidgetSupplement(
+            id: "4",
+            name: "Probiotics",
+            type: "supplement",
+            reminderTimes: ["08:00:00"],
+            isTakenToday: true,
+            doseStatuses: [
+                WidgetDoseStatus(supplementId: "4", timeIndex: 0, time: "08:00:00", isTaken: true)
+            ]
+        ),
+        WidgetSupplement(
+            id: "5",
+            name: "Vitamin C",
+            type: "supplement",
+            reminderTimes: ["12:00:00"],
+            isTakenToday: false,
+            doseStatuses: [
+                WidgetDoseStatus(supplementId: "5", timeIndex: 0, time: "12:00:00", isTaken: false)
             ]
         )
     ]
@@ -228,78 +312,133 @@ struct SupplementProvider: TimelineProvider {
     }
 }
 
+// MARK: - Logo Header Component
+
+/// Lumo logo and brand name header
+struct LumoHeaderView: View {
+    var compact: Bool = false
+    
+    var body: some View {
+        HStack(spacing: compact ? 5 : 6) {
+            // Logo image from widget assets
+            if let uiImage = UIImage(named: "LumoLogo") {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: compact ? 18 : 22, height: compact ? 18 : 22)
+            } else {
+                // Fallback: show a red circle if image not found
+                Circle()
+                    .fill(LumoColors.primary)
+                    .frame(width: compact ? 18 : 22, height: compact ? 18 : 22)
+            }
+            
+            Text("Lumo")
+                .font(.system(size: compact ? 14 : 16, weight: .bold, design: .default))
+                .foregroundColor(.primary)
+        }
+    }
+}
+
+// MARK: - Progress Ring Component
+
+/// Semi-circular progress ring showing completion
+struct ProgressRingView: View {
+    let progress: Double  // 0.0 to 1.0
+    let completed: Int
+    let total: Int
+    let size: CGFloat
+    
+    var body: some View {
+        ZStack {
+            // Background arc
+            Circle()
+                .trim(from: 0.0, to: 0.75)
+                .stroke(
+                    Color.gray.opacity(0.25),
+                    style: StrokeStyle(lineWidth: size * 0.15, lineCap: .round)
+                )
+                .rotationEffect(.degrees(135))
+            
+            // Progress arc - solid Lumo red
+            Circle()
+                .trim(from: 0.0, to: min(progress * 0.75, 0.75))
+                .stroke(
+                    LumoColors.primary,
+                    style: StrokeStyle(lineWidth: size * 0.15, lineCap: .round)
+                )
+                .rotationEffect(.degrees(135))
+                .animation(.easeInOut(duration: 0.3), value: progress)
+            
+            // Center text
+            VStack(spacing: 0) {
+                Text("\(completed)/\(total)")
+                    .font(.system(size: size * 0.26, weight: .bold, design: .rounded))
+                    .foregroundColor(.primary)
+            }
+        }
+        .frame(width: size, height: size)
+    }
+}
+
 // MARK: - Widget Views
 
-/// Small widget view - shows count and up to 2 items
+/// Small widget view - compact layout with progress ring
 struct SupplementWidgetSmallView: View {
     let entry: SupplementEntry
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Header
-            HStack {
-                Image(systemName: "pills.fill")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.orange)
-                
-                Text("Today")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.secondary)
+        VStack(alignment: .leading, spacing: 5) {
+            // Header row with logo and progress ring
+            HStack(alignment: .center) {
+                LumoHeaderView(compact: true)
                 
                 Spacer()
+                
+                // Progress ring
+                ProgressRingView(
+                    progress: entry.completionProgress,
+                    completed: entry.completedCount,
+                    total: entry.totalCount,
+                    size: 44
+                )
             }
             
-            if entry.pendingCount == 0 {
-                // All done state
-                Spacer()
-                VStack(spacing: 4) {
+            // Date
+            Text(entry.formattedDate)
+                .font(.system(size: 18, weight: .bold))
+                .foregroundColor(LumoColors.primary)
+            
+            Spacer()
+            
+            if entry.totalCount == 0 {
+                // No supplements
+                Text("No supplements")
+                    .font(.system(size: 13))
+                    .foregroundColor(.secondary)
+            } else if entry.pendingCount == 0 {
+                // All done
+                HStack(spacing: 6) {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 32))
                         .foregroundColor(.green)
                     Text("All done!")
                         .font(.system(size: 14, weight: .semibold))
                 }
-                .frame(maxWidth: .infinity)
-                Spacer()
             } else {
-                // Show pending count
-                Text("\(entry.pendingCount)")
-                    .font(.system(size: 36, weight: .bold))
-                    .foregroundColor(.primary)
-                
-                Text(entry.pendingCount == 1 ? "supplement left" : "supplements left")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
-                
-                Spacer()
-                
-                // Show first pending item with toggle button
+                // Show only 1 pending item
                 if let first = entry.pendingSupplements.first {
-                    Button(intent: ToggleSupplementIntent(
-                        supplementId: first.id,
-                        supplementName: first.name,
-                        timeIndex: first.nextPendingDose?.timeIndex ?? -1
-                    )) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "circle")
-                                .font(.system(size: 14))
-                                .foregroundColor(.gray)
-                            
-                            Text(first.name)
-                                .font(.system(size: 12, weight: .medium))
-                                .lineLimit(1)
-                                .foregroundColor(.primary)
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color.gray.opacity(0.15))
-                        .cornerRadius(8)
-                    }
-                    .buttonStyle(.plain)
+                    SupplementItemRow(supplement: first, compact: true)
+                }
+                
+                // Show "+X more" if more than 1
+                if entry.pendingCount > 1 {
+                    Text("+\(entry.pendingCount - 1) more")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.secondary)
                 }
             }
         }
-        .padding()
+        .padding(4)
     }
 }
 
@@ -308,60 +447,76 @@ struct SupplementWidgetMediumView: View {
     let entry: SupplementEntry
     
     var body: some View {
-        HStack(spacing: 16) {
-            // Left side - summary
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Image(systemName: "pills.fill")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.orange)
+        VStack(alignment: .leading, spacing: 6) {
+            // Header row with logo and progress ring aligned
+            HStack(alignment: .top) {
+                // Left side: Logo, subtitle, and date
+                VStack(alignment: .leading, spacing: 3) {
+                    LumoHeaderView(compact: false)
                     
-                    Text("Today's Supplements")
-                        .font(.system(size: 13, weight: .medium))
+                    Text("Your supplements")
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.secondary)
-                }
-                
-                if entry.pendingCount == 0 {
-                    Spacer()
-                    HStack {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 24))
-                            .foregroundColor(.green)
-                        Text("All done!")
-                            .font(.system(size: 16, weight: .semibold))
-                    }
-                    Spacer()
-                } else {
-                    Text("\(entry.pendingCount)")
-                        .font(.system(size: 44, weight: .bold))
-                        .foregroundColor(.primary)
                     
-                    Text("remaining")
-                        .font(.system(size: 13))
-                        .foregroundColor(.secondary)
+                    Text(entry.formattedDate)
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(LumoColors.primary)
                 }
                 
                 Spacer()
+                
+                // Right side: Progress ring (aligned with top)
+                ProgressRingView(
+                    progress: entry.completionProgress,
+                    completed: entry.completedCount,
+                    total: entry.totalCount,
+                    size: 58
+                )
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
             
-            // Right side - list of pending items
-            if entry.pendingCount > 0 {
+            Spacer(minLength: 4)
+            
+            if entry.totalCount == 0 {
+                // No supplements
+                HStack {
+                    Image(systemName: "plus.circle")
+                        .foregroundColor(.secondary)
+                    Text("Add supplements in the app")
+                        .font(.system(size: 13))
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+            } else if entry.pendingCount == 0 {
+                // All done
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 24))
+                        .foregroundColor(.green)
+                    Text("All done for today!")
+                        .font(.system(size: 15, weight: .semibold))
+                }
+                Spacer()
+            } else {
+                // Show pending items
                 VStack(alignment: .leading, spacing: 6) {
-                    ForEach(entry.pendingSupplements.prefix(4)) { supplement in
-                        SupplementRowView(supplement: supplement)
+                    ForEach(entry.pendingSupplements.prefix(3)) { supplement in
+                        SupplementItemRow(supplement: supplement, compact: false)
                     }
                     
-                    if entry.pendingSupplements.count > 4 {
-                        Text("+\(entry.pendingSupplements.count - 4) more")
-                            .font(.system(size: 11))
+                    if entry.pendingCount > 3 {
+                        Text("+\(entry.pendingCount - 3) more")
+                            .font(.system(size: 12, weight: .medium))
                             .foregroundColor(.secondary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 5)
+                            .frame(maxWidth: .infinity)
+                            .background(Color.gray.opacity(0.15))
+                            .cornerRadius(8)
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .padding()
+        .padding(14)
     }
 }
 
@@ -370,37 +525,53 @@ struct SupplementWidgetLargeView: View {
     let entry: SupplementEntry
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Header
-            HStack {
-                Image(systemName: "pills.fill")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.orange)
-                
-                Text("Today's Supplements")
-                    .font(.system(size: 15, weight: .semibold))
+        VStack(alignment: .leading, spacing: 8) {
+            // Header row with logo and progress ring aligned
+            HStack(alignment: .top) {
+                // Left side: Logo, subtitle, and date
+                VStack(alignment: .leading, spacing: 4) {
+                    LumoHeaderView(compact: false)
+                    
+                    Text("Your supplements")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.secondary)
+                    
+                    Text(entry.formattedDate)
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundColor(LumoColors.primary)
+                }
                 
                 Spacer()
                 
-                if entry.pendingCount > 0 {
-                    Text("\(entry.pendingCount) remaining")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.secondary)
-                } else {
-                    HStack(spacing: 4) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                        Text("All done!")
-                            .foregroundColor(.green)
-                    }
-                    .font(.system(size: 12, weight: .medium))
-                }
+                // Right side: Progress ring (aligned with top)
+                ProgressRingView(
+                    progress: entry.completionProgress,
+                    completed: entry.completedCount,
+                    total: entry.totalCount,
+                    size: 70
+                )
             }
             
             Divider()
+                .padding(.vertical, 2)
             
-            if entry.pendingCount == 0 {
-                // All done state
+            if entry.totalCount == 0 {
+                // No supplements
+                Spacer()
+                VStack(spacing: 8) {
+                    Image(systemName: "pills.fill")
+                        .font(.system(size: 40))
+                        .foregroundColor(.secondary.opacity(0.5))
+                    Text("No supplements yet")
+                        .font(.system(size: 16, weight: .semibold))
+                    Text("Add supplements in the Lumo app")
+                        .font(.system(size: 13))
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                Spacer()
+            } else if entry.pendingCount == 0 {
+                // All done
                 Spacer()
                 VStack(spacing: 8) {
                     Image(systemName: "checkmark.circle.fill")
@@ -416,138 +587,73 @@ struct SupplementWidgetLargeView: View {
                 .frame(maxWidth: .infinity)
                 Spacer()
             } else {
-                // List of supplements
+                // Show pending items
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(entry.pendingSupplements.prefix(6)) { supplement in
-                        SupplementDetailRowView(supplement: supplement)
-                        
-                        if supplement.id != entry.pendingSupplements.prefix(6).last?.id {
-                            Divider()
-                                .padding(.leading, 32)
-                        }
-                    }
-                    
-                    if entry.pendingSupplements.count > 6 {
-                        HStack {
-                            Spacer()
-                            Text("+\(entry.pendingSupplements.count - 6) more supplements")
-                                .font(.system(size: 12))
-                                .foregroundColor(.secondary)
-                            Spacer()
-                        }
-                        .padding(.top, 4)
+                        SupplementItemRow(supplement: supplement, compact: false, showDoseTime: true)
                     }
                 }
                 
-                Spacer()
-            }
-        }
-        .padding()
-    }
-}
-
-/// Simple row view for medium widget
-struct SupplementRowView: View {
-    let supplement: WidgetSupplement
-    
-    var body: some View {
-        HStack(spacing: 8) {
-            // Toggle button
-            Button(intent: ToggleSupplementIntent(
-                supplementId: supplement.id,
-                supplementName: supplement.name,
-                timeIndex: supplement.nextPendingDose?.timeIndex ?? -1
-            )) {
-                Image(systemName: supplement.allDosesTaken ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 18))
-                    .foregroundColor(supplement.allDosesTaken ? .green : .gray)
-            }
-            .buttonStyle(.plain)
-            
-            Image(systemName: supplement.iconName)
-                .font(.system(size: 12))
-                .foregroundColor(supplement.color)
-                .frame(width: 16)
-            
-            Text(supplement.name)
-                .font(.system(size: 13, weight: .medium))
-                .lineLimit(1)
-                .strikethrough(supplement.allDosesTaken, color: .secondary)
-                .foregroundColor(supplement.allDosesTaken ? .secondary : .primary)
-            
-            Spacer()
-            
-            if let nextDose = supplement.nextPendingDose {
-                Text(nextDose.formattedTime)
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-            }
-        }
-    }
-}
-
-/// Detailed row view for large widget
-struct SupplementDetailRowView: View {
-    let supplement: WidgetSupplement
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            // Toggle button
-            Button(intent: ToggleSupplementIntent(
-                supplementId: supplement.id,
-                supplementName: supplement.name,
-                timeIndex: supplement.nextPendingDose?.timeIndex ?? -1
-            )) {
-                ZStack {
-                    Circle()
-                        .fill(supplement.allDosesTaken ? Color.green.opacity(0.15) : supplement.color.opacity(0.15))
-                        .frame(width: 32, height: 32)
-                    
-                    Image(systemName: supplement.allDosesTaken ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 20))
-                        .foregroundColor(supplement.allDosesTaken ? .green : .gray)
+                Spacer(minLength: 4)
+                
+                if entry.pendingCount > 6 {
+                    Text("+\(entry.pendingCount - 6) more")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .frame(maxWidth: .infinity)
+                        .background(Color.gray.opacity(0.15))
+                        .cornerRadius(10)
                 }
             }
-            .buttonStyle(.plain)
-            
-            // Name and doses
-            VStack(alignment: .leading, spacing: 2) {
+        }
+        .padding(16)
+    }
+}
+
+/// Unified row view for supplement items across all widget sizes
+struct SupplementItemRow: View {
+    let supplement: WidgetSupplement
+    var compact: Bool = false
+    var showDoseTime: Bool = false
+    
+    var body: some View {
+        Button(intent: ToggleSupplementIntent(
+            supplementId: supplement.id,
+            supplementName: supplement.name,
+            timeIndex: supplement.nextPendingDose?.timeIndex ?? -1
+        )) {
+            HStack(spacing: compact ? 8 : 10) {
+                // Circle toggle
+                Image(systemName: supplement.allDosesTaken ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: compact ? 18 : 20))
+                    .foregroundColor(supplement.allDosesTaken ? .green : .white.opacity(0.6))
+                
+                // Supplement name
                 Text(supplement.name)
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.system(size: compact ? 13 : 14, weight: .medium))
                     .lineLimit(1)
+                    .truncationMode(.tail)
                     .strikethrough(supplement.allDosesTaken, color: .secondary)
                     .foregroundColor(supplement.allDosesTaken ? .secondary : .primary)
                 
-                // Show pending dose times
-                if !supplement.pendingDoses.isEmpty {
-                    Text(supplement.pendingDoses.map { $0.formattedTime }.joined(separator: ", "))
-                        .font(.system(size: 11))
+                Spacer()
+                
+                // Show dose time for large widget
+                if showDoseTime, let nextDose = supplement.nextPendingDose {
+                    Text(nextDose.formattedTime)
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.secondary)
-                        .lineLimit(1)
-                } else if supplement.allDosesTaken {
-                    Text("Completed ✓")
-                        .font(.system(size: 11))
-                        .foregroundColor(.green)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.gray.opacity(0.15))
+                        .cornerRadius(4)
                 }
             }
-            
-            Spacer()
-            
-            // Pending doses count badge
-            if supplement.pendingDoses.count > 1 {
-                Text("\(supplement.pendingDoses.count) doses")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(supplement.color)
-                    .clipShape(Capsule())
-            } else if supplement.allDosesTaken {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 16))
-                    .foregroundColor(.green)
-            }
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
     }
 }
 
@@ -632,20 +738,35 @@ struct SupplementAccessoryInlineView: View {
 /// Not logged in view for home screen widgets
 struct NotLoggedInView: View {
     var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "person.circle")
-                .font(.system(size: 32))
+        VStack(alignment: .leading, spacing: 8) {
+            // Logo header
+            LumoHeaderView(compact: false)
+            
+            // Subtitle
+            Text("Your supplements")
+                .font(.system(size: 11, weight: .medium))
                 .foregroundColor(.secondary)
             
-            Text("Log in to Lumo")
-                .font(.system(size: 14, weight: .semibold))
+            Spacer()
             
-            Text("to see your supplements")
-                .font(.system(size: 12))
-                .foregroundColor(.secondary)
+            // Login prompt
+            VStack(spacing: 6) {
+                Image(systemName: "person.circle")
+                    .font(.system(size: 28))
+                    .foregroundColor(.secondary)
+                
+                Text("Log in to Lumo")
+                    .font(.system(size: 13, weight: .semibold))
+                
+                Text("to track your supplements")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+            
+            Spacer()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
+        .padding(14)
     }
 }
 
