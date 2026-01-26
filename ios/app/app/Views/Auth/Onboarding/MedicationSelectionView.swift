@@ -22,7 +22,7 @@ struct MedicationSelectionView: View {
     @Environment(\.dismiss) private var dismiss
 
     // Navigation
-    @State private var navigateToSignUp = false
+    @State private var navigateToSavingsPlan = false
 
     // Animation states
     @State private var contentOpacity: Double = 0
@@ -151,7 +151,7 @@ struct MedicationSelectionView: View {
                     Button(action: {
                         let impact = UIImpactFeedbackGenerator(style: .light)
                         impact.impactOccurred()
-                        navigateToSignUp = true
+                        navigateToSavingsPlan = true
                     }) {
                         Text(hasSelection ? "Continue" : "I take other meds")
                             .font(.custom("ProductSans-Bold", size: 17))
@@ -182,7 +182,7 @@ struct MedicationSelectionView: View {
                 Button(action: {
                     let impact = UIImpactFeedbackGenerator(style: .light)
                     impact.impactOccurred()
-                    navigateToSignUp = true
+                    navigateToSavingsPlan = true
                 }) {
                     Text("Skip")
                         .font(.custom("ProductSans-Regular", size: 16))
@@ -190,8 +190,8 @@ struct MedicationSelectionView: View {
                 }
             }
         }
-        .navigationDestination(isPresented: $navigateToSignUp) {
-            SignUpOnboardingView(selectedMedications: selectedMedicationNames)
+        .navigationDestination(isPresented: $navigateToSavingsPlan) {
+            SavingsReminderPlanView(selectedMedications: selectedMedicationNames)
                 .environmentObject(appState)
                 .environmentObject(themeManager)
         }

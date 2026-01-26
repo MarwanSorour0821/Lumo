@@ -33,7 +33,7 @@ struct OnboardingView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var isSignInModalVisible = false
     @State private var isGoogleLoading = false
-    @State private var navigateToStatisticsOnboarding = false
+    @State private var navigateToSupplementCount = false
     @StateObject private var signUpCoordinator = SignUpFlowCoordinator()
     @State private var isSignedIn = false
 
@@ -117,8 +117,8 @@ struct OnboardingView: View {
                 )
                 .environmentObject(themeManager)
             }
-            .navigationDestination(isPresented: $navigateToStatisticsOnboarding) {
-                StatisticsOnboardingView()
+            .navigationDestination(isPresented: $navigateToSupplementCount) {
+                SupplementCountView()
                     .environmentObject(appState)
                     .environmentObject(themeManager)
             }
@@ -225,7 +225,7 @@ struct OnboardingView: View {
             let impactFeedback = UIImpactFeedbackGenerator(style: .light)
             impactFeedback.impactOccurred()
             DispatchQueue.main.async {
-                navigateToStatisticsOnboarding = true
+                navigateToSupplementCount = true
             }
         }) {
             HStack {

@@ -28,14 +28,6 @@
 		};
 /* End PBXContainerItemProxy section */
 
-/* Begin PBXTargetDependency section */
-		PILL001002F0B58B00000000F /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = PILL001002F0B58B000000008 /* PillReminderWidgetExtension */;
-			targetProxy = PILL001002F0B58B000000007 /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
-
 /* Begin PBXCopyFilesBuildPhase section */
 		PILL001002F0B58B000000009 /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
@@ -316,6 +308,14 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		PILL001002F0B58B00000000F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = PILL001002F0B58B000000008 /* PillReminderWidgetExtension */;
+			targetProxy = PILL001002F0B58B000000007 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		A5E1CE272EF416CD004FA9B0 /* Debug */ = {
