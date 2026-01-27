@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     'subscriptions',
     'credits',
     'logging_app',
+    'suppsAI',
 ]
 
 MIDDLEWARE = [
