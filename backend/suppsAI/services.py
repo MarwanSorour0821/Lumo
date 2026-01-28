@@ -37,8 +37,6 @@ class SuppsAIOpenAIService:
             response = self.client.chat.completions.create(
                 model="gpt-5",
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=256,
-                temperature=0.7,
             )
             logger.info("Received response from OpenAI:")
             logger.info(response)
