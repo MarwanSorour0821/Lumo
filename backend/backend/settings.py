@@ -55,6 +55,7 @@ INSTALLED_APPS = [
     'credits',
     'logging_app',
     'suppsAI',
+    'supplements',
 ]
 
 MIDDLEWARE = [

@@ -27,4 +27,5 @@ urlpatterns = [
     path('api/credits/', include('credits.urls')),
     path('api/logging/', include('logging_app.urls')),
     path('api/suppsai/', include('suppsAI.urls')),
+    path('api/supplements/', include('supplements.urls')),
 ]
